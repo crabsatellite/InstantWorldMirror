@@ -167,6 +167,7 @@ public class ModEvents {
     /**
      * Dimension travel event - prevent using any portal for dimension travel in mirror world
      * This intercepts all portal types (nether portal, end portal, mod portals, etc.)
+     * BUT allows returning to the original dimension the player came from
      */
     @SubscribeEvent
     public static void onEntityTravelToDimension(EntityTravelToDimensionEvent event) {
@@ -174,22 +175,34 @@ public class ModEvents {
         
         // Check if entity is currently in any mirror world
         if (ModDimensions.isMirrorWorld(entity.level().dimension())) {
-            // Only allow teleportation to overworld (via our mirror portal return)
-            // Block all other dimension travel (nether, end, other mod dimensions, etc.)
-            if (!event.getDimension().equals(Level.OVERWORLD)) {
-                event.setCanceled(true);
+            ResourceKey<Level> targetDimension = event.getDimension();
+            
+            // Check if this is a player returning to their original dimension
+            if (entity instanceof ServerPlayer player) {
+                ResourceKey<Level> originalDimension = MirrorWorldManager.getPlayerOriginalDimension(player);
                 
-                // If it's a player, send message
-                if (entity instanceof ServerPlayer player) {
-                    player.displayClientMessage(
-                            Component.translatable("message.instantworldmirror.portal_blocked"),
-                            true
-                    );
+                // Allow teleportation to the player's original dimension (where they came from)
+                // This supports returning to End, Nether, or any other modded dimension
+                if (originalDimension != null && targetDimension.equals(originalDimension)) {
+                    // Allow this teleport
+                    return;
                 }
-                
-                InstantWorldMirror.LOGGER.info("Blocked dimension travel from Mirror World to {} for {}", 
-                        event.getDimension().location(), entity.getName().getString());
             }
+            
+            // Block all other dimension travel (nether portal, end portal, etc.)
+            // Only our mirror portal return system should be used
+            event.setCanceled(true);
+            
+            // If it's a player, send message
+            if (entity instanceof ServerPlayer player) {
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.portal_blocked"),
+                        true
+                );
+            }
+            
+            InstantWorldMirror.LOGGER.info("Blocked dimension travel from Mirror World to {} for {}", 
+                    event.getDimension().location(), entity.getName().getString());
         }
     }
 

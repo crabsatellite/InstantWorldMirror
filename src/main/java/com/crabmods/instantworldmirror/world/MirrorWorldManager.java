@@ -201,6 +201,14 @@ public class MirrorWorldManager {
         }
     }
 
+    /**
+     * Get the original dimension a player came from before entering mirror world
+     * Used to allow returning to non-overworld dimensions (End, Nether, modded dimensions)
+     */
+    public static ResourceKey<Level> getPlayerOriginalDimension(ServerPlayer player) {
+        return playerOriginalDimensions.get(player.getUUID());
+    }
+
     // ==================== World Copy ====================
 
     /**
