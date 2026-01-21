@@ -54,8 +54,8 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.PASS;
         }
 
-        // Check dimension on both client and server using dimension key
-        boolean isInMirrorWorld = level.dimension().equals(ModDimensions.MIRROR_WORLD);
+        // Check if player is in any mirror world dimension using the proper check
+        boolean isInMirrorWorld = ModDimensions.isMirrorWorld(level.dimension());
 
         if (!level.isClientSide) {
             ServerLevel serverLevel = (ServerLevel) level;
@@ -65,7 +65,7 @@ public class DimensionMirrorItem extends Item {
                 // In Mirror World: Create return portal
                 return createReturnPortal(serverLevel, serverPlayer, pos);
             } else {
-                // In Overworld: Create entry portal with session
+                // In any other dimension (Overworld, Nether, End, mod dimensions): Create entry portal with session
                 return createEntryPortal(serverLevel, serverPlayer, pos);
             }
         }

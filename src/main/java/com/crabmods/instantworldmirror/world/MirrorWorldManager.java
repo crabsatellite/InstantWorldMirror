@@ -709,6 +709,7 @@ public class MirrorWorldManager {
     
     /**
      * Force clear a dimension - return all players to spawn and start cleanup
+     * This method will ALWAYS trigger a full cleanup, even if the dimension appears empty
      * @return number of players returned
      */
     public static int forceClearDimension(int dimIndex, MinecraftServer server) {
@@ -716,19 +717,30 @@ public class MirrorWorldManager {
         try {
             int playersReturned = 0;
             
+            // Cancel any pending cleanup task first to restart fresh
+            WorldCopyService.cancelCleanupTask(dimIndex);
+            
             // Get the session using this dimension
             Optional<UUID> sessionIdOpt = DimensionPool.getDimensionSession(dimIndex);
             if (sessionIdOpt.isEmpty()) {
-                // Dimension might be in CLEANING state without a session, just mark it for cleanup
+                // No active session - force cleanup anyway
+                // This handles both CLEANING and AVAILABLE states
                 DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
-                if (state == DimensionPool.DimensionState.CLEANING) {
-                    InstantWorldMirror.LOGGER.info("Dimension {} is already cleaning, no action needed", dimIndex);
-                    return 0;
-                }
-                // Force start cleanup anyway (use origin as center)
+                InstantWorldMirror.LOGGER.info("Force clearing dimension {} (state: {}) without active session", 
+                        dimIndex, state);
+                
+                // Mark dimension as cleaning
+                DimensionPool.markDimensionCleaning(dimIndex);
+                
+                // Force start cleanup using full world range
                 ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
                 if (mirrorWorld != null) {
+                    // Use a large range centered at origin
+                    int fullCleanupRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
                     WorldCopyService.cleanupMirrorWorld(mirrorWorld, BlockPos.ZERO, dimIndex);
+                    
+                    // Also do immediate entity cleanup
+                    WorldCopyService.clearAllEntitiesInDimensionImmediate(mirrorWorld);
                 }
                 return 0;
             }

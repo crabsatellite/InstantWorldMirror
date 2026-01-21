@@ -230,6 +230,7 @@ public class ModCommands {
     
     /**
      * /mirror forceclear <dimension> - Force clear a dimension and return all players to spawn
+     * This will always start a cleanup process regardless of the dimension state
      */
     private static int forceClearCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
@@ -242,21 +243,21 @@ public class ModCommands {
             return 0;
         }
         
-        // Check if dimension is actually in use
-        DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
-        if (state == DimensionPool.DimensionState.AVAILABLE) {
-            source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.already_empty"));
-            return 0;
-        }
-        
-        // Perform force clear
+        // Perform force clear (works for any state - IN_USE, CLEANING, or AVAILABLE)
         if (source.getServer() != null) {
+            DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
             int playersReturned = MirrorWorldManager.forceClearDimension(dimIndex, source.getServer());
             
             source.sendSuccess(() -> Component.translatable(
                     "command.instantworldmirror.forceclear.success",
                     dimIndex, playersReturned
             ), true);
+            
+            // Additional info about previous state
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.forceclear.state_info",
+                    state.name()
+            ), false);
             return 1;
         }
         

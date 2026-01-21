@@ -148,6 +148,19 @@ public class DimensionPool {
     }
 
     /**
+     * Force mark a dimension as CLEANING state (for forceclear command)
+     */
+    public static synchronized void markDimensionCleaning(int dimIndex) {
+        int poolSize = ModDimensions.getPoolSize();
+        if (dimIndex >= 0 && dimIndex < poolSize) {
+            dimensionStates.put(dimIndex, DimensionState.CLEANING);
+            // Clear any session mapping
+            dimensionToSession.remove(dimIndex);
+            InstantWorldMirror.LOGGER.info("Dimension {} force marked as CLEANING", dimIndex);
+        }
+    }
+
+    /**
      * Check if any dimensions are available
      */
     public static boolean hasAvailableDimension() {

@@ -659,6 +659,14 @@ public class WorldCopyService {
             InstantWorldMirror.LOGGER.warn("Error during final entity cleanup: {}", e.getMessage());
         }
     }
+    
+    /**
+     * Clear ALL entities in the dimension immediately (public version for force clear)
+     * This is a synchronous operation
+     */
+    public static void clearAllEntitiesInDimensionImmediate(ServerLevel mirrorWorld) {
+        clearAllEntitiesInDimension(mirrorWorld);
+    }
 
     // ==================== Query Methods ====================
 
@@ -668,6 +676,17 @@ public class WorldCopyService {
 
     public static boolean hasPendingCopy(int dimIndex) {
         return copyTasks.containsKey(dimIndex);
+    }
+    
+    /**
+     * Cancel a pending cleanup task for a dimension
+     * Used when force clearing to restart cleanup from scratch
+     */
+    public static void cancelCleanupTask(int dimIndex) {
+        CleanupTask removed = cleanupTasks.remove(dimIndex);
+        if (removed != null) {
+            InstantWorldMirror.LOGGER.info("Cancelled pending cleanup task for dimension {}", dimIndex);
+        }
     }
 
     /**
