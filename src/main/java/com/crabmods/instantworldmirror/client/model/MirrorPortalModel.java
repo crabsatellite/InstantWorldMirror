@@ -32,6 +32,7 @@ public class MirrorPortalModel extends EntityModel<MirrorPortalEntity> {
         PartDefinition partdefinition = meshdefinition.getRoot();
 
         // Mirror frame structure from Blockbench export (updated version)
+        // Y offset set to 0, position handled in renderer
         PartDefinition frame = partdefinition.addOrReplaceChild("frame", CubeListBuilder.create()
                 // Corner posts
                 .texOffs(9, 25).addBox(4.0F, -1.0F, 2.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
@@ -51,8 +52,8 @@ public class MirrorPortalModel extends EntityModel<MirrorPortalEntity> {
                 // Side frames
                 .texOffs(33, 24).addBox(3.0F, -1.0F, 1.0F, 1.0F, 2.0F, 10.0F, new CubeDeformation(0.0F))
                 .texOffs(8, 24).addBox(-4.0F, -1.0F, 1.0F, 1.0F, 2.0F, 10.0F, new CubeDeformation(0.0F)),
-                // Rotation: 90° on X axis, 180° on Z axis
-                PartPose.offsetAndRotation(0.0F, 18.0F, 0.0F, 1.5708F, 0.0F, 3.1416F)
+                // Rotation: 90° on X axis to make mirror face upward
+                PartPose.offsetAndRotation(0.0F, 0.0F, 0.0F, 1.5708F, 0.0F, 0.0F)
         );
 
         return LayerDefinition.create(meshdefinition, 64, 64);
