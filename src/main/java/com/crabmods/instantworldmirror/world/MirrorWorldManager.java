@@ -613,7 +613,7 @@ public class MirrorWorldManager {
         MirrorPortalEntity returnPortal = new MirrorPortalEntity(
                 mirrorWorld,
                 portalBase.getX() + 0.5,
-                portalBase.getY() + 1.0,
+                portalBase.getY() + 1.5,
                 portalBase.getZ() + 0.5,
                 player.getUUID(),
                 true // is return portal

@@ -109,7 +109,7 @@ public class DimensionMirrorItem extends Item {
         MirrorPortalEntity portal = new MirrorPortalEntity(
                 level,
                 spawnPos.getX() + 0.5,
-                spawnPos.getY(),
+                spawnPos.getY() + 0.5,
                 spawnPos.getZ() + 0.5,
                 player.getUUID(),
                 session,
@@ -144,7 +144,7 @@ public class DimensionMirrorItem extends Item {
         MirrorPortalEntity portal = new MirrorPortalEntity(
                 level,
                 spawnPos.getX() + 0.5,
-                spawnPos.getY(),
+                spawnPos.getY() + 0.5,
                 spawnPos.getZ() + 0.5,
                 player.getUUID(),
                 true // is return portal
