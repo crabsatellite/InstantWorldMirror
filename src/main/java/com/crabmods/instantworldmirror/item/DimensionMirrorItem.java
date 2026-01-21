@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.item;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import net.minecraft.core.BlockPos;
@@ -19,8 +20,13 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.Optional;
+
 /**
  * Dimension Mirror - Used to open a portal to the Mirror World
+ * 
+ * In Overworld: Creates a session and entry portal (anyone can use)
+ * In Mirror World: Creates a return portal (only owner can use)
  */
 public class DimensionMirrorItem extends Item {
 
@@ -48,42 +54,110 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.PASS;
         }
 
+        // Check dimension on both client and server using dimension key
+        boolean isInMirrorWorld = level.dimension().equals(ModDimensions.MIRROR_WORLD);
+
         if (!level.isClientSide) {
             ServerLevel serverLevel = (ServerLevel) level;
             ServerPlayer serverPlayer = (ServerPlayer) player;
 
-            // Play portal spawn sound
-            level.playSound(null, pos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.2F);
-
-            // Spawn particle effects
-            spawnPortalParticles(serverLevel, pos);
-
-            // Check player's current dimension
-            boolean isInMirrorWorld = MirrorWorldManager.isInMirrorWorld(serverPlayer);
-
-            // Spawn portal entity (shows spinning mirror first, world copy handled by entity)
-            BlockPos spawnPos = pos.above();
-            MirrorPortalEntity portal = new MirrorPortalEntity(
-                    level,
-                    spawnPos.getX() + 0.5,
-                    spawnPos.getY(),
-                    spawnPos.getZ() + 0.5,
-                    player.getUUID(),
-                    isInMirrorWorld, // If in mirror world, this is a return portal
-                    pos // Pass clicked position for world copy
-            );
-
-            level.addFreshEntity(portal);
-
-            player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.portal_created"),
-                    true
-            );
-
-            return InteractionResult.SUCCESS;
+            if (isInMirrorWorld) {
+                // In Mirror World: Create return portal
+                return createReturnPortal(serverLevel, serverPlayer, pos);
+            } else {
+                // In Overworld: Create entry portal with session
+                return createEntryPortal(serverLevel, serverPlayer, pos);
+            }
         }
 
         return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    /**
+     * Create an entry portal in the overworld
+     */
+    private InteractionResult createEntryPortal(ServerLevel level, ServerPlayer player, BlockPos pos) {
+        // Check if player already has an active session
+        if (MirrorWorldManager.hasActiveSession(player.getUUID())) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.already_has_session"),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
+
+        // Create a new session for this player
+        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos);
+        if (sessionOpt.isEmpty()) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.session_create_failed"),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
+
+        MirrorSession session = sessionOpt.get();
+
+        // Play portal spawn sound
+        level.playSound(null, pos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.2F);
+
+        // Spawn particle effects
+        spawnPortalParticles(level, pos);
+
+        // Spawn portal entity bound to the session
+        BlockPos spawnPos = pos.above();
+        MirrorPortalEntity portal = new MirrorPortalEntity(
+                level,
+                spawnPos.getX() + 0.5,
+                spawnPos.getY(),
+                spawnPos.getZ() + 0.5,
+                player.getUUID(),
+                session,
+                pos
+        );
+
+        level.addFreshEntity(portal);
+
+        player.displayClientMessage(
+                Component.translatable("message.instantworldmirror.portal_created"),
+                true
+        );
+
+        InstantWorldMirror.LOGGER.info("Player {} created entry portal with session {}",
+                player.getName().getString(), session.getSessionId());
+
+        return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Create a return portal in the mirror world
+     */
+    private InteractionResult createReturnPortal(ServerLevel level, ServerPlayer player, BlockPos pos) {
+        // Play portal spawn sound
+        level.playSound(null, pos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.2F);
+
+        // Spawn particle effects
+        spawnPortalParticles(level, pos);
+
+        // Spawn return portal (only owner can use)
+        BlockPos spawnPos = pos.above();
+        MirrorPortalEntity portal = new MirrorPortalEntity(
+                level,
+                spawnPos.getX() + 0.5,
+                spawnPos.getY(),
+                spawnPos.getZ() + 0.5,
+                player.getUUID(),
+                true // is return portal
+        );
+
+        level.addFreshEntity(portal);
+
+        player.displayClientMessage(
+                Component.translatable("message.instantworldmirror.return_portal_created"),
+                true
+        );
+
+        return InteractionResult.SUCCESS;
     }
 
     /**

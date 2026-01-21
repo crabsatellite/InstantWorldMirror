@@ -4,6 +4,8 @@ import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.registry.ModChunkGenerators;
 import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
 import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.world.DimensionPool;
+import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -49,10 +51,20 @@ public class InstantWorldMirror {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("InstantWorldMirror - Common Setup");
+        
+        // Initialize dimension pool size from config
+        event.enqueueWork(() -> {
+            ModDimensions.updatePoolSizeFromConfig();
+            DimensionPool.initialize();
+        });
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("InstantWorldMirror - Server Starting");
+        
+        // Re-initialize dimension pool on server start (in case config changed)
+        ModDimensions.updatePoolSizeFromConfig();
+        DimensionPool.initialize();
     }
 }
