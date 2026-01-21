@@ -51,8 +51,7 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         float bob = (float) Math.sin(time * 0.1) * 0.1F;
 
         // Position adjustment - place mirror at eye level with floating effect
-        // Use original translate logic, model rotation is handled separately
-        poseStack.translate(0, 0.5 + bob, 0);
+        poseStack.translate(0, 1.0 + bob, 0);
 
         // Check if in loading state
         boolean isLoading = entity.isLoading();
@@ -69,10 +68,6 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
             // Loading complete: face player
             poseStack.mulPose(Axis.YP.rotationDegrees(-this.entityRenderDispatcher.camera.getYRot()));
         }
-        
-        // Rotate model 180 degrees on X axis for upside-down mirror effect
-        // This flips the model but keeps the same position as before
-        poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
         
         // Scale the mirror model
         float scale = 1.5F;
