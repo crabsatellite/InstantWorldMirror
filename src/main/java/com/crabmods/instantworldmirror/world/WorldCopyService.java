@@ -431,13 +431,15 @@ public class WorldCopyService {
     
     /**
      * Clear all entities in a chunk during cleanup (excluding players)
+     * Uses a slightly larger bounding box to catch entities on chunk boundaries
      */
     private static void clearEntitiesInChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
         try {
-            int minX = chunkX * 16;
-            int minZ = chunkZ * 16;
-            int maxX = minX + 16;
-            int maxZ = minZ + 16;
+            // Use chunk coordinates but expand slightly to catch edge cases
+            int minX = chunkX * 16 - 1;
+            int minZ = chunkZ * 16 - 1;
+            int maxX = minX + 18; // 16 + 2 for boundary
+            int maxZ = minZ + 18;
             int minY = mirrorWorld.getMinBuildHeight();
             int maxY = mirrorWorld.getMaxBuildHeight();
             
@@ -454,7 +456,12 @@ public class WorldCopyService {
             
             // Remove all non-player entities
             for (net.minecraft.world.entity.Entity entity : entities) {
-                entity.discard();
+                // Double check the entity is within the original chunk bounds
+                int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
+                int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
+                if (entityChunkX == chunkX && entityChunkZ == chunkZ) {
+                    entity.discard();
+                }
             }
         } catch (Exception e) {
             InstantWorldMirror.LOGGER.debug("Error clearing entities in chunk ({}, {}): {}", 
@@ -529,6 +536,9 @@ public class WorldCopyService {
             if (task.isCompleted()) {
                 cleanupTasks.remove(dimIndex);
                 
+                // Final pass: clear ALL remaining entities in the dimension
+                clearAllEntitiesInDimension(mirrorWorld);
+                
                 // Mark dimension as available again
                 DimensionPool.markDimensionAvailable(dimIndex);
                 
@@ -541,6 +551,7 @@ public class WorldCopyService {
     /**
      * Clear a chunk with optimized section-level processing
      * Uses heightmap and section emptiness checks to minimize iterations
+     * IMPORTANT: Properly handles water/fluids by not using heightmap for Y limit
      */
     private static int clearChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
         int blocksCleared = 0;
@@ -548,21 +559,15 @@ public class WorldCopyService {
         try {
             LevelChunk chunk = mirrorWorld.getChunk(chunkX, chunkZ);
             
-            // Optimization 1: Get max height from heightmap
-            int maxHeight = getChunkMaxHeight(chunk);
             int minY = mirrorWorld.getMinBuildHeight();
-            
-            // If chunk is already empty, skip
-            if (maxHeight <= minY) {
-                return 0;
-            }
+            int maxY = mirrorWorld.getMaxBuildHeight();
             
             // Optimization 2: Use MutableBlockPos
             BlockPos.MutableBlockPos pos = MUTABLE_POS.get();
             
             // Optimization 3: Process section by section
             int minSection = mirrorWorld.getSectionIndex(minY);
-            int maxSection = mirrorWorld.getSectionIndex(maxHeight);
+            int maxSection = mirrorWorld.getSectionIndex(maxY - 1); // maxY is exclusive
             
             // Collect all block entities in chunk first (batch operation)
             Set<BlockPos> blockEntityPositions = new HashSet<>(chunk.getBlockEntities().keySet());
@@ -578,20 +583,18 @@ public class WorldCopyService {
                 int sectionY = chunk.getSectionYFromSectionIndex(sectionIndex - chunk.getMinSection());
                 int baseY = sectionY * 16;
                 
-                // Process 16x16x16 section
+                // Process 16x16x16 section - scan ALL blocks in section (don't use heightmap for clearing)
+                // This ensures water, lava, and other fluids are properly cleared
                 for (int localX = 0; localX < 16; localX++) {
                     for (int localZ = 0; localZ < 16; localZ++) {
                         int worldX = chunkX * 16 + localX;
                         int worldZ = chunkZ * 16 + localZ;
                         
-                        // Use heightmap to limit Y scanning
-                        int columnHeight = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
-                        
                         for (int localY = 0; localY < 16; localY++) {
                             int y = baseY + localY;
-                            if (y > columnHeight && y > minY) continue;
+                            if (y < minY || y >= maxY) continue;
                             
-                            // Optimization 5: Check section state directly (faster)
+                            // Check section state directly (faster)
                             BlockState state = section.getBlockState(localX, localY, localZ);
                             
                             if (!state.isAir()) {
@@ -622,6 +625,39 @@ public class WorldCopyService {
         }
 
         return blocksCleared;
+    }
+    
+    /**
+     * Clear ALL entities in the entire dimension (final cleanup pass)
+     * This ensures no entities are missed due to chunk boundary issues or timing
+     */
+    private static void clearAllEntitiesInDimension(ServerLevel mirrorWorld) {
+        try {
+            // Get all entities in the world
+            Iterable<net.minecraft.world.entity.Entity> allEntities = mirrorWorld.getAllEntities();
+            java.util.List<net.minecraft.world.entity.Entity> toRemove = new java.util.ArrayList<>();
+            
+            for (net.minecraft.world.entity.Entity entity : allEntities) {
+                // Skip players
+                if (entity instanceof net.minecraft.world.entity.player.Player) {
+                    continue;
+                }
+                toRemove.add(entity);
+            }
+            
+            // Remove all non-player entities
+            int removed = 0;
+            for (net.minecraft.world.entity.Entity entity : toRemove) {
+                entity.discard();
+                removed++;
+            }
+            
+            if (removed > 0) {
+                InstantWorldMirror.LOGGER.info("Final cleanup: removed {} remaining entities from mirror dimension", removed);
+            }
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.warn("Error during final entity cleanup: {}", e.getMessage());
+        }
     }
 
     // ==================== Query Methods ====================
