@@ -686,6 +686,10 @@ public class WorldCopyService {
         // Cancel any existing cleanup task to restart fresh
         cancelCleanupTask(dimensionIndex);
         
+        // FIRST: Kill all entities in the dimension immediately (except players)
+        // This ensures mobs don't continue spawning/moving during chunk cleanup
+        clearAllEntitiesInDimension(mirrorWorld);
+        
         CleanupTask task = new CleanupTask(dimensionIndex);
         // Initialize with all tracked chunks
         task.initializeChunkList(mirrorWorld);

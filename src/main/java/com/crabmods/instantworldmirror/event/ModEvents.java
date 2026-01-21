@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror.event;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.command.ModCommands;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
@@ -13,14 +14,17 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.portal.PortalShape;
+import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -161,6 +165,22 @@ public class ModEvents {
             // Prevent nether portal spawn in mirror world
             event.setCanceled(true);
             InstantWorldMirror.LOGGER.info("Blocked nether portal spawn in Mirror World at {}", event.getPos());
+        }
+    }
+
+    /**
+     * Mob spawn event - prevent natural mob spawning in mirror world if configured
+     * This catches all natural spawns (passive, hostile, ambient, water creatures, etc.)
+     */
+    @SubscribeEvent
+    public static void onMobSpawn(FinalizeSpawnEvent event) {
+        Level level = event.getLevel().getLevel();
+        
+        if (ModDimensions.isMirrorWorld(level.dimension())) {
+            // Check config - if mob spawning is disabled, cancel the spawn
+            if (!MirrorConfig.ENABLE_MOB_SPAWNING.get()) {
+                event.setSpawnCancelled(true);
+            }
         }
     }
 
