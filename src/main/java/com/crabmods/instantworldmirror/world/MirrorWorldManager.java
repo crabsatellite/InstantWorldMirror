@@ -804,19 +804,61 @@ public class MirrorWorldManager {
             
             // First: Get all players DIRECTLY from the dimension (most reliable)
             ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
+            ResourceKey<Level> mirrorDimKey = ModDimensions.getMirrorWorld(dimIndex);
+            
+            // Get players from dimension AND from server player list (belt and suspenders)
+            java.util.Set<ServerPlayer> allPlayersToMove = new java.util.HashSet<>();
+            
+            // Method 1: Get from the dimension's player list
             if (mirrorWorld != null) {
+                allPlayersToMove.addAll(mirrorWorld.players());
+            }
+            
+            // Method 2: Scan all server players and check their dimension
+            for (ServerPlayer serverPlayer : server.getPlayerList().getPlayers()) {
+                if (serverPlayer.level().dimension().equals(mirrorDimKey)) {
+                    allPlayersToMove.add(serverPlayer);
+                }
+            }
+            
+            if (!allPlayersToMove.isEmpty()) {
                 ServerLevel overworld = server.overworld();
                 BlockPos defaultSpawnPoint = overworld.getSharedSpawnPos();
                 
-                // Copy player list to avoid concurrent modification
-                java.util.List<ServerPlayer> playersInDimension = new java.util.ArrayList<>(mirrorWorld.players());
-                
-                for (ServerPlayer player : playersInDimension) {
+                for (ServerPlayer player : allPlayersToMove) {
                     UUID playerId = player.getUUID();
                     
-                    // Get original position and dimension
+                    // Get original position and dimension - first try memory, then persistent data
                     BlockPos originalPos = playerOriginalPositions.get(playerId);
                     ResourceKey<Level> originalDimension = playerOriginalDimensions.get(playerId);
+                    
+                    // If not in memory, try to restore from persistent data
+                    if (originalPos == null || originalDimension == null) {
+                        CompoundTag persistentData = player.getPersistentData();
+                        
+                        // Try to get position from persistent data
+                        if (persistentData.contains(ORIGINAL_POS_KEY + "_x")) {
+                            int x = persistentData.getInt(ORIGINAL_POS_KEY + "_x");
+                            int y = persistentData.getInt(ORIGINAL_POS_KEY + "_y");
+                            int z = persistentData.getInt(ORIGINAL_POS_KEY + "_z");
+                            originalPos = new BlockPos(x, y, z);
+                        }
+                        
+                        // Try to get dimension from persistent data
+                        if (persistentData.contains(ORIGINAL_DIM_KEY)) {
+                            String dimString = persistentData.getString(ORIGINAL_DIM_KEY);
+                            ResourceLocation dimLoc = ResourceLocation.tryParse(dimString);
+                            if (dimLoc != null) {
+                                originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
+                            }
+                        }
+                        
+                        // Also restore to memory for the event handler to use
+                        if (originalPos != null && originalDimension != null) {
+                            playerOriginalPositions.put(playerId, originalPos);
+                            playerOriginalDimensions.put(playerId, originalDimension);
+                        }
+                    }
                     
                     ServerLevel targetLevel;
                     BlockPos targetPos;
@@ -825,21 +867,28 @@ public class MirrorWorldManager {
                         targetLevel = server.getLevel(originalDimension);
                         targetPos = originalPos;
                     } else {
+                        // Fallback to overworld spawn - also set originalDimension so event handler allows it
                         targetLevel = overworld;
                         targetPos = defaultSpawnPoint;
+                        originalDimension = Level.OVERWORLD;
                     }
                     
                     // Fallback to overworld spawn if target dimension is invalid
                     if (targetLevel == null) {
                         targetLevel = overworld;
                         targetPos = defaultSpawnPoint;
+                        originalDimension = Level.OVERWORLD;
                     }
+                    
+                    // Set the original dimension in memory so the event handler allows the teleport
+                    playerOriginalDimensions.put(playerId, originalDimension);
                     
                     // Teleport player to their original position/dimension
                     player.teleportTo(targetLevel, 
                             targetPos.getX() + 0.5, 
                             targetPos.getY(), 
                             targetPos.getZ() + 0.5, 
+                            java.util.Set.of(),
                             player.getYRot(), 
                             player.getXRot());
                     
@@ -858,8 +907,6 @@ public class MirrorWorldManager {
                     );
                     
                     playersReturned++;
-                    InstantWorldMirror.LOGGER.info("Force returned player {} to original position", 
-                            player.getName().getString());
                 }
             }
             
