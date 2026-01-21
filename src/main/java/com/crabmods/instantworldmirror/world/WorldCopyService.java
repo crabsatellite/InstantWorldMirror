@@ -40,10 +40,64 @@ public class WorldCopyService {
     
     // Track copy tasks per dimension: dimensionIndex -> CopyTask
     private static final Map<Integer, CopyTask> copyTasks = new ConcurrentHashMap<>();
+    
+    // Track ALL chunks that have been modified in each dimension for thorough cleanup
+    // dimensionIndex -> Set of chunk positions (packed as long: x << 32 | z)
+    private static final Map<Integer, Set<Long>> modifiedChunks = new ConcurrentHashMap<>();
 
     // Reusable BlockPos for optimization (ThreadLocal for thread safety)
     private static final ThreadLocal<BlockPos.MutableBlockPos> MUTABLE_POS = 
             ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
+    
+    // ==================== Chunk Tracking ====================
+    
+    /**
+     * Record a chunk as modified in a dimension.
+     * This is used to track which chunks need to be cleaned up.
+     * Made public so that dynamic world loading can also track chunks.
+     */
+    public static void trackModifiedChunk(int dimIndex, int chunkX, int chunkZ) {
+        modifiedChunks.computeIfAbsent(dimIndex, k -> ConcurrentHashMap.newKeySet())
+                .add(packChunkPos(chunkX, chunkZ));
+    }
+    
+    /**
+     * Track all chunks in a radius around a position.
+     * Useful for tracking player movement area.
+     */
+    public static void trackChunksInRadius(int dimIndex, int centerChunkX, int centerChunkZ, int radius) {
+        for (int x = centerChunkX - radius; x <= centerChunkX + radius; x++) {
+            for (int z = centerChunkZ - radius; z <= centerChunkZ + radius; z++) {
+                trackModifiedChunk(dimIndex, x, z);
+            }
+        }
+    }
+    
+    /**
+     * Get all modified chunks for a dimension
+     */
+    public static Set<Long> getModifiedChunks(int dimIndex) {
+        return modifiedChunks.getOrDefault(dimIndex, java.util.Collections.emptySet());
+    }
+    
+    /**
+     * Clear the modified chunk tracking for a dimension
+     */
+    public static void clearModifiedChunkTracking(int dimIndex) {
+        modifiedChunks.remove(dimIndex);
+    }
+    
+    private static long packChunkPos(int x, int z) {
+        return ((long) x << 32) | (z & 0xFFFFFFFFL);
+    }
+    
+    private static int unpackChunkX(long packed) {
+        return (int) (packed >> 32);
+    }
+    
+    private static int unpackChunkZ(long packed) {
+        return (int) packed;
+    }
 
     // ==================== Task Classes ====================
     
@@ -122,61 +176,110 @@ public class WorldCopyService {
     }
     
     public static class CleanupTask {
-        public final BlockPos centerPos;
-        public final int chunkRadius;
         public final int dimensionIndex;
         
-        private int currentChunkX;
-        private int currentChunkZ;
-        private final int minChunkX, maxChunkX, minChunkZ, maxChunkZ;
-        private boolean started = false;
+        // List of chunks to clean
+        private final java.util.List<long[]> chunksToClean = new java.util.ArrayList<>();
+        private int currentIndex = 0;
+        private boolean initialized = false;
         private boolean completed = false;
         private int totalBlocksCleared = 0;
 
-        public CleanupTask(BlockPos centerPos, int chunkRadius, int dimensionIndex) {
-            this.centerPos = centerPos;
-            this.chunkRadius = chunkRadius;
+        public CleanupTask(int dimensionIndex) {
             this.dimensionIndex = dimensionIndex;
+        }
+        
+        /**
+         * Initialize the cleanup task using tracked modified chunks
+         * This ensures ALL chunks that were ever modified get cleaned
+         * Scans ALL loaded chunks regardless of distance for thorough cleanup
+         */
+        public void initializeChunkList(ServerLevel mirrorWorld) {
+            if (initialized) return;
+            initialized = true;
             
-            int centerChunkX = centerPos.getX() >> 4;
-            int centerChunkZ = centerPos.getZ() >> 4;
+            Set<Long> allChunksToClean = new java.util.HashSet<>();
             
-            this.minChunkX = centerChunkX - chunkRadius;
-            this.maxChunkX = centerChunkX + chunkRadius;
-            this.minChunkZ = centerChunkZ - chunkRadius;
-            this.maxChunkZ = centerChunkZ + chunkRadius;
+            // First, add ALL tracked modified chunks (these are chunks we definitely modified)
+            Set<Long> tracked = getModifiedChunks(dimensionIndex);
+            allChunksToClean.addAll(tracked);
             
-            this.currentChunkX = minChunkX;
-            this.currentChunkZ = minChunkZ;
+            InstantWorldMirror.LOGGER.info("Found {} tracked modified chunks for dimension {}", 
+                    tracked.size(), dimensionIndex);
+            
+            // Scan ALL loaded chunks in the dimension (no radius limit)
+            // This catches any chunks players might have loaded/modified anywhere
+            int additionalFound = 0;
+            var chunkSource = mirrorWorld.getChunkSource();
+            
+            // Iterate through all loaded chunks using the chunk map
+            // We need to scan a very large area to catch all loaded chunks
+            // Use the tracked chunks to determine approximate bounds, then expand significantly
+            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+            int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+            
+            for (Long packed : tracked) {
+                int x = unpackChunkX(packed);
+                int z = unpackChunkZ(packed);
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minZ = Math.min(minZ, z);
+                maxZ = Math.max(maxZ, z);
+            }
+            
+            // If no tracked chunks, use origin
+            if (tracked.isEmpty()) {
+                minX = maxX = minZ = maxZ = 0;
+            }
+            
+            // Expand bounds significantly to catch any chunks players explored
+            int expansion = Math.max(100, MirrorConfig.COPY_CHUNK_RADIUS.get() * 2);
+            minX -= expansion;
+            maxX += expansion;
+            minZ -= expansion;
+            maxZ += expansion;
+            
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    long packed = packChunkPos(x, z);
+                    if (!allChunksToClean.contains(packed)) {
+                        // Check if chunk is loaded and has content
+                        net.minecraft.world.level.chunk.LevelChunk chunk = chunkSource.getChunkNow(x, z);
+                        if (chunk != null && !isChunkEmpty(chunk)) {
+                            allChunksToClean.add(packed);
+                            additionalFound++;
+                        }
+                    }
+                }
+            }
+            
+            // Convert to list for processing
+            for (Long packed : allChunksToClean) {
+                chunksToClean.add(new long[]{unpackChunkX(packed), unpackChunkZ(packed)});
+            }
+            
+            if (additionalFound > 0) {
+                InstantWorldMirror.LOGGER.info("Found {} additional non-empty loaded chunks during scan", additionalFound);
+            }
+            
+            InstantWorldMirror.LOGGER.info("Cleanup task initialized for dimension {} with {} total chunks to clean",
+                    dimensionIndex, chunksToClean.size());
         }
         
         public int getTotalChunks() {
-            int width = maxChunkX - minChunkX + 1;
-            int height = maxChunkZ - minChunkZ + 1;
-            return width * height;
+            return chunksToClean.size();
         }
         
         public int getCleanedChunks() {
-            if (!started) return 0;
-            if (completed) return getTotalChunks();
-            int width = maxChunkX - minChunkX + 1;
-            return (currentChunkZ - minChunkZ) * width + (currentChunkX - minChunkX);
+            return currentIndex;
         }
         
-        public int[] getNextChunk() {
-            if (completed) return null;
-            started = true;
-            int[] result = new int[]{currentChunkX, currentChunkZ};
-            
-            currentChunkX++;
-            if (currentChunkX > maxChunkX) {
-                currentChunkX = minChunkX;
-                currentChunkZ++;
-                if (currentChunkZ > maxChunkZ) {
-                    completed = true;
-                }
+        public long[] getNextChunk() {
+            if (completed || currentIndex >= chunksToClean.size()) {
+                completed = true;
+                return null;
             }
-            return result;
+            return chunksToClean.get(currentIndex++);
         }
         
         public void addBlocksCleared(int count) { totalBlocksCleared += count; }
@@ -190,6 +293,19 @@ public class WorldCopyService {
                state.is(Blocks.END_PORTAL) ||
                state.is(Blocks.END_PORTAL_FRAME) ||
                state.is(Blocks.END_GATEWAY);
+    }
+    
+    /**
+     * Check if a chunk is completely empty (all sections are air)
+     */
+    private static boolean isChunkEmpty(net.minecraft.world.level.chunk.LevelChunk chunk) {
+        for (int i = 0; i < chunk.getSectionsCount(); i++) {
+            net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSection(i);
+            if (section != null && !section.hasOnlyAir()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // ==================== World Copy (Asynchronous) ====================
@@ -247,6 +363,11 @@ public class WorldCopyService {
                 if (chunkCoords != null) {
                     int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
                     task.addBlocksCopied(blocksCopied);
+                    
+                    // Track this chunk as modified for cleanup later
+                    if (blocksCopied > 0) {
+                        trackModifiedChunk(dimIndex, chunkCoords[0], chunkCoords[1]);
+                    }
                 }
             }
             
@@ -505,15 +626,16 @@ public class WorldCopyService {
 
     /**
      * Queue cleanup for a specific dimension
+     * Now uses a more thorough approach - cleans all loaded chunks
      */
     public static void cleanupMirrorWorld(ServerLevel mirrorWorld, BlockPos centerPos, int dimensionIndex) {
-        int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
-        
-        CleanupTask task = new CleanupTask(centerPos, chunkRadius, dimensionIndex);
+        CleanupTask task = new CleanupTask(dimensionIndex);
+        // Initialize with loaded chunks immediately
+        task.initializeChunkList(mirrorWorld);
         cleanupTasks.put(dimensionIndex, task);
         
-        InstantWorldMirror.LOGGER.info("Queued cleanup for dimension {} around ({}, {}) - {} chunks",
-                dimensionIndex, centerPos.getX(), centerPos.getZ(), task.getTotalChunks());
+        InstantWorldMirror.LOGGER.info("Queued thorough cleanup for dimension {} - {} chunks to process",
+                dimensionIndex, task.getTotalChunks());
     }
 
     /**
@@ -541,9 +663,9 @@ public class WorldCopyService {
             
             // Process chunks per tick (configurable)
             for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
-                int[] chunkCoords = task.getNextChunk();
+                long[] chunkCoords = task.getNextChunk();
                 if (chunkCoords != null) {
-                    int blocksCleared = clearChunk(mirrorWorld, chunkCoords[0], chunkCoords[1]);
+                    int blocksCleared = clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
                     task.addBlocksCleared(blocksCleared);
                 }
             }
@@ -562,6 +684,9 @@ public class WorldCopyService {
                 // Final pass: clear ALL remaining entities in the dimension
                 clearAllEntitiesInDimension(mirrorWorld);
                 
+                // Clear tracking data for this dimension
+                clearModifiedChunkTracking(dimIndex);
+                
                 // Mark dimension as available again
                 DimensionPool.markDimensionAvailable(dimIndex);
                 
@@ -575,12 +700,18 @@ public class WorldCopyService {
      * Clear a chunk with optimized section-level processing
      * Uses heightmap and section emptiness checks to minimize iterations
      * IMPORTANT: Properly handles water/fluids by not using heightmap for Y limit
+     * Now only processes already-loaded chunks to avoid loading empty chunks
      */
     private static int clearChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
         int blocksCleared = 0;
 
         try {
-            LevelChunk chunk = mirrorWorld.getChunk(chunkX, chunkZ);
+            // Only get chunk if it's already loaded - don't force load
+            LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+            if (chunk == null) {
+                // Chunk not loaded, skip it (it's probably empty or never modified)
+                return 0;
+            }
             
             int minY = mirrorWorld.getMinBuildHeight();
             int maxY = mirrorWorld.getMaxBuildHeight();
@@ -695,6 +826,91 @@ public class WorldCopyService {
      */
     public static void clearAllEntitiesInDimensionImmediate(ServerLevel mirrorWorld) {
         clearAllEntitiesInDimension(mirrorWorld);
+    }
+    
+    /**
+     * Immediately clear ALL loaded chunks in a dimension synchronously
+     * This is a more thorough cleanup used for force clear operations
+     * Uses both tracked modified chunks AND scans ALL loaded chunks for maximum coverage
+     * WARNING: This may cause lag if many chunks are loaded
+     */
+    public static int clearAllLoadedChunksImmediate(ServerLevel mirrorWorld, int dimIndex) {
+        int totalBlocksCleared = 0;
+        int chunksProcessed = 0;
+        
+        try {
+            // Use a Set to collect unique chunk positions
+            Set<Long> chunkPositionsToClean = new HashSet<>();
+            
+            // First: add all tracked modified chunks for this dimension
+            Set<Long> trackedChunks = getModifiedChunks(dimIndex);
+            chunkPositionsToClean.addAll(trackedChunks);
+            InstantWorldMirror.LOGGER.info("Found {} tracked modified chunks for dimension {}", 
+                    trackedChunks.size(), dimIndex);
+            
+            // Second: determine scan bounds from tracked chunks
+            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+            int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+            
+            for (Long packed : trackedChunks) {
+                int x = unpackChunkX(packed);
+                int z = unpackChunkZ(packed);
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minZ = Math.min(minZ, z);
+                maxZ = Math.max(maxZ, z);
+            }
+            
+            // If no tracked chunks, use origin
+            if (trackedChunks.isEmpty()) {
+                minX = maxX = minZ = maxZ = 0;
+            }
+            
+            // Expand bounds significantly to catch all player-explored areas
+            int expansion = Math.max(100, MirrorConfig.COPY_CHUNK_RADIUS.get() * 2);
+            minX -= expansion;
+            maxX += expansion;
+            minZ -= expansion;
+            maxZ += expansion;
+            
+            // Scan all loaded chunks in expanded bounds
+            int scannedChunks = 0;
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (mirrorWorld.getChunkSource().getChunkNow(x, z) != null) {
+                        chunkPositionsToClean.add(packChunkPos(x, z));
+                        scannedChunks++;
+                    }
+                }
+            }
+            
+            InstantWorldMirror.LOGGER.info("Force clearing {} total chunks in dimension {} (scanned {} loaded, bounds [{},{} to {},{}])", 
+                    chunkPositionsToClean.size(), dimIndex, scannedChunks, minX, minZ, maxX, maxZ);
+            
+            // Clear each unique chunk
+            for (Long packedPos : chunkPositionsToClean) {
+                int chunkX = unpackChunkX(packedPos);
+                int chunkZ = unpackChunkZ(packedPos);
+                int blocksCleared = clearChunk(mirrorWorld, chunkX, chunkZ);
+                totalBlocksCleared += blocksCleared;
+                chunksProcessed++;
+            }
+            
+            // Final entity cleanup
+            clearAllEntitiesInDimension(mirrorWorld);
+            
+            // Clear tracking data after cleanup
+            clearModifiedChunkTracking(dimIndex);
+            
+            InstantWorldMirror.LOGGER.info("Force clear complete: {} chunks processed, {} blocks cleared", 
+                    chunksProcessed, totalBlocksCleared);
+                    
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Error during force clear: {}", errorMsg);
+        }
+        
+        return totalBlocksCleared;
     }
 
     // ==================== Query Methods ====================

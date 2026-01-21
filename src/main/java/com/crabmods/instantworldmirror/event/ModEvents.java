@@ -107,6 +107,7 @@ public class ModEvents {
 
     /**
      * Block place event - prevent placing portal-related blocks in mirror world
+     * Also track chunk modifications for cleanup
      */
     @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
@@ -119,6 +120,30 @@ public class ModEvents {
             if (state.is(Blocks.END_PORTAL_FRAME)) {
                 event.setCanceled(true);
                 return;
+            }
+            
+            // Track this chunk as modified (for cleanup)
+            int dimIndex = ModDimensions.getMirrorWorldIndex(level.dimension());
+            if (dimIndex >= 0) {
+                BlockPos pos = event.getPos();
+                WorldCopyService.trackModifiedChunk(dimIndex, pos.getX() >> 4, pos.getZ() >> 4);
+            }
+        }
+    }
+    
+    /**
+     * Block break event - track chunk modifications for cleanup
+     */
+    @SubscribeEvent
+    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        Level level = (Level) event.getLevel();
+        
+        if (ModDimensions.isMirrorWorld(level.dimension())) {
+            // Track this chunk as modified (for cleanup)
+            int dimIndex = ModDimensions.getMirrorWorldIndex(level.dimension());
+            if (dimIndex >= 0) {
+                BlockPos pos = event.getPos();
+                WorldCopyService.trackModifiedChunk(dimIndex, pos.getX() >> 4, pos.getZ() >> 4);
             }
         }
     }
@@ -182,9 +207,22 @@ public class ModEvents {
                 WorldCopyService.processCleanupQueues(serverLevel.getServer());
             }
             
-            // Sync time and weather for all mirror dimensions
+            // For mirror dimensions: sync time/weather and track player chunks
             if (ModDimensions.isMirrorWorld(serverLevel.dimension())) {
-                // Sync every 20 ticks (1 second) - check tick count first to avoid unnecessary dimension lookup
+                int dimIndex = ModDimensions.getMirrorWorldIndex(serverLevel.dimension());
+                
+                // Track all player positions every 10 ticks (for cleanup purposes)
+                // This ensures chunks that players explore are marked for cleanup
+                if (serverLevel.getGameTime() % 10 == 0 && dimIndex >= 0) {
+                    for (ServerPlayer player : serverLevel.players()) {
+                        int chunkX = player.getBlockX() >> 4;
+                        int chunkZ = player.getBlockZ() >> 4;
+                        // Track the chunk the player is in plus a small radius for view distance
+                        WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, 2);
+                    }
+                }
+                
+                // Sync time and weather every 20 ticks (1 second)
                 if (serverLevel.getGameTime() % 20 == 0) {
                     ServerLevel overworld = serverLevel.getServer().overworld();
                     

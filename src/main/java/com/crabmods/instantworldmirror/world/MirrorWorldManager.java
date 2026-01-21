@@ -747,15 +747,14 @@ public class MirrorWorldManager {
                 // Mark dimension as cleaning
                 DimensionPool.markDimensionCleaning(dimIndex);
                 
-                // Force start cleanup using full world range
+                // Force start cleanup - use immediate thorough clear
                 ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
                 if (mirrorWorld != null) {
-                    // Use a large range centered at origin
-                    int fullCleanupRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
-                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, BlockPos.ZERO, dimIndex);
+                    // Do immediate synchronous cleanup of all loaded chunks
+                    WorldCopyService.clearAllLoadedChunksImmediate(mirrorWorld, dimIndex);
                     
-                    // Also do immediate entity cleanup
-                    WorldCopyService.clearAllEntitiesInDimensionImmediate(mirrorWorld);
+                    // Then queue async cleanup for any remaining areas
+                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, BlockPos.ZERO, dimIndex);
                 }
                 return 0;
             }
