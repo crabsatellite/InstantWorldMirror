@@ -2,12 +2,14 @@ package com.crabmods.instantworldmirror.event;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.command.ModCommands;
+import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -223,25 +225,34 @@ public class ModEvents {
                 }
                 
                 // Sync time and weather every 20 ticks (1 second)
-                if (serverLevel.getGameTime() % 20 == 0) {
-                    ServerLevel overworld = serverLevel.getServer().overworld();
+                // Use the SOURCE dimension for this mirror world, not always overworld
+                if (serverLevel.getGameTime() % 20 == 0 && dimIndex >= 0) {
+                    ResourceKey<Level> sourceDimKey = DimensionPool.getSourceDimension(dimIndex);
+                    ServerLevel sourceLevel = serverLevel.getServer().getLevel(sourceDimKey);
                     
-                    // Sync time
-                    serverLevel.setDayTime(overworld.getDayTime());
+                    // Fallback to overworld if source level is unavailable
+                    if (sourceLevel == null) {
+                        sourceLevel = serverLevel.getServer().overworld();
+                    }
                     
-                    // Sync weather - cache values to avoid repeated method calls
-                    boolean overworldRaining = overworld.isRaining();
+                    // Sync time - Note: The End has fixed time (18000), Nether has no daylight cycle
+                    // We sync time regardless, let the dimension type handle rendering
+                    serverLevel.setDayTime(sourceLevel.getDayTime());
+                    
+                    // Sync weather - Note: The End and Nether don't have weather
+                    // but we sync anyway for consistency
+                    boolean sourceRaining = sourceLevel.isRaining();
                     boolean mirrorRaining = serverLevel.isRaining();
-                    boolean overworldThundering = overworld.isThundering();
+                    boolean sourceThundering = sourceLevel.isThundering();
                     boolean mirrorThundering = serverLevel.isThundering();
                     
                     // Only update if different
-                    if (overworldRaining != mirrorRaining || overworldThundering != mirrorThundering) {
+                    if (sourceRaining != mirrorRaining || sourceThundering != mirrorThundering) {
                         serverLevel.setWeatherParameters(
-                            overworldRaining ? 0 : 6000,
-                            overworldRaining ? 6000 : 0,
-                            overworldRaining,
-                            overworldThundering
+                            sourceRaining ? 0 : 6000,
+                            sourceRaining ? 6000 : 0,
+                            sourceRaining,
+                            sourceThundering
                         );
                     }
                 }

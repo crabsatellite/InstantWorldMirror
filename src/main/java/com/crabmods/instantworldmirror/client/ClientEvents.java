@@ -8,9 +8,10 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 
 /**
- * Client-side event handling
+ * Client-side event handling (MOD bus)
  */
 @EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientEvents {
@@ -31,5 +32,21 @@ public class ClientEvents {
     public static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(MirrorPortalModel.LAYER_LOCATION, MirrorPortalModel::createBodyLayer);
         InstantWorldMirror.LOGGER.info("Mirror Portal model layer registered");
+    }
+}
+
+/**
+ * Client-side event handling (GAME bus) for network events
+ */
+@EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
+class ClientGameEvents {
+    
+    /**
+     * Clear cached dimension effects when disconnecting from server
+     */
+    @SubscribeEvent
+    public static void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
+        MirrorDimensionEffectsManager.clearAll();
+        InstantWorldMirror.LOGGER.debug("Client disconnected, cleared mirror dimension effects cache");
     }
 }

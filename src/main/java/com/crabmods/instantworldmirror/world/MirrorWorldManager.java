@@ -3,17 +3,21 @@ package com.crabmods.instantworldmirror.world;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.network.ClearMirrorEffectsPacket;
+import com.crabmods.instantworldmirror.network.SyncMirrorEffectsPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Map;
 import java.util.Optional;
@@ -137,8 +141,8 @@ public class MirrorWorldManager {
                     player.level().dimension()
             );
 
-            // Allocate a dimension from the pool using actual session ID
-            int dimIndex = DimensionPool.allocateDimension(session.getSessionId());
+            // Allocate a dimension from the pool using actual session ID and source dimension
+            int dimIndex = DimensionPool.allocateDimension(session.getSessionId(), session.getSourceDimension());
             if (dimIndex < 0) {
                 InstantWorldMirror.LOGGER.warn("No available dimensions for player {}",
                         player.getName().getString());
@@ -317,6 +321,9 @@ public class MirrorWorldManager {
                     player.getXRot()
             );
 
+            // Sync dimension effects to client
+            syncDimensionEffectsToPlayer(player, session);
+
             // Auto-spawn return portal at player's feet
             spawnReturnPortal(mirrorWorld, player, targetPos);
 
@@ -393,6 +400,11 @@ public class MirrorWorldManager {
                     player.getYRot(),
                     player.getXRot()
             );
+
+            // Clear dimension effects on client
+            if (session != null) {
+                clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
+            }
 
             // Cleanup player data
             playerOriginalPositions.remove(player.getUUID());
@@ -639,6 +651,47 @@ public class MirrorWorldManager {
      */
     public static int getTotalPlayersInMirrorWorld() {
         return playerToSession.size();
+    }
+
+    // ==================== Dimension Effects Sync ====================
+    
+    /**
+     * Sync dimension visual effects to a player entering a mirror world
+     * This tells the client which sky/fog/etc. to render
+     */
+    private static void syncDimensionEffectsToPlayer(ServerPlayer player, MirrorSession session) {
+        ResourceKey<Level> sourceDim = session.getSourceDimension();
+        int dimIndex = session.getDimensionIndex();
+        
+        // Get the source dimension's effects from its DimensionType
+        // This works for vanilla and modded dimensions
+        ServerLevel sourceLevel = player.getServer().getLevel(sourceDim);
+        ResourceLocation effectsLoc;
+        if (sourceLevel != null) {
+            // Get effects directly from the dimension type
+            effectsLoc = sourceLevel.dimensionType().effectsLocation();
+        } else {
+            // Fallback to overworld effects if source level not found
+            effectsLoc = ResourceLocation.withDefaultNamespace("overworld");
+        }
+        
+        // Send packet to the player
+        SyncMirrorEffectsPacket packet = new SyncMirrorEffectsPacket(dimIndex, effectsLoc.toString());
+        PacketDistributor.sendToPlayer(player, packet);
+        
+        InstantWorldMirror.LOGGER.debug("Synced mirror effects to {}: dim {} -> {}", 
+                player.getName().getString(), dimIndex, effectsLoc);
+    }
+    
+    /**
+     * Clear dimension effects for a player leaving a mirror world
+     */
+    private static void clearDimensionEffectsForPlayer(ServerPlayer player, int dimIndex) {
+        ClearMirrorEffectsPacket packet = new ClearMirrorEffectsPacket(dimIndex);
+        PacketDistributor.sendToPlayer(player, packet);
+        
+        InstantWorldMirror.LOGGER.debug("Cleared mirror effects for {}: dim {}", 
+                player.getName().getString(), dimIndex);
     }
 
     // ==================== Inventory Management ====================

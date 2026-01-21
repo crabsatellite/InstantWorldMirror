@@ -36,6 +36,9 @@ public class DimensionPool {
     
     // Session ID -> dimension index
     private static final Map<UUID, Integer> sessionToDimension = new ConcurrentHashMap<>();
+    
+    // Dimension index -> source dimension (for syncing time/weather/effects)
+    private static final Map<Integer, ResourceKey<Level>> dimensionToSource = new ConcurrentHashMap<>();
 
     // Whether pool has been initialized
     private static boolean initialized = false;
@@ -56,17 +59,21 @@ public class DimensionPool {
 
     /**
      * Allocate a dimension for a new session
+     * @param sessionId The session ID
+     * @param sourceDimension The source dimension to copy from (for syncing effects)
      * @return dimension index, or -1 if no dimensions available
      */
-    public static synchronized int allocateDimension(UUID sessionId) {
+    public static synchronized int allocateDimension(UUID sessionId, ResourceKey<Level> sourceDimension) {
         int poolSize = ModDimensions.getPoolSize();
         for (int i = 0; i < poolSize; i++) {
             if (dimensionStates.get(i) == DimensionState.AVAILABLE) {
                 dimensionStates.put(i, DimensionState.IN_USE);
                 dimensionToSession.put(i, sessionId);
                 sessionToDimension.put(sessionId, i);
+                dimensionToSource.put(i, sourceDimension);
                 
-                InstantWorldMirror.LOGGER.info("Allocated dimension {} for session {}", i, sessionId);
+                InstantWorldMirror.LOGGER.info("Allocated dimension {} for session {} (source: {})", 
+                        i, sessionId, sourceDimension.location());
                 return i;
             }
         }
@@ -74,6 +81,14 @@ public class DimensionPool {
         InstantWorldMirror.LOGGER.warn("No available dimensions for session {} (pool size: {})", 
                 sessionId, poolSize);
         return -1;
+    }
+    
+    /**
+     * Allocate a dimension for a new session (overload for backwards compatibility)
+     * @return dimension index, or -1 if no dimensions available
+     */
+    public static synchronized int allocateDimension(UUID sessionId) {
+        return allocateDimension(sessionId, Level.OVERWORLD);
     }
 
     /**
@@ -83,11 +98,20 @@ public class DimensionPool {
         Integer dimIndex = sessionToDimension.remove(sessionId);
         if (dimIndex != null) {
             dimensionToSession.remove(dimIndex);
+            dimensionToSource.remove(dimIndex);
             dimensionStates.put(dimIndex, DimensionState.CLEANING);
             
             InstantWorldMirror.LOGGER.info("Released dimension {} from session {}, starting cleanup", 
                     dimIndex, sessionId);
         }
+    }
+    
+    /**
+     * Get the source dimension for a mirror dimension
+     * Used to sync time, weather, and other dimension-specific effects
+     */
+    public static ResourceKey<Level> getSourceDimension(int dimIndex) {
+        return dimensionToSource.getOrDefault(dimIndex, Level.OVERWORLD);
     }
 
     /**

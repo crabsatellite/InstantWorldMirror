@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.crabmods.instantworldmirror.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "instantworldmirror.refmap.json",
+  "client": ["ClientLevelMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
