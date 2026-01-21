@@ -862,10 +862,13 @@ public class WorldCopyService {
     /**
      * Clear ALL entities in the entire dimension (final cleanup pass)
      * This ensures no entities are missed due to chunk boundary issues or timing
+     * Forces loading of tracked chunks to ensure all entities are accessible
      */
     private static void clearAllEntitiesInDimension(ServerLevel mirrorWorld) {
         try {
-            // Get all entities in the world
+            int removed = 0;
+            
+            // First pass: Get all currently loaded entities
             Iterable<net.minecraft.world.entity.Entity> allEntities = mirrorWorld.getAllEntities();
             java.util.List<net.minecraft.world.entity.Entity> toRemove = new java.util.ArrayList<>();
             
@@ -877,11 +880,38 @@ public class WorldCopyService {
                 toRemove.add(entity);
             }
             
-            // Remove all non-player entities
-            int removed = 0;
+            // Remove all non-player entities from loaded chunks
             for (net.minecraft.world.entity.Entity entity : toRemove) {
                 entity.discard();
                 removed++;
+            }
+            
+            // Second pass: Force load all tracked chunks and clear entities there too
+            // This catches entities in chunks that aren't currently loaded
+            int dimIndex = -1;
+            for (var entry : modifiedChunks.entrySet()) {
+                if (DimensionPool.getDimensionLevel(mirrorWorld.getServer(), entry.getKey()) == mirrorWorld) {
+                    dimIndex = entry.getKey();
+                    break;
+                }
+            }
+            
+            if (dimIndex >= 0) {
+                Set<Long> trackedChunks = modifiedChunks.get(dimIndex);
+                if (trackedChunks != null) {
+                    for (Long chunkKey : trackedChunks) {
+                        int chunkX = (int) (chunkKey & 0xFFFFFFFFL);
+                        int chunkZ = (int) (chunkKey >> 32);
+                        
+                        // Force load the chunk and clear entities
+                        try {
+                            mirrorWorld.getChunk(chunkX, chunkZ);
+                            removed += clearEntitiesInChunkForced(mirrorWorld, chunkX, chunkZ);
+                        } catch (Exception ignored) {
+                            // Chunk might not exist, skip
+                        }
+                    }
+                }
             }
             
             if (removed > 0) {
@@ -891,6 +921,40 @@ public class WorldCopyService {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             InstantWorldMirror.LOGGER.warn("Error during final entity cleanup: {}", errorMsg);
         }
+    }
+    
+    /**
+     * Clear all entities in a chunk, forcing the chunk to load first
+     * Returns the number of entities removed
+     */
+    private static int clearEntitiesInChunkForced(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
+        int removed = 0;
+        try {
+            int minX = chunkX * 16;
+            int minZ = chunkZ * 16;
+            int maxX = minX + 16;
+            int maxZ = minZ + 16;
+            int minY = mirrorWorld.getMinBuildHeight();
+            int maxY = mirrorWorld.getMaxBuildHeight();
+            
+            net.minecraft.world.phys.AABB chunkBounds = new net.minecraft.world.phys.AABB(
+                    minX, minY, minZ, maxX, maxY, maxZ
+            );
+            
+            java.util.List<net.minecraft.world.entity.Entity> entities = mirrorWorld.getEntities(
+                    (net.minecraft.world.entity.Entity) null, 
+                    chunkBounds,
+                    entity -> !(entity instanceof net.minecraft.world.entity.player.Player)
+            );
+            
+            for (net.minecraft.world.entity.Entity entity : entities) {
+                entity.discard();
+                removed++;
+            }
+        } catch (Exception e) {
+            // Ignore errors
+        }
+        return removed;
     }
     
 

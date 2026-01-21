@@ -668,6 +668,12 @@ public class MirrorWorldManager {
         
         mirrorWorld.addFreshEntity(returnPortal);
         
+        // Track the chunk where the return portal is spawned for cleanup
+        int dimIndex = ModDimensions.getMirrorWorldIndex(mirrorWorld.dimension());
+        if (dimIndex >= 0) {
+            WorldCopyService.trackModifiedChunk(dimIndex, targetPos.getX() >> 4, targetPos.getZ() >> 4);
+        }
+        
         InstantWorldMirror.LOGGER.info("Auto-spawned return portal for player {} at {}",
                 player.getName().getString(), targetPos);
     }
