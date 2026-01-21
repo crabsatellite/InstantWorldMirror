@@ -107,7 +107,7 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         poseStack.pushPose();
         
         // Position beam at entity location
-        poseStack.translate(0, 0.5, 0);
+        poseStack.translate(0, 1.0, 0);
         
         // Render the beam using vanilla-style rendering
         renderBeamSegment(poseStack, buffer, BEAM_TEXTURE, partialTicks, 1.0F, time, 

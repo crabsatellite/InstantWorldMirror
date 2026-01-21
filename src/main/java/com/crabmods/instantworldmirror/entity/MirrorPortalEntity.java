@@ -390,13 +390,13 @@ public class MirrorPortalEntity extends Entity {
             // Return portal - golden/orange particle effect
             if (this.random.nextInt(2) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
-                double y = this.getY() + this.random.nextDouble() * 2.0;
+                double y = this.getY() - 0.5 + this.random.nextDouble() * 2.0;
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
                 this.level().addParticle(ParticleTypes.FLAME, x, y, z, 0, 0.05, 0);
             }
             if (this.random.nextInt(3) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.8;
-                double y = this.getY() + 0.5 + this.random.nextDouble() * 1.5;
+                double y = this.getY() + this.random.nextDouble() * 1.5;
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.8;
                 this.level().addParticle(ParticleTypes.ENCHANT, x, y, z, 0, 0.2, 0);
             }
@@ -405,7 +405,7 @@ public class MirrorPortalEntity extends Entity {
                 double angle = this.tickCount * 0.2;
                 double radius = 0.5;
                 double x = this.getX() + Math.cos(angle) * radius;
-                double y = this.getY() + 1.0 + (this.tickCount % 20) * 0.05;
+                double y = this.getY() + 0.5 + (this.tickCount % 20) * 0.05;
                 double z = this.getZ() + Math.sin(angle) * radius;
                 this.level().addParticle(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 0, 0.02, 0);
             }
@@ -413,13 +413,14 @@ public class MirrorPortalEntity extends Entity {
             // Entry portal - blue-purple particle effect
             if (this.random.nextInt(2) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
-                double y = this.getY() + this.random.nextDouble() * 2.0;
+                double y = this.getY() - 0.5 + this.random.nextDouble() * 2.0;
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
                 this.level().addParticle(ParticleTypes.PORTAL, x, y, z, 0, 0.1, 0);
             }
-            if (this.random.nextInt(3) == 0) {
+            // White particle (END_ROD) - reduced by half
+            if (this.random.nextInt(6) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.6;
-                double y = this.getY() + 0.5 + this.random.nextDouble() * 1.0;
+                double y = this.getY() + this.random.nextDouble() * 1.0;
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.6;
                 this.level().addParticle(ParticleTypes.END_ROD, x, y, z, 0, 0.02, 0);
             }
@@ -428,7 +429,7 @@ public class MirrorPortalEntity extends Entity {
                 double angle = this.tickCount * 0.2;
                 double radius = 0.5;
                 double x = this.getX() + Math.cos(angle) * radius;
-                double y = this.getY() + 1.0 + (this.tickCount % 20) * 0.05;
+                double y = this.getY() + 0.5 + (this.tickCount % 20) * 0.05;
                 double z = this.getZ() + Math.sin(angle) * radius;
                 this.level().addParticle(ParticleTypes.REVERSE_PORTAL, x, y, z, 0, 0.02, 0);
             }
