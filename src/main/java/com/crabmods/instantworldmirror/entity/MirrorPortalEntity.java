@@ -130,19 +130,21 @@ public class MirrorPortalEntity extends Entity {
     public void tick() {
         super.tick();
 
-        int lifetime = this.entityData.get(DATA_LIFETIME);
-        int returnLifetime = MirrorConfig.getReturnPortalLifetimeTicks();
+        // Cache isClientSide check - called multiple times
+        boolean isClient = this.level().isClientSide;
 
         // Server side: async world copy
-        if (!this.level().isClientSide && this.level() instanceof ServerLevel serverLevel) {
+        if (!isClient) {
+            ServerLevel serverLevel = (ServerLevel) this.level();
+            
             // Start async world copy on first tick (only for entry portals)
             if (!isReturnPortal && !worldCopyStarted && clickPos != null && sessionId != null) {
                 worldCopyStarted = true;
                 startAsyncWorldCopy(serverLevel);
             }
             
-            // Check if session's world copy is complete
-            if (!isReturnPortal && worldCopyStarted && !worldCopyComplete && sessionId != null) {
+            // Check if session's world copy is complete (only check every 5 ticks to reduce overhead)
+            if (!isReturnPortal && worldCopyStarted && !worldCopyComplete && sessionId != null && this.tickCount % 5 == 0) {
                 Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
                 if (sessionOpt.isPresent() && sessionOpt.get().isCopyComplete()) {
                     worldCopyComplete = true;
@@ -152,20 +154,23 @@ public class MirrorPortalEntity extends Entity {
         }
 
         // Check if world copy complete - disable loading state when done
-        if (worldCopyComplete && this.entityData.get(DATA_LOADING)) {
+        boolean isLoading = this.entityData.get(DATA_LOADING);
+        if (worldCopyComplete && isLoading) {
             this.entityData.set(DATA_LOADING, false);
+            isLoading = false;
             // Set entry portal lifetime after copy complete (from config)
             this.entityData.set(DATA_LIFETIME, MirrorConfig.getEntryPortalLifetimeTicks());
         }
 
         // Only decrease time when loading is complete (skip for permanent portals, -1)
-        if (!this.entityData.get(DATA_LOADING) && lifetime != -1) {
+        int lifetime = this.entityData.get(DATA_LIFETIME);
+        if (!isLoading && lifetime != -1) {
             lifetime--;
             this.entityData.set(DATA_LIFETIME, lifetime);
 
             // Time's up, remove entity
             if (lifetime <= 0) {
-                if (!this.level().isClientSide) {
+                if (!isClient) {
                     onPortalTimeout();
                 }
                 this.discard();
@@ -174,15 +179,13 @@ public class MirrorPortalEntity extends Entity {
         }
 
         // Client side particle effects
-        if (this.level().isClientSide) {
+        if (isClient) {
             spawnAmbientParticles();
         }
 
         // Server side check player collision (only when loading complete)
-        if (!this.level().isClientSide && this.level() instanceof ServerLevel serverLevel) {
-            if (!this.entityData.get(DATA_LOADING)) {
-                checkPlayerCollision(serverLevel);
-            }
+        if (!isClient && !isLoading) {
+            checkPlayerCollision((ServerLevel) this.level());
         }
     }
 

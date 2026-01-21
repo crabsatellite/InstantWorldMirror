@@ -219,13 +219,21 @@ public class WorldCopyService {
      * Process all copy queues - call from server tick
      */
     public static void processCopyQueues(MinecraftServer server) {
+        if (copyTasks.isEmpty()) return; // Early exit if no tasks
+        
         int chunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
         
-        for (Map.Entry<Integer, CopyTask> entry : copyTasks.entrySet()) {
+        // Use iterator for safe removal during iteration
+        var iterator = copyTasks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
             int dimIndex = entry.getKey();
             CopyTask task = entry.getValue();
             
-            if (task.isCompleted()) continue;
+            if (task.isCompleted()) {
+                iterator.remove();
+                continue;
+            }
             
             ServerLevel targetWorld = DimensionPool.getDimensionLevel(server, dimIndex);
             if (targetWorld == null) continue;
@@ -244,12 +252,10 @@ public class WorldCopyService {
             
             // Check completion
             if (task.isCompleted()) {
-                copyTasks.remove(dimIndex);
+                iterator.remove();
                 
                 // Notify session that copy is complete
-                MirrorWorldManager.getSession(task.sessionId).ifPresent(session -> {
-                    session.markCopyComplete();
-                });
+                MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
                 
                 InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
                         task.sessionId, dimIndex, task.getTotalBlocksCopied());
@@ -299,20 +305,25 @@ public class WorldCopyService {
             BlockPos.MutableBlockPos sourcePos = MUTABLE_POS.get();
             BlockPos.MutableBlockPos targetPos = new BlockPos.MutableBlockPos();
             
-            // Optimization 3: Process section by section (16x16x16 chunks)
-            int minSection = sourceWorld.getSectionIndex(minY);
-            int maxSection = sourceWorld.getSectionIndex(maxHeight);
+            // Process section by section using chunk's section count
+            int sectionCount = sourceChunk.getSectionsCount();
+            int chunkMinSectionY = sourceChunk.getMinSection();
             
-            for (int sectionIndex = minSection; sectionIndex <= maxSection; sectionIndex++) {
-                LevelChunkSection sourceSection = sourceChunk.getSection(sectionIndex - sourceChunk.getMinSection());
+            for (int relativeSectionIndex = 0; relativeSectionIndex < sectionCount; relativeSectionIndex++) {
+                LevelChunkSection sourceSection = sourceChunk.getSection(relativeSectionIndex);
                 
-                // Optimization 4: Skip entirely empty sections
-                if (sourceSection.hasOnlyAir()) {
+                // Skip null or empty sections
+                if (sourceSection == null || sourceSection.hasOnlyAir()) {
                     continue;
                 }
                 
-                int sectionY = sourceChunk.getSectionYFromSectionIndex(sectionIndex - sourceChunk.getMinSection());
+                int sectionY = chunkMinSectionY + relativeSectionIndex;
                 int baseY = sectionY * 16;
+                
+                // Skip sections above maxHeight (optimization)
+                if (baseY > maxHeight) {
+                    continue;
+                }
                 
                 // Process this 16x16x16 section
                 for (int localX = 0; localX < 16; localX++) {
@@ -322,11 +333,11 @@ public class WorldCopyService {
                         
                         // Optimization 5: Use heightmap to skip air columns
                         int columnHeight = sourceChunk.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
-                        int columnEndY = Math.min(baseY + 16, columnHeight + 1);
                         
                         for (int localY = 0; localY < 16; localY++) {
                             int y = baseY + localY;
                             if (y > columnHeight && y > 0) continue; // Skip air above surface (except underground)
+                            if (y < minY) continue;
                             
                             sourcePos.set(worldX, y, worldZ);
                             
@@ -354,7 +365,8 @@ public class WorldCopyService {
                 copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
             }
         } catch (Exception e) {
-            InstantWorldMirror.LOGGER.warn("Failed to copy chunk ({}, {}): {}", chunkX, chunkZ, e.getMessage());
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Failed to copy chunk ({}, {}): {}", chunkX, chunkZ, errorMsg);
         }
         
         return blocksCopied;
@@ -424,8 +436,9 @@ public class WorldCopyService {
                 }
             }
         } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             InstantWorldMirror.LOGGER.debug("Error copying entities in chunk ({}, {}): {}", 
-                    chunkX, chunkZ, e.getMessage());
+                    chunkX, chunkZ, errorMsg);
         }
     }
     
@@ -464,8 +477,9 @@ public class WorldCopyService {
                 }
             }
         } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             InstantWorldMirror.LOGGER.debug("Error clearing entities in chunk ({}, {}): {}", 
-                    chunkX, chunkZ, e.getMessage());
+                    chunkX, chunkZ, errorMsg);
         }
     }
 
@@ -506,13 +520,21 @@ public class WorldCopyService {
      * Process all cleanup queues - call from server tick
      */
     public static void processCleanupQueues(MinecraftServer server) {
+        if (cleanupTasks.isEmpty()) return; // Early exit if no tasks
+        
         int chunksPerTick = MirrorConfig.CLEANUP_CHUNKS_PER_TICK.get();
         
-        for (Map.Entry<Integer, CleanupTask> entry : cleanupTasks.entrySet()) {
+        // Use iterator for safe removal during iteration
+        var iterator = cleanupTasks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
             int dimIndex = entry.getKey();
             CleanupTask task = entry.getValue();
             
-            if (task.isCompleted()) continue;
+            if (task.isCompleted()) {
+                iterator.remove();
+                continue;
+            }
             
             ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
             if (mirrorWorld == null) continue;
@@ -527,14 +549,15 @@ public class WorldCopyService {
             }
             
             // Log progress every 10 chunks
-            if (task.getCleanedChunks() % 10 == 0) {
+            int cleanedChunks = task.getCleanedChunks();
+            if (cleanedChunks % 10 == 0 && cleanedChunks > 0) {
                 InstantWorldMirror.LOGGER.debug("Cleanup progress for dim {}: {}/{} chunks",
-                        dimIndex, task.getCleanedChunks(), task.getTotalChunks());
+                        dimIndex, cleanedChunks, task.getTotalChunks());
             }
             
             // Check completion
             if (task.isCompleted()) {
-                cleanupTasks.remove(dimIndex);
+                iterator.remove();
                 
                 // Final pass: clear ALL remaining entities in the dimension
                 clearAllEntitiesInDimension(mirrorWorld);
@@ -565,22 +588,22 @@ public class WorldCopyService {
             // Optimization 2: Use MutableBlockPos
             BlockPos.MutableBlockPos pos = MUTABLE_POS.get();
             
-            // Optimization 3: Process section by section
-            int minSection = mirrorWorld.getSectionIndex(minY);
-            int maxSection = mirrorWorld.getSectionIndex(maxY - 1); // maxY is exclusive
-            
             // Collect all block entities in chunk first (batch operation)
             Set<BlockPos> blockEntityPositions = new HashSet<>(chunk.getBlockEntities().keySet());
             
-            for (int sectionIndex = minSection; sectionIndex <= maxSection; sectionIndex++) {
-                LevelChunkSection section = chunk.getSection(sectionIndex - chunk.getMinSection());
+            // Process section by section using chunk's section count
+            int sectionCount = chunk.getSectionsCount();
+            int chunkMinSectionY = chunk.getMinSection();
+            
+            for (int relativeSectionIndex = 0; relativeSectionIndex < sectionCount; relativeSectionIndex++) {
+                LevelChunkSection section = chunk.getSection(relativeSectionIndex);
                 
-                // Optimization 4: Skip already empty sections
-                if (section.hasOnlyAir()) {
+                // Skip null or empty sections
+                if (section == null || section.hasOnlyAir()) {
                     continue;
                 }
                 
-                int sectionY = chunk.getSectionYFromSectionIndex(sectionIndex - chunk.getMinSection());
+                int sectionY = chunkMinSectionY + relativeSectionIndex;
                 int baseY = sectionY * 16;
                 
                 // Process 16x16x16 section - scan ALL blocks in section (don't use heightmap for clearing)
@@ -621,7 +644,12 @@ public class WorldCopyService {
             chunk.setUnsaved(true);
             
         } catch (Exception e) {
-            InstantWorldMirror.LOGGER.warn("Failed to clear chunk ({}, {}): {}", chunkX, chunkZ, e.getMessage());
+            // Log with exception type for better debugging when message is null
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Failed to clear chunk ({}, {}): {}", chunkX, chunkZ, errorMsg);
+            if (InstantWorldMirror.LOGGER.isDebugEnabled()) {
+                InstantWorldMirror.LOGGER.debug("Chunk clear exception details:", e);
+            }
         }
 
         return blocksCleared;
@@ -656,7 +684,8 @@ public class WorldCopyService {
                 InstantWorldMirror.LOGGER.info("Final cleanup: removed {} remaining entities from mirror dimension", removed);
             }
         } catch (Exception e) {
-            InstantWorldMirror.LOGGER.warn("Error during final entity cleanup: {}", e.getMessage());
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Error during final entity cleanup: {}", errorMsg);
         }
     }
     

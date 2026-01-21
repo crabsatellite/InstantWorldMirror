@@ -47,6 +47,9 @@ public class MirrorWorldManager {
     // Active sessions: sessionId -> MirrorSession
     private static final Map<UUID, MirrorSession> activeSessions = new ConcurrentHashMap<>();
 
+    // Portal to session mapping for O(1) lookup: portalEntityId -> sessionId
+    private static final Map<UUID, UUID> portalToSession = new ConcurrentHashMap<>();
+
     // Player to session mapping: playerId -> sessionId (for players currently in mirror world)
     private static final Map<UUID, UUID> playerToSession = new ConcurrentHashMap<>();
 
@@ -103,11 +106,14 @@ public class MirrorWorldManager {
 
     /**
      * Get session by portal entity ID
+     * Optimized: Uses O(1) lookup instead of stream iteration
      */
     public static Optional<MirrorSession> getSessionByPortal(UUID portalEntityId) {
-        return activeSessions.values().stream()
-                .filter(s -> portalEntityId.equals(s.getPortalEntityId()))
-                .findFirst();
+        UUID sessionId = portalToSession.get(portalEntityId);
+        if (sessionId != null) {
+            return Optional.ofNullable(activeSessions.get(sessionId));
+        }
+        return Optional.empty();
     }
 
     /**
@@ -160,11 +166,13 @@ public class MirrorWorldManager {
 
     /**
      * Bind a portal entity to a session
+     * Also maintains the portalToSession index for O(1) lookup
      */
     public static void bindPortalToSession(UUID sessionId, UUID portalEntityId) {
         MirrorSession session = activeSessions.get(sessionId);
         if (session != null) {
             session.setPortalEntityId(portalEntityId);
+            portalToSession.put(portalEntityId, sessionId);
             InstantWorldMirror.LOGGER.debug("Bound portal {} to session {}", portalEntityId, sessionId);
         }
     }
@@ -430,15 +438,22 @@ public class MirrorWorldManager {
         }
 
         session.markDestroyed();
-        activeSessions.remove(session.getSessionId());
+        UUID sessionId = session.getSessionId();
+        activeSessions.remove(sessionId);
 
         // Also cleanup playerOwnedSession if creator never entered
-        playerOwnedSession.values().removeIf(id -> id.equals(session.getSessionId()));
+        playerOwnedSession.values().removeIf(id -> id.equals(sessionId));
+
+        // Cleanup portal to session mapping
+        UUID portalId = session.getPortalEntityId();
+        if (portalId != null) {
+            portalToSession.remove(portalId);
+        }
 
         // Release dimension back to pool (starts cleanup)
         int dimIndex = session.getDimensionIndex();
         if (dimIndex >= 0) {
-            DimensionPool.releaseDimension(session.getSessionId());
+            DimensionPool.releaseDimension(sessionId);
             
             // Queue cleanup for the session's dedicated dimension
             ServerLevel mirrorWorld = server.getLevel(session.getMirrorDimension());
@@ -448,7 +463,7 @@ public class MirrorWorldManager {
         }
 
         InstantWorldMirror.LOGGER.info("Session {} destroyed, dimension {} queued for cleanup", 
-                session.getSessionId(), dimIndex);
+                sessionId, dimIndex);
     }
 
     /**
@@ -819,6 +834,7 @@ public class MirrorWorldManager {
                 session.markDestroyed();
             }
             activeSessions.clear();
+            portalToSession.clear();
             playerToSession.clear();
             playerOwnedSession.clear();
             playerOriginalPositions.clear();

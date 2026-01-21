@@ -162,57 +162,40 @@ public class DimensionPool {
 
     /**
      * Check if any dimensions are available
+     * Optimized: Uses cached values from ConcurrentHashMap instead of iterating
      */
     public static boolean hasAvailableDimension() {
-        int poolSize = ModDimensions.getPoolSize();
-        for (int i = 0; i < poolSize; i++) {
-            if (dimensionStates.get(i) == DimensionState.AVAILABLE) {
-                return true;
-            }
-        }
-        return false;
+        return dimensionStates.containsValue(DimensionState.AVAILABLE);
     }
 
     /**
      * Get number of available dimensions
+     * Optimized: Uses stream with parallel-safe operations
      */
     public static int getAvailableCount() {
-        int poolSize = ModDimensions.getPoolSize();
-        int count = 0;
-        for (int i = 0; i < poolSize; i++) {
-            if (dimensionStates.get(i) == DimensionState.AVAILABLE) {
-                count++;
-            }
-        }
-        return count;
+        return (int) dimensionStates.values().stream()
+                .filter(state -> state == DimensionState.AVAILABLE)
+                .count();
     }
 
     /**
      * Get number of dimensions in use
+     * Optimized: Uses stream with parallel-safe operations
      */
     public static int getInUseCount() {
-        int poolSize = ModDimensions.getPoolSize();
-        int count = 0;
-        for (int i = 0; i < poolSize; i++) {
-            if (dimensionStates.get(i) == DimensionState.IN_USE) {
-                count++;
-            }
-        }
-        return count;
+        return (int) dimensionStates.values().stream()
+                .filter(state -> state == DimensionState.IN_USE)
+                .count();
     }
 
     /**
      * Get number of dimensions being cleaned
+     * Optimized: Uses stream with parallel-safe operations
      */
     public static int getCleaningCount() {
-        int poolSize = ModDimensions.getPoolSize();
-        int count = 0;
-        for (int i = 0; i < poolSize; i++) {
-            if (dimensionStates.get(i) == DimensionState.CLEANING) {
-                count++;
-            }
-        }
-        return count;
+        return (int) dimensionStates.values().stream()
+                .filter(state -> state == DimensionState.CLEANING)
+                .count();
     }
 
     /**

@@ -6,21 +6,38 @@ import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 /**
  * Mod command registration class
  */
 public class ModCommands {
+
+    // Custom suggestion provider for mirror world dimensions
+    private static final SuggestionProvider<CommandSourceStack> MIRROR_DIMENSION_SUGGESTIONS = (context, builder) -> {
+        int poolSize = ModDimensions.getPoolSize();
+        return SharedSuggestionProvider.suggestResource(
+                IntStream.range(0, poolSize)
+                        .mapToObj(i -> ModDimensions.getMirrorWorld(i).location())
+                        .toList(),
+                builder
+        );
+    };
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
@@ -74,10 +91,11 @@ public class ModCommands {
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ModCommands::statusCommand)
                         )
-                        // /mirror forceclear <dimension_index> - Force clear a dimension
+                        // /mirror forceclear <dimension> - Force clear a dimension (with tab completion)
                         .then(Commands.literal("forceclear")
                                 .requires(source -> source.hasPermission(3))
-                                .then(Commands.argument("dimension", IntegerArgumentType.integer(0, 7))
+                                .then(Commands.argument("dimension", DimensionArgument.dimension())
+                                        .suggests(MIRROR_DIMENSION_SUGGESTIONS)
                                         .executes(ModCommands::forceClearCommand)
                                 )
                         )
@@ -234,34 +252,43 @@ public class ModCommands {
      */
     private static int forceClearCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        int dimIndex = IntegerArgumentType.getInteger(context, "dimension");
         
-        // Validate dimension index
-        int poolSize = ModDimensions.getPoolSize();
-        if (dimIndex < 0 || dimIndex >= poolSize) {
-            source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.invalid_dim", poolSize - 1));
+        try {
+            ServerLevel dimension = DimensionArgument.getDimension(context, "dimension");
+            ResourceKey<Level> dimKey = dimension.dimension();
+            
+            // Validate that this is a mirror world dimension
+            int dimIndex = ModDimensions.getMirrorWorldIndex(dimKey);
+            if (dimIndex < 0) {
+                source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.invalid_dim", 
+                        ModDimensions.getPoolSize() - 1));
+                return 0;
+            }
+            
+            // Perform force clear (works for any state - IN_USE, CLEANING, or AVAILABLE)
+            if (source.getServer() != null) {
+                DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
+                int playersReturned = MirrorWorldManager.forceClearDimension(dimIndex, source.getServer());
+                
+                source.sendSuccess(() -> Component.translatable(
+                        "command.instantworldmirror.forceclear.success",
+                        dimIndex, playersReturned
+                ), true);
+                
+                // Additional info about previous state
+                source.sendSuccess(() -> Component.translatable(
+                        "command.instantworldmirror.forceclear.state_info",
+                        state.name()
+                ), false);
+                return 1;
+            }
+            
+            source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
+            return 0;
+        } catch (Exception e) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.invalid_dim", 
+                    ModDimensions.getPoolSize() - 1));
             return 0;
         }
-        
-        // Perform force clear (works for any state - IN_USE, CLEANING, or AVAILABLE)
-        if (source.getServer() != null) {
-            DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
-            int playersReturned = MirrorWorldManager.forceClearDimension(dimIndex, source.getServer());
-            
-            source.sendSuccess(() -> Component.translatable(
-                    "command.instantworldmirror.forceclear.success",
-                    dimIndex, playersReturned
-            ), true);
-            
-            // Additional info about previous state
-            source.sendSuccess(() -> Component.translatable(
-                    "command.instantworldmirror.forceclear.state_info",
-                    state.name()
-            ), false);
-            return 1;
-        }
-        
-        source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
-        return 0;
     }
 }

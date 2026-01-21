@@ -184,23 +184,27 @@ public class ModEvents {
             
             // Sync time and weather for all mirror dimensions
             if (ModDimensions.isMirrorWorld(serverLevel.dimension())) {
-                ServerLevel overworld = serverLevel.getServer().overworld();
-                
-                // Sync every 20 ticks (1 second)
+                // Sync every 20 ticks (1 second) - check tick count first to avoid unnecessary dimension lookup
                 if (serverLevel.getGameTime() % 20 == 0) {
+                    ServerLevel overworld = serverLevel.getServer().overworld();
+                    
                     // Sync time
                     serverLevel.setDayTime(overworld.getDayTime());
                     
-                    // Sync weather - using public methods
-                    if (overworld.isRaining() != serverLevel.isRaining()) {
-                        if (overworld.isRaining()) {
-                            serverLevel.setWeatherParameters(0, 6000, true, overworld.isThundering());
-                        } else {
-                            serverLevel.setWeatherParameters(6000, 0, false, false);
-                        }
-                    }
-                    if (overworld.isThundering() != serverLevel.isThundering()) {
-                        serverLevel.setWeatherParameters(0, 6000, serverLevel.isRaining(), overworld.isThundering());
+                    // Sync weather - cache values to avoid repeated method calls
+                    boolean overworldRaining = overworld.isRaining();
+                    boolean mirrorRaining = serverLevel.isRaining();
+                    boolean overworldThundering = overworld.isThundering();
+                    boolean mirrorThundering = serverLevel.isThundering();
+                    
+                    // Only update if different
+                    if (overworldRaining != mirrorRaining || overworldThundering != mirrorThundering) {
+                        serverLevel.setWeatherParameters(
+                            overworldRaining ? 0 : 6000,
+                            overworldRaining ? 6000 : 0,
+                            overworldRaining,
+                            overworldThundering
+                        );
                     }
                 }
             }
