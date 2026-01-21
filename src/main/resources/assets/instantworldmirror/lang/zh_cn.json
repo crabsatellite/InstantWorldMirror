@@ -16,7 +16,12 @@
   "message.instantworldmirror.session_expired": "§e此镜面传送门已失效，会话已不存在。",
   "message.instantworldmirror.no_dimensions_available": "§c没有可用的镜面维度，请稍后再试。",
   "message.instantworldmirror.external_exit": "§e你已离开镜面世界，会话数据已清理。",
+  "message.instantworldmirror.force_returned": "§c管理员已强制将你传送回出生点。",
   "command.instantworldmirror.return.success": "已强制返回原世界",
+  "command.instantworldmirror.return.not_in_mirror": "§c你不在镜面世界中！",
+  "command.instantworldmirror.player_only": "§c此命令只能由玩家执行！",
+  "command.instantworldmirror.player_not_found": "§c找不到该玩家！",
+  "command.instantworldmirror.server_unavailable": "§c服务器不可用",
   "command.instantworldmirror.mob.on": "镜面世界生物生成已开启",
   "command.instantworldmirror.mob.off": "镜面世界生物生成已关闭",
   "command.instantworldmirror.admin.granted": "已授予 %s 管理员权限",
@@ -25,5 +30,14 @@
   "command.instantworldmirror.itemtransfer.enabled": "已为 %s 开启物品传送权限",
   "command.instantworldmirror.itemtransfer.disabled": "已为 %s 关闭物品传送权限",
   "command.instantworldmirror.sessions.header": "§6活动的镜面世界会话:",
-  "command.instantworldmirror.sessions.entry": "§7- 会话 %s: %d 名玩家 (创建者: %s)"
+  "command.instantworldmirror.sessions.entry": "§7- 会话 %s: %d 名玩家 (创建者: %s)",
+  "command.instantworldmirror.status.header": "§6=== 镜面世界维度状态 ===",
+  "command.instantworldmirror.status.summary": "§7可用: §a%d §7| 使用中: §c%d §7| 清理中: §e%d",
+  "command.instantworldmirror.status.available": "§a可用",
+  "command.instantworldmirror.status.in_use": "§c使用中",
+  "command.instantworldmirror.status.cleaning": "§e清理中",
+  "command.instantworldmirror.status.entry": "  §7[%d] %s §7- %d 名玩家",
+  "command.instantworldmirror.forceclear.invalid_dim": "§c无效的维度索引！有效范围: 0-%d",
+  "command.instantworldmirror.forceclear.already_empty": "§e该维度已经是可用状态。",
+  "command.instantworldmirror.forceclear.success": "§a已强制清空维度 %d - 已将 %d 名玩家传送回出生点。"
 }

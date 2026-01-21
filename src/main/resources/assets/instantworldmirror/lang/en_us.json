@@ -16,7 +16,12 @@
   "message.instantworldmirror.session_expired": "§eThis mirror portal has expired. The session no longer exists.",
   "message.instantworldmirror.no_dimensions_available": "§cNo mirror dimensions available. Please wait and try again.",
   "message.instantworldmirror.external_exit": "§eYou left the Mirror World. Your session has been cleaned up.",
+  "message.instantworldmirror.force_returned": "§cYou have been forcefully returned to spawn by an administrator.",
   "command.instantworldmirror.return.success": "Forcefully returned to the original world",
+  "command.instantworldmirror.return.not_in_mirror": "§cYou are not in the Mirror World!",
+  "command.instantworldmirror.player_only": "§cThis command can only be used by players!",
+  "command.instantworldmirror.player_not_found": "§cPlayer not found!",
+  "command.instantworldmirror.server_unavailable": "§cServer not available",
   "command.instantworldmirror.mob.on": "Mob spawning enabled in Mirror World",
   "command.instantworldmirror.mob.off": "Mob spawning disabled in Mirror World",
   "command.instantworldmirror.admin.granted": "Admin permission granted to %s",
@@ -25,5 +30,14 @@
   "command.instantworldmirror.itemtransfer.enabled": "Item transfer enabled for %s",
   "command.instantworldmirror.itemtransfer.disabled": "Item transfer disabled for %s",
   "command.instantworldmirror.sessions.header": "§6Active Mirror World Sessions:",
-  "command.instantworldmirror.sessions.entry": "§7- Session %s: %d players (creator: %s)"
+  "command.instantworldmirror.sessions.entry": "§7- Session %s: %d players (creator: %s)",
+  "command.instantworldmirror.status.header": "§6=== Mirror World Dimension Status ===",
+  "command.instantworldmirror.status.summary": "§7Available: §a%d §7| In Use: §c%d §7| Cleaning: §e%d",
+  "command.instantworldmirror.status.available": "§aAvailable",
+  "command.instantworldmirror.status.in_use": "§cIn Use",
+  "command.instantworldmirror.status.cleaning": "§eCleaning",
+  "command.instantworldmirror.status.entry": "  §7[%d] %s §7- %d players",
+  "command.instantworldmirror.forceclear.invalid_dim": "§cInvalid dimension index! Valid range: 0-%d",
+  "command.instantworldmirror.forceclear.already_empty": "§eThis dimension is already available.",
+  "command.instantworldmirror.forceclear.success": "§aForce cleared dimension %d - returned %d players to spawn."
 }

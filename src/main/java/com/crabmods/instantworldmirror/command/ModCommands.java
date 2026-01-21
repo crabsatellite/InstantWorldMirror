@@ -1,15 +1,21 @@
 package com.crabmods.instantworldmirror.command;
 
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
+import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Mod command registration class
@@ -63,6 +69,18 @@ public class ModCommands {
                                         )
                                 )
                         )
+                        // /mirror status - View dimension pool status
+                        .then(Commands.literal("status")
+                                .requires(source -> source.hasPermission(2))
+                                .executes(ModCommands::statusCommand)
+                        )
+                        // /mirror forceclear <dimension_index> - Force clear a dimension
+                        .then(Commands.literal("forceclear")
+                                .requires(source -> source.hasPermission(3))
+                                .then(Commands.argument("dimension", IntegerArgumentType.integer(0, 7))
+                                        .executes(ModCommands::forceClearCommand)
+                                )
+                        )
         );
     }
 
@@ -75,12 +93,12 @@ public class ModCommands {
                 source.sendSuccess(() -> Component.translatable("command.instantworldmirror.return.success"), false);
                 return 1;
             } else {
-                source.sendFailure(Component.literal("You are not in the Mirror World!"));
+                source.sendFailure(Component.translatable("command.instantworldmirror.return.not_in_mirror"));
                 return 0;
             }
         }
         
-        source.sendFailure(Component.literal("This command can only be used by players!"));
+        source.sendFailure(Component.translatable("command.instantworldmirror.player_only"));
         return 0;
     }
 
@@ -111,7 +129,7 @@ public class ModCommands {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendFailure(Component.literal("Player not found!"));
+            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
             return 0;
         }
     }
@@ -125,7 +143,7 @@ public class ModCommands {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendFailure(Component.literal("Player not found!"));
+            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
             return 0;
         }
     }
@@ -139,7 +157,7 @@ public class ModCommands {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendFailure(Component.literal("Player not found!"));
+            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
             return 0;
         }
     }
@@ -164,8 +182,85 @@ public class ModCommands {
             }
             return 1;
         } catch (Exception e) {
-            context.getSource().sendFailure(Component.literal("Player not found!"));
+            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
             return 0;
         }
+    }
+    
+    /**
+     * /mirror status - View dimension pool status and player counts
+     */
+    private static int statusCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        int poolSize = ModDimensions.getPoolSize();
+        
+        source.sendSuccess(() -> Component.translatable("command.instantworldmirror.status.header"), false);
+        source.sendSuccess(() -> Component.translatable("command.instantworldmirror.status.summary",
+                DimensionPool.getAvailableCount(),
+                DimensionPool.getInUseCount(),
+                DimensionPool.getCleaningCount()), false);
+        
+        // Show each dimension's status
+        for (int i = 0; i < poolSize; i++) {
+            final int dimIndex = i;
+            DimensionPool.DimensionState state = DimensionPool.getDimensionState(i);
+            String stateKey = switch (state) {
+                case AVAILABLE -> "command.instantworldmirror.status.available";
+                case IN_USE -> "command.instantworldmirror.status.in_use";
+                case CLEANING -> "command.instantworldmirror.status.cleaning";
+            };
+            
+            // Get player count for this dimension
+            int playerCount = 0;
+            Optional<UUID> sessionId = DimensionPool.getDimensionSession(i);
+            if (sessionId.isPresent() && source.getServer() != null) {
+                playerCount = MirrorWorldManager.getSessionPlayerCount(sessionId.get());
+            }
+            
+            final int finalPlayerCount = playerCount;
+            final String finalStateKey = stateKey;
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.status.entry", dimIndex, 
+                    Component.translatable(finalStateKey), finalPlayerCount
+            ), false);
+        }
+        
+        return 1;
+    }
+    
+    /**
+     * /mirror forceclear <dimension> - Force clear a dimension and return all players to spawn
+     */
+    private static int forceClearCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        int dimIndex = IntegerArgumentType.getInteger(context, "dimension");
+        
+        // Validate dimension index
+        int poolSize = ModDimensions.getPoolSize();
+        if (dimIndex < 0 || dimIndex >= poolSize) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.invalid_dim", poolSize - 1));
+            return 0;
+        }
+        
+        // Check if dimension is actually in use
+        DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
+        if (state == DimensionPool.DimensionState.AVAILABLE) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.already_empty"));
+            return 0;
+        }
+        
+        // Perform force clear
+        if (source.getServer() != null) {
+            int playersReturned = MirrorWorldManager.forceClearDimension(dimIndex, source.getServer());
+            
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.forceclear.success",
+                    dimIndex, playersReturned
+            ), true);
+            return 1;
+        }
+        
+        source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
+        return 0;
     }
 }
