@@ -133,7 +133,7 @@ public class MirrorPortalEntity extends Entity {
         // Cache isClientSide check - called multiple times
         boolean isClient = this.level().isClientSide;
 
-        // Server side: async world copy
+        // Server side: async world copy and inactive portal cleanup
         if (!isClient) {
             ServerLevel serverLevel = (ServerLevel) this.level();
             
@@ -149,6 +149,51 @@ public class MirrorPortalEntity extends Entity {
                 if (sessionOpt.isPresent() && sessionOpt.get().isCopyComplete()) {
                     worldCopyComplete = true;
                     InstantWorldMirror.LOGGER.info("World copy detected complete for session {}", sessionId);
+                }
+            }
+            
+            // Check for inactive portal conditions (entry portals only)
+            if (!isReturnPortal && !worldCopyComplete) {
+                boolean shouldRemove = false;
+                String removeReason = null;
+                
+                // Condition 1: Loading timeout - portal stuck in loading state too long
+                int maxLoadingTicks = MirrorConfig.getMaxPortalLoadingTicks();
+                if (this.tickCount > maxLoadingTicks) {
+                    shouldRemove = true;
+                    removeReason = "loading timeout (exceeded " + (maxLoadingTicks / 20) + " seconds)";
+                }
+                
+                // Condition 2: Session no longer exists
+                if (sessionId != null && this.tickCount % 20 == 0) { // Check every second
+                    Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
+                    if (sessionOpt.isEmpty()) {
+                        shouldRemove = true;
+                        removeReason = "session no longer exists";
+                    } else if (sessionOpt.get().isDestroyed()) {
+                        shouldRemove = true;
+                        removeReason = "session is destroyed";
+                    }
+                }
+                
+                // Condition 3: No session ID but world copy started (invalid state)
+                if (worldCopyStarted && sessionId == null) {
+                    shouldRemove = true;
+                    removeReason = "invalid state (no session ID)";
+                }
+                
+                // Remove inactive portal
+                if (shouldRemove) {
+                    InstantWorldMirror.LOGGER.warn("Removing inactive portal: {}", removeReason);
+                    // Play disappear sound
+                    this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
+                            SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 0.3F, 0.5F);
+                    // Cancel session if exists
+                    if (sessionId != null) {
+                        MirrorWorldManager.cancelSession(sessionId, serverLevel.getServer());
+                    }
+                    this.discard();
+                    return;
                 }
             }
         }

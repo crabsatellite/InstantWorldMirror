@@ -59,6 +59,12 @@ public class MirrorConfig {
                     "Prevents instant return after entering mirror world")
             .defineInRange("teleportCooldown", 60, 0, 200);
 
+    public static final ModConfigSpec.IntValue MAX_PORTAL_LOADING_TIME = BUILDER
+            .comment("Maximum time in seconds for portal to stay in loading state (default: 600 = 10 minutes)",
+                    "If world copy doesn't complete within this time, portal is removed.",
+                    "Increase this for slower servers or larger copy radius.")
+            .defineInRange("maxPortalLoadingTime", 600, 60, 3600);
+
     // ==================== Item Rules ====================
     
     public static final ModConfigSpec.BooleanValue ALLOW_ITEM_TRANSFER = BUILDER
@@ -106,5 +112,12 @@ public class MirrorConfig {
     public static int getReturnPortalLifetimeTicks() {
         int seconds = RETURN_PORTAL_LIFETIME.get();
         return seconds == -1 ? -1 : seconds * 20;
+    }
+
+    /**
+     * Get max portal loading time in ticks
+     */
+    public static int getMaxPortalLoadingTicks() {
+        return MAX_PORTAL_LOADING_TIME.get() * 20;
     }
 }
