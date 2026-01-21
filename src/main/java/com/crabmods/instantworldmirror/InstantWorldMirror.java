@@ -1,0 +1,58 @@
+package com.crabmods.instantworldmirror;
+
+import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.registry.ModChunkGenerators;
+import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
+import com.crabmods.instantworldmirror.registry.ModItems;
+import com.mojang.logging.LogUtils;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import org.slf4j.Logger;
+
+/**
+ * InstantWorldMirror - Instant World Mirror
+ * A Minecraft mod that allows players to enter a mirror copy of the overworld
+ */
+@Mod(InstantWorldMirror.MODID)
+public class InstantWorldMirror {
+    public static final String MODID = "instantworldmirror";
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    public InstantWorldMirror(IEventBus modEventBus, ModContainer modContainer) {
+        // Register common setup event
+        modEventBus.addListener(this::commonSetup);
+
+        // Register items
+        ModItems.ITEMS.register(modEventBus);
+
+        // Register creative tabs
+        ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+
+        // Register chunk generators
+        ModChunkGenerators.CHUNK_GENERATORS.register(modEventBus);
+
+        // Register entities
+        ModEntities.ENTITY_TYPES.register(modEventBus);
+
+        // Register server events
+        NeoForge.EVENT_BUS.register(this);
+
+        // Register configuration
+        modContainer.registerConfig(ModConfig.Type.COMMON, MirrorConfig.SPEC);
+    }
+
+    private void commonSetup(final FMLCommonSetupEvent event) {
+        LOGGER.info("InstantWorldMirror - Common Setup");
+    }
+
+    @SubscribeEvent
+    public void onServerStarting(ServerStartingEvent event) {
+        LOGGER.info("InstantWorldMirror - Server Starting");
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "itemGroup.instantworldmirror": "Instant World Mirror",
+  "item.instantworldmirror.dimension_mirror": "Dimension Mirror",
+  "entity.instantworldmirror.mirror_portal": "Mirror Portal",
+  "dimension.instantworldmirror.mirror_world": "Mirror World",
+  "message.instantworldmirror.portal_created": "Entering Mirror World...",
+  "message.instantworldmirror.portal_expired": "The portal has faded away...",
+  "message.instantworldmirror.returned": "Returned to the original world",
+  "message.instantworldmirror.invalid_block": "Cannot open portal on this block",
+  "message.instantworldmirror.access_denied": "§cYou are not allowed to enter the Mirror World",
+  "message.instantworldmirror.portal_blocked": "§cPortals are disabled in the Mirror World!",
+  "command.instantworldmirror.return.success": "Forcefully returned to the original world",
+  "command.instantworldmirror.mob.on": "Mob spawning enabled in Mirror World",
+  "command.instantworldmirror.mob.off": "Mob spawning disabled in Mirror World",
+  "command.instantworldmirror.admin.granted": "Admin permission granted to %s",
+  "command.instantworldmirror.allow.success": "Player %s can now enter Mirror World",
+  "command.instantworldmirror.deny.success": "Player %s can no longer enter Mirror World",
+  "command.instantworldmirror.itemtransfer.enabled": "Item transfer enabled for %s",
+  "command.instantworldmirror.itemtransfer.disabled": "Item transfer disabled for %s"
+}

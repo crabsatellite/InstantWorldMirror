@@ -1,0 +1,20 @@
+{
+  "itemGroup.instantworldmirror": "瞬时世界之镜",
+  "item.instantworldmirror.dimension_mirror": "次元镜像镜",
+  "entity.instantworldmirror.mirror_portal": "镜面传送门",
+  "dimension.instantworldmirror.mirror_world": "镜面世界",
+  "message.instantworldmirror.portal_created": "正在进入镜面世界...",
+  "message.instantworldmirror.portal_expired": "传送门已消散...",
+  "message.instantworldmirror.returned": "已返回原世界",
+  "message.instantworldmirror.invalid_block": "无法在此方块上打开传送门",
+  "message.instantworldmirror.access_denied": "§c你没有权限进入镜面世界",
+  "message.instantworldmirror.portal_blocked": "§c镜面世界中禁止使用传送门！",
+  "command.instantworldmirror.return.success": "已强制返回原世界",
+  "command.instantworldmirror.mob.on": "镜面世界生物生成已开启",
+  "command.instantworldmirror.mob.off": "镜面世界生物生成已关闭",
+  "command.instantworldmirror.admin.granted": "已授予 %s 管理员权限",
+  "command.instantworldmirror.allow.success": "玩家 %s 现在可以进入镜面世界",
+  "command.instantworldmirror.deny.success": "玩家 %s 已被禁止进入镜面世界",
+  "command.instantworldmirror.itemtransfer.enabled": "已为 %s 开启物品传送权限",
+  "command.instantworldmirror.itemtransfer.disabled": "已为 %s 关闭物品传送权限"
+}
