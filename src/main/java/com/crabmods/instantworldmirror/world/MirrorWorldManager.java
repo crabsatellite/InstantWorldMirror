@@ -481,10 +481,10 @@ public class MirrorWorldManager {
         if (dimIndex >= 0) {
             DimensionPool.releaseDimension(sessionId);
             
-            // Queue cleanup for the session's dedicated dimension
+            // Queue aggressive async cleanup for the session's dedicated dimension
             ServerLevel mirrorWorld = server.getLevel(session.getMirrorDimension());
             if (mirrorWorld != null) {
-                WorldCopyService.cleanupMirrorWorld(mirrorWorld, session.getSourcePosition(), dimIndex);
+                WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
             }
         }
 
@@ -814,14 +814,10 @@ public class MirrorWorldManager {
                 // Mark dimension as cleaning
                 DimensionPool.markDimensionCleaning(dimIndex);
                 
-                // Force start cleanup - use immediate thorough clear
+                // Queue aggressive async cleanup (will restart any existing cleanup task)
                 ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
                 if (mirrorWorld != null) {
-                    // Do immediate synchronous cleanup of all loaded chunks
-                    WorldCopyService.clearAllLoadedChunksImmediate(mirrorWorld, dimIndex);
-                    
-                    // Then queue async cleanup for any remaining areas
-                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, BlockPos.ZERO, dimIndex);
+                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
                 }
                 return 0;
             }

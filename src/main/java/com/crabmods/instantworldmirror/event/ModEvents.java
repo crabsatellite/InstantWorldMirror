@@ -227,13 +227,15 @@ public class ModEvents {
                 int dimIndex = ModDimensions.getMirrorWorldIndex(serverLevel.dimension());
                 
                 // Track all player positions every 10 ticks (for cleanup purposes)
-                // This ensures chunks that players explore are marked for cleanup
+                // Track chunks within player's view distance to ensure all loaded chunks are cleaned up
                 if (serverLevel.getGameTime() % 10 == 0 && dimIndex >= 0) {
+                    // Get server's view distance for proper chunk tracking
+                    int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
                     for (ServerPlayer player : serverLevel.players()) {
                         int chunkX = player.getBlockX() >> 4;
                         int chunkZ = player.getBlockZ() >> 4;
-                        // Track the chunk the player is in plus a small radius for view distance
-                        WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, 2);
+                        // Track all chunks within player's view distance
+                        WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
                     }
                 }
                 

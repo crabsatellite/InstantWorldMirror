@@ -1,7 +1,6 @@
 package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -90,7 +89,7 @@ public class DimensionPool {
                 // Queue cleanup task for this dimension
                 ServerLevel mirrorWorld = server.getLevel(ModDimensions.getMirrorWorld(i));
                 if (mirrorWorld != null) {
-                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, BlockPos.ZERO, i);
+                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, i);
                     InstantWorldMirror.LOGGER.info("Re-queued cleanup task for dimension {}", i);
                 }
             }
