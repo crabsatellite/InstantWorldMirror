@@ -14,7 +14,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -189,14 +189,46 @@ public class ModEvents {
     /**
      * Mob spawn event - prevent natural mob spawning in mirror world if configured
      * This catches all natural spawns (passive, hostile, ambient, water creatures, etc.)
+     * BUT allows player-triggered spawns (spawn eggs, built structures like wither/iron golem, etc.)
      */
     @SubscribeEvent
     public static void onMobSpawn(FinalizeSpawnEvent event) {
         Level level = event.getLevel().getLevel();
         
         if (ModDimensions.isMirrorWorld(level.dimension())) {
-            // Check config - if mob spawning is disabled, cancel the spawn
+            // Check config - if mob spawning is disabled, cancel natural spawns only
             if (!MirrorConfig.ENABLE_MOB_SPAWNING.get()) {
+                MobSpawnType spawnType = event.getSpawnType();
+                
+                // Allow player-triggered spawns:
+                // - SPAWN_EGG: Player used a spawn egg
+                // - TRIGGERED: Built structures (wither, iron golem, snow golem, etc.)
+                // - COMMAND: Summoned via /summon command
+                // - BUCKET: Player placed a fish bucket
+                // - CONVERSION: Mob converted (zombie villager cured, etc.)
+                // - BREEDING: Player bred animals
+                // - DISPENSER: Dispenser spawned mob
+                // - EVENT: Special event spawns (usually player-related)
+                if (spawnType == MobSpawnType.SPAWN_EGG ||
+                    spawnType == MobSpawnType.TRIGGERED ||
+                    spawnType == MobSpawnType.COMMAND ||
+                    spawnType == MobSpawnType.BUCKET ||
+                    spawnType == MobSpawnType.CONVERSION ||
+                    spawnType == MobSpawnType.BREEDING ||
+                    spawnType == MobSpawnType.DISPENSER ||
+                    spawnType == MobSpawnType.EVENT) {
+                    // Allow these spawns
+                    return;
+                }
+                
+                // Block natural spawns:
+                // - NATURAL: Regular mob spawning (hostile at night, passive in the wild)
+                // - CHUNK_GENERATION: Mobs spawned during chunk generation
+                // - SPAWNER: Mob spawner blocks (can be considered non-player if desired)
+                // - STRUCTURE: Structure spawns (like village golems, mansion vindicators)
+                // - PATROL: Illager patrols
+                // - REINFORCEMENT: Zombie reinforcements
+                // - JOCKEY: Spider jockey spawns
                 event.setSpawnCancelled(true);
             }
         }
