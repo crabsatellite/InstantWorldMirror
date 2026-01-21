@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror.client;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.client.model.MirrorPortalModel;
 import com.crabmods.instantworldmirror.client.renderer.MirrorPortalRenderer;
 import com.crabmods.instantworldmirror.entity.ModEntities;
 import net.neoforged.api.distmarker.Dist;
@@ -21,5 +22,14 @@ public class ClientEvents {
     public static void registerEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.MIRROR_PORTAL.get(), MirrorPortalRenderer::new);
         InstantWorldMirror.LOGGER.info("Mirror Portal renderer registered");
+    }
+    
+    /**
+     * Register model layers for entity models
+     */
+    @SubscribeEvent
+    public static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(MirrorPortalModel.LAYER_LOCATION, MirrorPortalModel::createBodyLayer);
+        InstantWorldMirror.LOGGER.info("Mirror Portal model layer registered");
     }
 }

@@ -49,6 +49,11 @@ public class MirrorPortalEntity extends Entity {
     private static final EntityDataAccessor<Boolean> DATA_LOADING = SynchedEntityData.defineId(
             MirrorPortalEntity.class, EntityDataSerializers.BOOLEAN
     );
+    
+    // Synced data: whether this is a return portal (for client rendering)
+    private static final EntityDataAccessor<Boolean> DATA_IS_RETURN = SynchedEntityData.defineId(
+            MirrorPortalEntity.class, EntityDataSerializers.BOOLEAN
+    );
 
     // Owner UUID (who created this portal)
     private UUID ownerUUID;
@@ -90,6 +95,8 @@ public class MirrorPortalEntity extends Entity {
         // Return portal doesn't need world copy, ready immediately
         if (isReturn) {
             this.worldCopyComplete = true;
+            this.entityData.set(DATA_LOADING, false); // Not loading - ready to use
+            this.entityData.set(DATA_IS_RETURN, true); // Mark as return portal for client
             // Set lifetime for return portal from config
             this.entityData.set(DATA_LIFETIME, MirrorConfig.getReturnPortalLifetimeTicks());
         }
@@ -116,6 +123,7 @@ public class MirrorPortalEntity extends Entity {
         // Default to entry portal lifetime, will be updated when copy completes
         builder.define(DATA_LIFETIME, MirrorConfig.getEntryPortalLifetimeTicks());
         builder.define(DATA_LOADING, true); // Default to loading state
+        builder.define(DATA_IS_RETURN, false); // Default to entry portal
     }
 
     @Override
@@ -389,6 +397,8 @@ public class MirrorPortalEntity extends Entity {
         }
         this.isReturnPortal = compound.getBoolean("IsReturn");
         this.entityData.set(DATA_LIFETIME, compound.getInt("Lifetime"));
+        this.entityData.set(DATA_IS_RETURN, this.isReturnPortal); // Sync to client
+        this.entityData.set(DATA_LOADING, !compound.getBoolean("WorldCopyComplete")); // Sync loading state
         this.worldCopyComplete = compound.getBoolean("WorldCopyComplete");
         this.worldCopyStarted = compound.getBoolean("WorldCopyStarted");
         if (compound.contains("ClickPosX")) {
@@ -434,7 +444,7 @@ public class MirrorPortalEntity extends Entity {
     }
 
     public boolean isReturnPortal() {
-        return this.isReturnPortal;
+        return this.entityData.get(DATA_IS_RETURN);
     }
 
     public boolean isLoading() {

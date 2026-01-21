@@ -69,6 +69,27 @@ public class ModEvents {
     }
 
     /**
+     * Player dimension change event - detect when player leaves mirror world via commands/other means
+     * This catches /tp, /execute, other mod teleporters, etc.
+     */
+    @SubscribeEvent
+    public static void onPlayerChangeDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            // Check if player LEFT a mirror world (not entered one)
+            if (ModDimensions.isMirrorWorld(event.getFrom()) && !ModDimensions.isMirrorWorld(event.getTo())) {
+                // Player left mirror world through non-portal means (command, other mod, etc.)
+                InstantWorldMirror.LOGGER.info("Player {} left Mirror World via external means (from {} to {})", 
+                        player.getName().getString(), 
+                        event.getFrom().location(), 
+                        event.getTo().location());
+                
+                // Clean up their session data
+                MirrorWorldManager.handleExternalExit(player, player.getServer());
+            }
+        }
+    }
+
+    /**
      * Player logout event - cleanup player data and session
      */
     @SubscribeEvent

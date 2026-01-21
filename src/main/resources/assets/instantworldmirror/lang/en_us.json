@@ -15,6 +15,7 @@
   "message.instantworldmirror.session_create_failed": "§cFailed to create mirror world session",
   "message.instantworldmirror.session_expired": "§eThis mirror portal has expired. The session no longer exists.",
   "message.instantworldmirror.no_dimensions_available": "§cNo mirror dimensions available. Please wait and try again.",
+  "message.instantworldmirror.external_exit": "§eYou left the Mirror World. Your session has been cleaned up.",
   "command.instantworldmirror.return.success": "Forcefully returned to the original world",
   "command.instantworldmirror.mob.on": "Mob spawning enabled in Mirror World",
   "command.instantworldmirror.mob.off": "Mob spawning disabled in Mirror World",

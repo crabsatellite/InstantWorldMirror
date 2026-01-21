@@ -515,6 +515,46 @@ public class MirrorWorldManager {
             sessionLock.writeLock().unlock();
         }
     }
+    
+    /**
+     * Handle player leaving mirror world through external means (commands, other mods, etc.)
+     * This is called when PlayerChangedDimensionEvent detects leaving mirror world
+     */
+    public static void handleExternalExit(ServerPlayer player, MinecraftServer server) {
+        sessionLock.writeLock().lock();
+        try {
+            UUID playerId = player.getUUID();
+            
+            // Check if player was in a session
+            UUID sessionId = playerToSession.remove(playerId);
+            if (sessionId != null) {
+                MirrorSession session = activeSessions.get(sessionId);
+                if (session != null) {
+                    InstantWorldMirror.LOGGER.info("Player {} externally left session {}", 
+                            player.getName().getString(), sessionId);
+                    
+                    boolean sessionNowEmpty = session.removePlayer(playerId);
+                    if (sessionNowEmpty) {
+                        // Session is now empty, clean it up
+                        destroySession(session, server);
+                    }
+                }
+            }
+            
+            // Cleanup position data (player is already in the target dimension)
+            playerOriginalPositions.remove(playerId);
+            playerOriginalDimensions.remove(playerId);
+            playerItemTransferPermission.remove(playerId);
+            
+            // Send notification to player
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.external_exit"),
+                    false
+            );
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
 
     // ==================== Utility Methods ====================
 

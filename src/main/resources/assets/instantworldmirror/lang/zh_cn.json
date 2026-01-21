@@ -15,6 +15,7 @@
   "message.instantworldmirror.session_create_failed": "§c创建镜面世界会话失败",
   "message.instantworldmirror.session_expired": "§e此镜面传送门已失效，会话已不存在。",
   "message.instantworldmirror.no_dimensions_available": "§c没有可用的镜面维度，请稍后再试。",
+  "message.instantworldmirror.external_exit": "§e你已离开镜面世界，会话数据已清理。",
   "command.instantworldmirror.return.success": "已强制返回原世界",
   "command.instantworldmirror.mob.on": "镜面世界生物生成已开启",
   "command.instantworldmirror.mob.off": "镜面世界生物生成已关闭",
