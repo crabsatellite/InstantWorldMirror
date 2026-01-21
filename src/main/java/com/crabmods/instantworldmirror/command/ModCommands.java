@@ -228,11 +228,13 @@ public class ModCommands {
                 case CLEANING -> "command.instantworldmirror.status.cleaning";
             };
             
-            // Get player count for this dimension
+            // Get player count directly from the dimension level (most reliable)
             int playerCount = 0;
-            Optional<UUID> sessionId = DimensionPool.getDimensionSession(i);
-            if (sessionId.isPresent() && source.getServer() != null) {
-                playerCount = MirrorWorldManager.getSessionPlayerCount(sessionId.get());
+            if (source.getServer() != null) {
+                ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(source.getServer(), i);
+                if (mirrorWorld != null) {
+                    playerCount = mirrorWorld.players().size();
+                }
             }
             
             final int finalPlayerCount = playerCount;

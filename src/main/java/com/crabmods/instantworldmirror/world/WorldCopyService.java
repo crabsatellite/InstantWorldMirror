@@ -63,7 +63,15 @@ public class WorldCopyService {
     public static void trackModifiedChunk(int dimIndex, int chunkX, int chunkZ) {
         modifiedChunks.computeIfAbsent(dimIndex, k -> ConcurrentHashMap.newKeySet())
                 .add(packChunkPos(chunkX, chunkZ));
+        
+        // Mark that this dimension has pending save
+        pendingSave.add(dimIndex);
     }
+    
+    // Track dimensions that have pending modifications to save
+    private static final Set<Integer> pendingSave = ConcurrentHashMap.newKeySet();
+    private static int saveTickCounter = 0;
+    private static final int SAVE_TICK_INTERVAL = 200; // Save every 10 seconds (200 ticks)
     
     /**
      * Track all chunks in a radius around a position.
@@ -89,6 +97,25 @@ public class WorldCopyService {
      */
     public static void clearModifiedChunkTracking(int dimIndex) {
         modifiedChunks.remove(dimIndex);
+        pendingSave.remove(dimIndex);
+    }
+    
+    /**
+     * Save all pending modifications to persistent storage
+     * Called periodically and on server shutdown
+     */
+    public static void savePendingModifications() {
+        if (pendingSave.isEmpty()) return;
+        
+        for (Integer dimIndex : new java.util.ArrayList<>(pendingSave)) {
+            BlockPos centerPos = copyCenterPositions.get(dimIndex);
+            Set<Long> chunks = modifiedChunks.get(dimIndex);
+            
+            if (centerPos != null || (chunks != null && !chunks.isEmpty())) {
+                DimensionPool.saveCleanupData(dimIndex, centerPos, chunks, 0);
+                pendingSave.remove(dimIndex);
+            }
+        }
     }
     
     private static long packChunkPos(int x, int z) {
@@ -187,6 +214,8 @@ public class WorldCopyService {
         private int currentIndex = 0;
         private boolean initialized = false;
         private boolean completed = false;
+        private int saveCounter = 0; // Counter for periodic saves
+        private static final int SAVE_INTERVAL = 10; // Save every 10 chunks processed
 
         public CleanupTask(int dimensionIndex) {
             this.dimensionIndex = dimensionIndex;
@@ -196,6 +225,7 @@ public class WorldCopyService {
          * Initialize the cleanup task with:
          * 1. All chunks in the original copy radius (guaranteed to have content)
          * 2. Any additional tracked chunks (player explored/modified outside copy radius)
+         * Also tries to restore progress from saved data.
          */
         public void initializeChunkList(ServerLevel mirrorWorld) {
             if (initialized) return;
@@ -203,8 +233,17 @@ public class WorldCopyService {
             
             Set<Long> allChunksToClean = new java.util.HashSet<>();
             
-            // First: add ALL chunks in the copy radius (these definitely have content)
+            // Try to restore from saved data first
+            BlockPos savedCenter = DimensionPool.getSavedCopyCenter(dimensionIndex);
+            java.util.Set<Long> savedChunks = DimensionPool.getSavedModifiedChunks(dimensionIndex);
+            int savedProgress = DimensionPool.getSavedCleanupProgress(dimensionIndex);
+            
+            // First: Check memory cache, then fall back to saved data
             BlockPos centerPos = copyCenterPositions.get(dimensionIndex);
+            if (centerPos == null) {
+                centerPos = savedCenter;
+            }
+            
             int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
             
             if (centerPos != null) {
@@ -222,7 +261,7 @@ public class WorldCopyService {
                         copyChunks, dimensionIndex);
             }
             
-            // Second: add any additional tracked chunks (player explored outside copy radius)
+            // Second: add tracked chunks from memory
             Set<Long> tracked = getModifiedChunks(dimensionIndex);
             int additionalChunks = 0;
             for (Long packed : tracked) {
@@ -231,9 +270,17 @@ public class WorldCopyService {
                 }
             }
             
-            if (additionalChunks > 0) {
-                InstantWorldMirror.LOGGER.info("Added {} additional tracked chunks outside copy radius", 
-                        additionalChunks);
+            // Third: add saved chunks (from previous session)
+            int restoredChunks = 0;
+            for (Long packed : savedChunks) {
+                if (allChunksToClean.add(packed)) {
+                    restoredChunks++;
+                }
+            }
+            
+            if (additionalChunks > 0 || restoredChunks > 0) {
+                InstantWorldMirror.LOGGER.info("Added {} tracked chunks + {} restored chunks outside copy radius", 
+                        additionalChunks, restoredChunks);
             }
             
             // Convert to list for processing
@@ -241,8 +288,15 @@ public class WorldCopyService {
                 chunksToClean.add(new long[]{unpackChunkX(packed), unpackChunkZ(packed)});
             }
             
-            InstantWorldMirror.LOGGER.info("Cleanup task initialized for dimension {} with {} total chunks to clean",
-                    dimensionIndex, chunksToClean.size());
+            // Restore progress if available and valid
+            if (savedProgress > 0 && savedProgress < chunksToClean.size()) {
+                this.currentIndex = savedProgress;
+                InstantWorldMirror.LOGGER.info("Restored cleanup progress for dimension {}: {}/{} chunks",
+                        dimensionIndex, savedProgress, chunksToClean.size());
+            }
+            
+            InstantWorldMirror.LOGGER.info("Cleanup task initialized for dimension {} with {} total chunks to clean (starting at {})",
+                    dimensionIndex, chunksToClean.size(), currentIndex);
         }
         
         public int getTotalChunks() {
@@ -258,7 +312,34 @@ public class WorldCopyService {
                 completed = true;
                 return null;
             }
-            return chunksToClean.get(currentIndex++);
+            long[] result = chunksToClean.get(currentIndex++);
+            
+            // Periodically save progress
+            saveCounter++;
+            if (saveCounter >= SAVE_INTERVAL) {
+                saveCounter = 0;
+                saveProgress();
+            }
+            
+            return result;
+        }
+        
+        /**
+         * Save current cleanup progress to persistent storage
+         */
+        public void saveProgress() {
+            BlockPos centerPos = copyCenterPositions.get(dimensionIndex);
+            Set<Long> chunks = getModifiedChunks(dimensionIndex);
+            
+            // Convert chunks list back to set for saving (include all chunks, not just remaining)
+            Set<Long> allChunks = new java.util.HashSet<>();
+            for (long[] chunk : chunksToClean) {
+                allChunks.add(packChunkPos((int)chunk[0], (int)chunk[1]));
+            }
+            // Also include any tracked chunks
+            allChunks.addAll(chunks);
+            
+            DimensionPool.saveCleanupData(dimensionIndex, centerPos, allChunks, currentIndex);
         }
         
         public boolean isCompleted() { return completed; }
@@ -292,8 +373,9 @@ public class WorldCopyService {
         
         copyTasks.put(dimIndex, task);
         
-        // Store the copy center position for cleanup later
+        // Store the copy center position for cleanup later (both in memory and persistent storage)
         copyCenterPositions.put(dimIndex, session.getSourcePosition());
+        DimensionPool.saveCleanupData(dimIndex, session.getSourcePosition(), null, 0);
         
         InstantWorldMirror.LOGGER.info("Queued world copy for session {} to dimension {} - {} chunks total",
                 session.getSessionId(), dimIndex, task.getTotalChunks());
@@ -626,6 +708,13 @@ public class WorldCopyService {
      * Process all cleanup queues - call from server tick
      */
     public static void processCleanupQueues(MinecraftServer server) {
+        // Periodically save pending modifications (even if no cleanup tasks)
+        saveTickCounter++;
+        if (saveTickCounter >= SAVE_TICK_INTERVAL) {
+            saveTickCounter = 0;
+            savePendingModifications();
+        }
+        
         if (cleanupTasks.isEmpty()) return; // Early exit if no tasks
         
         int chunksPerTick = MirrorConfig.CLEANUP_CHUNKS_PER_TICK.get();
@@ -825,11 +914,29 @@ public class WorldCopyService {
 
     /**
      * Clear all tasks (for server shutdown)
+     * Saves all cleanup progress before clearing
      */
     public static void clearAllTasks() {
+        // Save progress for all active cleanup tasks before clearing
+        for (Map.Entry<Integer, CleanupTask> entry : cleanupTasks.entrySet()) {
+            CleanupTask task = entry.getValue();
+            if (!task.isCompleted()) {
+                task.saveProgress();
+                InstantWorldMirror.LOGGER.info("Saved cleanup progress for dimension {} ({}/{})",
+                        task.dimensionIndex, task.getCleanedChunks(), task.getTotalChunks());
+            }
+        }
+        
+        // Save all pending modifications
+        savePendingModifications();
+        
         copyTasks.clear();
         cleanupTasks.clear();
         copyCenterPositions.clear();
         modifiedChunks.clear();
+        pendingSave.clear();
+        saveTickCounter = 0;
+        
+        InstantWorldMirror.LOGGER.info("All tasks cleared, progress saved to persistent storage");
     }
 }

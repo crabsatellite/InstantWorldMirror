@@ -69,8 +69,8 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
             poseStack.mulPose(Axis.YP.rotationDegrees(-this.entityRenderDispatcher.camera.getYRot()));
         }
         
-        // Flip the model upright (model has X rotation built in, we just flip it)
-        poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
+        // Model is upside down by default, no X rotation needed for inverted/mirror effect
+        // poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
         
         // Scale the mirror model
         float scale = 1.5F;

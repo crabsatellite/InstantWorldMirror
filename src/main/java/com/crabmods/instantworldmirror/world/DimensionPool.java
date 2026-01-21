@@ -311,6 +311,69 @@ public class DimensionPool {
     }
 
     /**
+     * Save cleanup data (copy center, modified chunks, progress) for a dimension
+     * Call this during cleanup task processing to persist progress
+     */
+    public static void saveCleanupData(int dimIndex, net.minecraft.core.BlockPos copyCenter, 
+                                       java.util.Set<Long> modifiedChunks, int cleanupProgress) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData.factory(),
+                    DimensionPoolData.DATA_NAME
+            );
+            data.setCopyCenter(dimIndex, copyCenter);
+            data.setModifiedChunks(dimIndex, modifiedChunks);
+            data.setCleanupProgress(dimIndex, cleanupProgress);
+        }
+    }
+    
+    /**
+     * Get saved copy center for a dimension
+     */
+    public static net.minecraft.core.BlockPos getSavedCopyCenter(int dimIndex) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData.factory(),
+                    DimensionPoolData.DATA_NAME
+            );
+            return data.getCopyCenter(dimIndex);
+        }
+        return null;
+    }
+    
+    /**
+     * Get saved modified chunks for a dimension
+     */
+    public static java.util.Set<Long> getSavedModifiedChunks(int dimIndex) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData.factory(),
+                    DimensionPoolData.DATA_NAME
+            );
+            return data.getModifiedChunks(dimIndex);
+        }
+        return java.util.Collections.emptySet();
+    }
+    
+    /**
+     * Get saved cleanup progress for a dimension
+     */
+    public static int getSavedCleanupProgress(int dimIndex) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData.factory(),
+                    DimensionPoolData.DATA_NAME
+            );
+            return data.getCleanupProgress(dimIndex);
+        }
+        return 0;
+    }
+    
+    /**
      * Debug info
      */
     public static String getDebugInfo() {
@@ -339,11 +402,22 @@ public class DimensionPool {
         // Stores which dimensions are marked for cleanup
         private final Map<Integer, Boolean> cleanupStates = new ConcurrentHashMap<>();
         
+        // Stores copy center positions for cleanup (dimIndex -> BlockPos)
+        private final Map<Integer, net.minecraft.core.BlockPos> copyCenterPositions = new ConcurrentHashMap<>();
+        
+        // Stores modified chunks for each dimension (dimIndex -> Set<Long>)
+        private final Map<Integer, java.util.Set<Long>> modifiedChunks = new ConcurrentHashMap<>();
+        
+        // Stores cleanup progress (dimIndex -> current chunk index)
+        private final Map<Integer, Integer> cleanupProgress = new ConcurrentHashMap<>();
+        
         public DimensionPoolData() {
         }
         
         public static DimensionPoolData load(CompoundTag tag, HolderLookup.Provider provider) {
             DimensionPoolData data = new DimensionPoolData();
+            
+            // Load cleanup states
             CompoundTag states = tag.getCompound("cleanup_states");
             for (String key : states.getAllKeys()) {
                 try {
@@ -352,16 +426,80 @@ public class DimensionPool {
                 } catch (NumberFormatException ignored) {
                 }
             }
+            
+            // Load copy center positions
+            CompoundTag centers = tag.getCompound("copy_centers");
+            for (String key : centers.getAllKeys()) {
+                try {
+                    int dimIndex = Integer.parseInt(key);
+                    long[] pos = centers.getLongArray(key);
+                    if (pos.length >= 3) {
+                        data.copyCenterPositions.put(dimIndex, new net.minecraft.core.BlockPos((int)pos[0], (int)pos[1], (int)pos[2]));
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            
+            // Load modified chunks
+            CompoundTag chunks = tag.getCompound("modified_chunks");
+            for (String key : chunks.getAllKeys()) {
+                try {
+                    int dimIndex = Integer.parseInt(key);
+                    long[] chunkArray = chunks.getLongArray(key);
+                    java.util.Set<Long> chunkSet = ConcurrentHashMap.newKeySet();
+                    for (long packed : chunkArray) {
+                        chunkSet.add(packed);
+                    }
+                    data.modifiedChunks.put(dimIndex, chunkSet);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            
+            // Load cleanup progress
+            CompoundTag progress = tag.getCompound("cleanup_progress");
+            for (String key : progress.getAllKeys()) {
+                try {
+                    int dimIndex = Integer.parseInt(key);
+                    data.cleanupProgress.put(dimIndex, progress.getInt(key));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            
             return data;
         }
         
         @Override
         public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+            // Save cleanup states
             CompoundTag states = new CompoundTag();
             for (Map.Entry<Integer, Boolean> entry : cleanupStates.entrySet()) {
                 states.putBoolean(String.valueOf(entry.getKey()), entry.getValue());
             }
             tag.put("cleanup_states", states);
+            
+            // Save copy center positions
+            CompoundTag centers = new CompoundTag();
+            for (Map.Entry<Integer, net.minecraft.core.BlockPos> entry : copyCenterPositions.entrySet()) {
+                net.minecraft.core.BlockPos pos = entry.getValue();
+                centers.putLongArray(String.valueOf(entry.getKey()), new long[]{pos.getX(), pos.getY(), pos.getZ()});
+            }
+            tag.put("copy_centers", centers);
+            
+            // Save modified chunks
+            CompoundTag chunks = new CompoundTag();
+            for (Map.Entry<Integer, java.util.Set<Long>> entry : modifiedChunks.entrySet()) {
+                long[] chunkArray = entry.getValue().stream().mapToLong(Long::longValue).toArray();
+                chunks.putLongArray(String.valueOf(entry.getKey()), chunkArray);
+            }
+            tag.put("modified_chunks", chunks);
+            
+            // Save cleanup progress
+            CompoundTag progress = new CompoundTag();
+            for (Map.Entry<Integer, Integer> entry : cleanupProgress.entrySet()) {
+                progress.putInt(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            tag.put("cleanup_progress", progress);
+            
             return tag;
         }
         
@@ -374,6 +512,52 @@ public class DimensionPool {
                 cleanupStates.put(dimIndex, true);
             } else {
                 cleanupStates.remove(dimIndex);
+                // Also clear related data when cleanup completes
+                copyCenterPositions.remove(dimIndex);
+                modifiedChunks.remove(dimIndex);
+                cleanupProgress.remove(dimIndex);
+            }
+            setDirty();
+        }
+        
+        // Copy center position methods
+        public net.minecraft.core.BlockPos getCopyCenter(int dimIndex) {
+            return copyCenterPositions.get(dimIndex);
+        }
+        
+        public void setCopyCenter(int dimIndex, net.minecraft.core.BlockPos pos) {
+            if (pos != null) {
+                copyCenterPositions.put(dimIndex, pos);
+            } else {
+                copyCenterPositions.remove(dimIndex);
+            }
+            setDirty();
+        }
+        
+        // Modified chunks methods
+        public java.util.Set<Long> getModifiedChunks(int dimIndex) {
+            return modifiedChunks.getOrDefault(dimIndex, java.util.Collections.emptySet());
+        }
+        
+        public void setModifiedChunks(int dimIndex, java.util.Set<Long> chunks) {
+            if (chunks != null && !chunks.isEmpty()) {
+                modifiedChunks.put(dimIndex, new java.util.HashSet<>(chunks));
+            } else {
+                modifiedChunks.remove(dimIndex);
+            }
+            setDirty();
+        }
+        
+        // Cleanup progress methods
+        public int getCleanupProgress(int dimIndex) {
+            return cleanupProgress.getOrDefault(dimIndex, 0);
+        }
+        
+        public void setCleanupProgress(int dimIndex, int progress) {
+            if (progress > 0) {
+                cleanupProgress.put(dimIndex, progress);
+            } else {
+                cleanupProgress.remove(dimIndex);
             }
             setDirty();
         }

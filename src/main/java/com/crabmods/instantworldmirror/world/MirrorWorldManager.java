@@ -802,11 +802,86 @@ public class MirrorWorldManager {
             // Cancel any pending cleanup task first to restart fresh
             WorldCopyService.cancelCleanupTask(dimIndex);
             
-            // Get the session using this dimension
+            // First: Get all players DIRECTLY from the dimension (most reliable)
+            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
+            if (mirrorWorld != null) {
+                ServerLevel overworld = server.overworld();
+                BlockPos defaultSpawnPoint = overworld.getSharedSpawnPos();
+                
+                // Copy player list to avoid concurrent modification
+                java.util.List<ServerPlayer> playersInDimension = new java.util.ArrayList<>(mirrorWorld.players());
+                
+                for (ServerPlayer player : playersInDimension) {
+                    UUID playerId = player.getUUID();
+                    
+                    // Get original position and dimension
+                    BlockPos originalPos = playerOriginalPositions.get(playerId);
+                    ResourceKey<Level> originalDimension = playerOriginalDimensions.get(playerId);
+                    
+                    ServerLevel targetLevel;
+                    BlockPos targetPos;
+                    
+                    if (originalPos != null && originalDimension != null) {
+                        targetLevel = server.getLevel(originalDimension);
+                        targetPos = originalPos;
+                    } else {
+                        targetLevel = overworld;
+                        targetPos = defaultSpawnPoint;
+                    }
+                    
+                    // Fallback to overworld spawn if target dimension is invalid
+                    if (targetLevel == null) {
+                        targetLevel = overworld;
+                        targetPos = defaultSpawnPoint;
+                    }
+                    
+                    // Teleport player to their original position/dimension
+                    player.teleportTo(targetLevel, 
+                            targetPos.getX() + 0.5, 
+                            targetPos.getY(), 
+                            targetPos.getZ() + 0.5, 
+                            player.getYRot(), 
+                            player.getXRot());
+                    
+                    // Clear their saved data
+                    clearSavedData(player);
+                    
+                    // Remove from tracking maps
+                    playerToSession.remove(playerId);
+                    playerOriginalPositions.remove(playerId);
+                    playerOriginalDimensions.remove(playerId);
+                    
+                    // Notify player
+                    player.displayClientMessage(
+                            Component.translatable("message.instantworldmirror.force_returned"),
+                            false
+                    );
+                    
+                    playersReturned++;
+                    InstantWorldMirror.LOGGER.info("Force returned player {} to original position", 
+                            player.getName().getString());
+                }
+            }
+            
+            // Get the session using this dimension and clean up session data
             Optional<UUID> sessionIdOpt = DimensionPool.getDimensionSession(dimIndex);
-            if (sessionIdOpt.isEmpty()) {
+            if (sessionIdOpt.isPresent()) {
+                UUID sessionId = sessionIdOpt.get();
+                MirrorSession session = activeSessions.get(sessionId);
+                
+                if (session != null) {
+                    // Remove ownership tracking
+                    for (Map.Entry<UUID, UUID> entry : new java.util.HashMap<>(playerOwnedSession).entrySet()) {
+                        if (entry.getValue().equals(sessionId)) {
+                            playerOwnedSession.remove(entry.getKey());
+                        }
+                    }
+                    
+                    // Destroy the session (this will trigger cleanup)
+                    destroySession(session, server);
+                }
+            } else {
                 // No active session - force cleanup anyway
-                // This handles both CLEANING and AVAILABLE states
                 DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
                 InstantWorldMirror.LOGGER.info("Force clearing dimension {} (state: {}) without active session", 
                         dimIndex, state);
@@ -814,88 +889,10 @@ public class MirrorWorldManager {
                 // Mark dimension as cleaning
                 DimensionPool.markDimensionCleaning(dimIndex);
                 
-                // Queue aggressive async cleanup (will restart any existing cleanup task)
-                ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
+                // Queue aggressive async cleanup
                 if (mirrorWorld != null) {
                     WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
                 }
-                return 0;
-            }
-            
-            UUID sessionId = sessionIdOpt.get();
-            MirrorSession session = activeSessions.get(sessionId);
-            
-            if (session != null) {
-                // Get all players in this session and return them to their original position
-                ServerLevel overworld = server.overworld();
-                BlockPos defaultSpawnPoint = overworld.getSharedSpawnPos();
-                
-                // Find all players in this session
-                for (Map.Entry<UUID, UUID> entry : new java.util.HashMap<>(playerToSession).entrySet()) {
-                    if (entry.getValue().equals(sessionId)) {
-                        UUID playerId = entry.getKey();
-                        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-                        
-                        if (player != null) {
-                            // Get original position and dimension
-                            BlockPos originalPos = playerOriginalPositions.get(playerId);
-                            ResourceKey<Level> originalDimension = playerOriginalDimensions.get(playerId);
-                            
-                            ServerLevel targetLevel;
-                            BlockPos targetPos;
-                            
-                            if (originalPos != null && originalDimension != null) {
-                                targetLevel = server.getLevel(originalDimension);
-                                targetPos = originalPos;
-                            } else {
-                                targetLevel = overworld;
-                                targetPos = defaultSpawnPoint;
-                            }
-                            
-                            // Fallback to overworld spawn if target dimension is invalid
-                            if (targetLevel == null) {
-                                targetLevel = overworld;
-                                targetPos = defaultSpawnPoint;
-                            }
-                            
-                            // Teleport player to their original position/dimension
-                            player.teleportTo(targetLevel, 
-                                    targetPos.getX() + 0.5, 
-                                    targetPos.getY(), 
-                                    targetPos.getZ() + 0.5, 
-                                    player.getYRot(), 
-                                    player.getXRot());
-                            
-                            // Clear their saved data
-                            clearSavedData(player);
-                            
-                            // Notify player
-                            player.displayClientMessage(
-                                    Component.translatable("message.instantworldmirror.force_returned"),
-                                    false
-                            );
-                            
-                            playersReturned++;
-                            InstantWorldMirror.LOGGER.info("Force returned player {} to spawn", 
-                                    player.getName().getString());
-                        }
-                        
-                        // Remove from tracking maps
-                        playerToSession.remove(playerId);
-                        playerOriginalPositions.remove(playerId);
-                        playerOriginalDimensions.remove(playerId);
-                    }
-                }
-                
-                // Also remove ownership tracking
-                for (Map.Entry<UUID, UUID> entry : new java.util.HashMap<>(playerOwnedSession).entrySet()) {
-                    if (entry.getValue().equals(sessionId)) {
-                        playerOwnedSession.remove(entry.getKey());
-                    }
-                }
-                
-                // Destroy the session (this will trigger cleanup)
-                destroySession(session, server);
             }
             
             InstantWorldMirror.LOGGER.info("Force cleared dimension {} - returned {} players", 
