@@ -65,6 +65,7 @@ public class InstantWorldMirror {
         
         // Re-initialize dimension pool on server start (in case config changed)
         ModDimensions.updatePoolSizeFromConfig();
-        DimensionPool.initialize();
+        // Use server-aware initialization to restore cleanup states from persistent storage
+        DimensionPool.initializeWithServer(event.getServer());
     }
 }

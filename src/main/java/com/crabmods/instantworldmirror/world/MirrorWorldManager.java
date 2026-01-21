@@ -830,9 +830,9 @@ public class MirrorWorldManager {
             MirrorSession session = activeSessions.get(sessionId);
             
             if (session != null) {
-                // Get all players in this session and return them to spawn
+                // Get all players in this session and return them to their original position
                 ServerLevel overworld = server.overworld();
-                BlockPos spawnPoint = overworld.getSharedSpawnPos();
+                BlockPos defaultSpawnPoint = overworld.getSharedSpawnPos();
                 
                 // Find all players in this session
                 for (Map.Entry<UUID, UUID> entry : new java.util.HashMap<>(playerToSession).entrySet()) {
@@ -841,11 +841,32 @@ public class MirrorWorldManager {
                         ServerPlayer player = server.getPlayerList().getPlayer(playerId);
                         
                         if (player != null) {
-                            // Teleport player to overworld spawn
-                            player.teleportTo(overworld, 
-                                    spawnPoint.getX() + 0.5, 
-                                    spawnPoint.getY(), 
-                                    spawnPoint.getZ() + 0.5, 
+                            // Get original position and dimension
+                            BlockPos originalPos = playerOriginalPositions.get(playerId);
+                            ResourceKey<Level> originalDimension = playerOriginalDimensions.get(playerId);
+                            
+                            ServerLevel targetLevel;
+                            BlockPos targetPos;
+                            
+                            if (originalPos != null && originalDimension != null) {
+                                targetLevel = server.getLevel(originalDimension);
+                                targetPos = originalPos;
+                            } else {
+                                targetLevel = overworld;
+                                targetPos = defaultSpawnPoint;
+                            }
+                            
+                            // Fallback to overworld spawn if target dimension is invalid
+                            if (targetLevel == null) {
+                                targetLevel = overworld;
+                                targetPos = defaultSpawnPoint;
+                            }
+                            
+                            // Teleport player to their original position/dimension
+                            player.teleportTo(targetLevel, 
+                                    targetPos.getX() + 0.5, 
+                                    targetPos.getY(), 
+                                    targetPos.getZ() + 0.5, 
                                     player.getYRot(), 
                                     player.getXRot());
                             
