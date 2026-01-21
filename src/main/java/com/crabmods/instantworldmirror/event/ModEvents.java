@@ -47,29 +47,47 @@ public class ModEvents {
     }
 
     /**
-     * Player death event - return to overworld when dying in mirror world
+     * Player death event - immediately cleanup session when dying in mirror world
+     * This ensures the player can create a new mirror after respawning
      */
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             if (MirrorWorldManager.isInMirrorWorld(player)) {
-                // Died in mirror world, items stay in mirror world
-                // Player will respawn in overworld (handled by respawn event)
-                InstantWorldMirror.LOGGER.info("Player {} died in Mirror World", player.getName().getString());
+                InstantWorldMirror.LOGGER.info("Player {} died in Mirror World, cleaning up session", 
+                        player.getName().getString());
+                
+                // Immediately cleanup session - this handles:
+                // 1. Removing player from session
+                // 2. Destroying session if last player
+                // 3. Restoring inventory data
+                MirrorWorldManager.handleMirrorWorldDeath(player, player.getServer());
             }
         }
     }
 
     /**
      * Player respawn event - ensure players who died in mirror world respawn in overworld
+     * Session cleanup is already handled in death event
      */
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            // If player respawns in mirror world, force teleport to overworld
+            // If player somehow respawns in mirror world, force teleport to overworld
             if (ModDimensions.isMirrorWorld(player.level().dimension())) {
-                // Teleport to overworld spawn point
-                MirrorWorldManager.forceReturn(player);
+                // Teleport to overworld spawn point (session should already be cleaned up)
+                ServerLevel overworld = player.getServer().overworld();
+                BlockPos spawnPos = overworld.getSharedSpawnPos();
+                player.teleportTo(
+                        overworld,
+                        spawnPos.getX() + 0.5,
+                        spawnPos.getY(),
+                        spawnPos.getZ() + 0.5,
+                        player.getYRot(),
+                        player.getXRot()
+                );
+                InstantWorldMirror.LOGGER.info("Force teleported {} to overworld after respawn in mirror world",
+                        player.getName().getString());
             }
         }
     }

@@ -558,6 +558,51 @@ public class MirrorWorldManager {
     }
     
     /**
+     * Handle player death in mirror world - immediately cleanup session
+     * This is called from the death event to ensure clean state before respawn
+     */
+    public static void handleMirrorWorldDeath(ServerPlayer player, MinecraftServer server) {
+        sessionLock.writeLock().lock();
+        try {
+            UUID playerId = player.getUUID();
+            
+            // Get the session before cleanup
+            UUID sessionId = playerToSession.remove(playerId);
+            MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+            
+            // Restore player's original inventory (they died, so items stay in mirror world)
+            restorePlayerInventory(player);
+            
+            // Clear dimension effects on client
+            if (session != null) {
+                clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
+                
+                // Remove player from session
+                boolean sessionNowEmpty = session.removePlayer(playerId);
+                
+                InstantWorldMirror.LOGGER.info("Player {} died and left session {} (players remaining: {})",
+                        player.getName().getString(), sessionId, session.getPlayerCount());
+                
+                if (sessionNowEmpty) {
+                    // Session is now empty, destroy it
+                    destroySession(session, server);
+                }
+            }
+            
+            // Cleanup all player data
+            playerOriginalPositions.remove(playerId);
+            playerOriginalDimensions.remove(playerId);
+            playerItemTransferPermission.remove(playerId);
+            playerOwnedSession.remove(playerId);
+            
+            InstantWorldMirror.LOGGER.info("Cleaned up mirror world session data for {} after death",
+                    player.getName().getString());
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+    
+    /**
      * Handle player leaving mirror world through external means (commands, other mods, etc.)
      * This is called when PlayerChangedDimensionEvent detects leaving mirror world
      */
@@ -566,7 +611,7 @@ public class MirrorWorldManager {
         try {
             UUID playerId = player.getUUID();
             
-            // Check if player was in a session
+            // Check if player was in a session (might already be cleaned up by death handler)
             UUID sessionId = playerToSession.remove(playerId);
             if (sessionId != null) {
                 MirrorSession session = activeSessions.get(sessionId);
@@ -587,11 +632,13 @@ public class MirrorWorldManager {
             playerOriginalDimensions.remove(playerId);
             playerItemTransferPermission.remove(playerId);
             
-            // Send notification to player
-            player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.external_exit"),
-                    false
-            );
+            // Only send notification if we actually cleaned up a session
+            if (sessionId != null) {
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.external_exit"),
+                        false
+                );
+            }
         } finally {
             sessionLock.writeLock().unlock();
         }
