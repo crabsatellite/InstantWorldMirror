@@ -316,15 +316,21 @@ public class MirrorWorldManager {
             // If this player owned this session (creator entering), remove from owned
             playerOwnedSession.remove(player.getUUID());
 
-            // Calculate target position
+            // Calculate target position with a small offset to avoid portal re-trigger
+            // This prevents issues with Nether portals that would otherwise teleport player back
             BlockPos targetPos = session.getSourcePosition().above();
+            
+            // Add offset in the direction player is facing to move them out of any portal
+            float yaw = player.getYRot();
+            double offsetX = -Math.sin(Math.toRadians(yaw)) * 1.5;
+            double offsetZ = Math.cos(Math.toRadians(yaw)) * 1.5;
 
-            // Execute teleportation
+            // Execute teleportation with offset
             player.teleportTo(
                     mirrorWorld,
-                    targetPos.getX() + 0.5,
+                    targetPos.getX() + 0.5 + offsetX,
                     targetPos.getY(),
-                    targetPos.getZ() + 0.5,
+                    targetPos.getZ() + 0.5 + offsetZ,
                     player.getYRot(),
                     player.getXRot()
             );
