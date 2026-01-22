@@ -69,6 +69,14 @@ public class MirrorConfig {
                     "Can be overridden per-player with /mirror itemtransfer command")
             .define("allowItemTransfer", false);
 
+    public static final ModConfigSpec.IntValue MIRROR_COOLDOWN = BUILDER
+            .comment("Dimension Mirror cooldown in seconds (default: 300 = 5 minutes)",
+                    "This is how long players must wait between using the Dimension Mirror.",
+                    "Can be reduced with Efficiency enchantment (each level reduces by 20%).",
+                    "Efficiency 5 = minimum cooldown of 1 minute.",
+                    "Creative mode players have no cooldown.")
+            .defineInRange("mirrorCooldown", 300, 0, 3600);
+
     // ==================== Mob Spawning ====================
     
     public static final ModConfigSpec.BooleanValue COPY_ENTITIES = BUILDER
@@ -121,5 +129,12 @@ public class MirrorConfig {
      */
     public static int getMaxPortalLoadingTicks() {
         return MAX_PORTAL_LOADING_TIME.get() * 20;
+    }
+    
+    /**
+     * Get mirror cooldown in ticks
+     */
+    public static int getMirrorCooldownTicks() {
+        return MIRROR_COOLDOWN.get() * 20;
     }
 }
