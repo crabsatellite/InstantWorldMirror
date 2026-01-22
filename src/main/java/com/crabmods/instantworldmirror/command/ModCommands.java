@@ -41,12 +41,12 @@ public class ModCommands {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
-                Commands.literal("mirror")
-                        // /mirror return - Force return to overworld
+                Commands.literal("iwm")
+                        // /iwm return - Force return to overworld
                         .then(Commands.literal("return")
                                 .executes(ModCommands::returnCommand)
                         )
-                        // /mirror mob on/off - Control mob spawning
+                        // /iwm mob on/off - Control mob spawning
                         .then(Commands.literal("mob")
                                 .requires(source -> source.hasPermission(2))
                                 .then(Commands.literal("on")
@@ -56,28 +56,28 @@ public class ModCommands {
                                         .executes(ModCommands::mobOffCommand)
                                 )
                         )
-                        // /mirror admin <player> - Grant admin permission
+                        // /iwm admin <player> - Grant admin permission
                         .then(Commands.literal("admin")
                                 .requires(source -> source.hasPermission(4))
                                 .then(Commands.argument("player", EntityArgument.player())
                                         .executes(ModCommands::adminCommand)
                                 )
                         )
-                        // /mirror allow <player> - Allow player to enter mirror world
+                        // /iwm allow <player> - Allow player to enter mirror world
                         .then(Commands.literal("allow")
                                 .requires(source -> source.hasPermission(2))
                                 .then(Commands.argument("player", EntityArgument.player())
                                         .executes(ModCommands::allowCommand)
                                 )
                         )
-                        // /mirror deny <player> - Deny player from entering mirror world
+                        // /iwm deny <player> - Deny player from entering mirror world
                         .then(Commands.literal("deny")
                                 .requires(source -> source.hasPermission(2))
                                 .then(Commands.argument("player", EntityArgument.player())
                                         .executes(ModCommands::denyCommand)
                                 )
                         )
-                        // /mirror itemtransfer <player> <true/false> - Control item transfer permission
+                        // /iwm itemtransfer <player> <true/false> - Control item transfer permission
                         .then(Commands.literal("itemtransfer")
                                 .requires(source -> source.hasPermission(2))
                                 .then(Commands.argument("player", EntityArgument.player())
@@ -86,12 +86,12 @@ public class ModCommands {
                                         )
                                 )
                         )
-                        // /mirror status - View dimension pool status
+                        // /iwm status - View dimension pool status
                         .then(Commands.literal("status")
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ModCommands::statusCommand)
                         )
-                        // /mirror forceclear <dimension> - Force clear a dimension (with tab completion)
+                        // /iwm forceclear <dimension> - Force clear a dimension (with tab completion)
                         .then(Commands.literal("forceclear")
                                 .requires(source -> source.hasPermission(3))
                                 .then(Commands.argument("dimension", DimensionArgument.dimension())
