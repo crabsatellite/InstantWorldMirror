@@ -180,18 +180,21 @@ public class MirrorPortalEntity extends Entity {
             }
             
             // Check for inactive portal conditions (entry portals only)
-            if (!isReturnPortal && !worldCopyComplete) {
+            if (!isReturnPortal) {
                 boolean shouldRemove = false;
                 String removeReason = null;
                 
-                // Condition 1: Loading timeout - portal stuck in loading state too long
-                int maxLoadingTicks = MirrorConfig.getMaxPortalLoadingTicks();
-                if (this.tickCount > maxLoadingTicks) {
-                    shouldRemove = true;
-                    removeReason = "loading timeout (exceeded " + (maxLoadingTicks / 20) + " seconds)";
+                // Condition 1: Loading timeout - portal stuck in loading state too long (only when not complete)
+                if (!worldCopyComplete) {
+                    int maxLoadingTicks = MirrorConfig.getMaxPortalLoadingTicks();
+                    if (this.tickCount > maxLoadingTicks) {
+                        shouldRemove = true;
+                        removeReason = "loading timeout (exceeded " + (maxLoadingTicks / 20) + " seconds)";
+                    }
                 }
                 
-                // Condition 2: Session no longer exists
+                // Condition 2: Session no longer exists or is destroyed
+                // IMPORTANT: Check this even after worldCopyComplete to clean up when host leaves
                 if (sessionId != null && this.tickCount % 20 == 0) { // Check every second
                     Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
                     if (sessionOpt.isEmpty()) {
@@ -215,8 +218,8 @@ public class MirrorPortalEntity extends Entity {
                     // Play disappear sound
                     this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
                             SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 0.3F, 0.5F);
-                    // Cancel session if exists
-                    if (sessionId != null) {
+                    // Cancel session if exists (only if not already destroyed)
+                    if (sessionId != null && !removeReason.contains("destroyed")) {
                         MirrorWorldManager.cancelSession(sessionId, serverLevel.getServer());
                     }
                     this.discard();
