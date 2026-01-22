@@ -4,12 +4,14 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.MirrorPortalModel;
 import com.crabmods.instantworldmirror.client.renderer.MirrorPortalRenderer;
 import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.registry.ModItems;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 
 /**
@@ -48,6 +50,16 @@ public class ClientEvents {
                 new CooldownHudOverlay()
         );
         InstantWorldMirror.LOGGER.info("Cooldown HUD overlay registered");
+    }
+    
+    /**
+     * Register item decorators (cooldown bar on items)
+     */
+    @SubscribeEvent
+    public static void registerItemDecorations(RegisterItemDecorationsEvent event) {
+        // Register cooldown bar decorator for Dimension Mirror
+        event.register(ModItems.DIMENSION_MIRROR.get(), new CooldownItemDecorator());
+        InstantWorldMirror.LOGGER.info("Cooldown item decorator registered");
     }
 }
 

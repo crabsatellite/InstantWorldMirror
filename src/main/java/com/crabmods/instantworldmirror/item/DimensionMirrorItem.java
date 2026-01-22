@@ -162,8 +162,9 @@ public class DimensionMirrorItem extends Item {
         ServerPlayer serverPlayer = (ServerPlayer) player;
         
         if (player.isCreative()) {
-            // Creative mode: clear any existing cooldown
+            // Creative mode: clear any existing cooldown and sync to client
             clearCooldown(player.getUUID());
+            syncCooldownToClient(serverPlayer); // Sync cleared cooldown to client
             InstantWorldMirror.LOGGER.debug("Creative mode: cleared cooldown for {}", player.getName().getString());
         } else {
             // Survival/Adventure: check cooldown
