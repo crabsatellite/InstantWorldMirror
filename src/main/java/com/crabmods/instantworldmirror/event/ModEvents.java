@@ -369,25 +369,18 @@ public class ModEvents {
     
     /**
      * Synchronize time from source level to mirror level
-     * Includes NeoForge extended time properties for mod compatibility
      */
     private static void syncLevelTime(ServerLevel source, ServerLevel mirror) {
-        var sourceData = source.getLevelData();
-        var mirrorData = mirror.getLevelData();
-        
         // Sync day time (visual time cycle)
-        mirror.setDayTime(sourceData.getDayTime());
+        mirror.setDayTime(source.getDayTime());
         
-        // Sync game time (total ticks elapsed) - important for some mods
-        mirrorData.setGameTime(sourceData.getGameTime());
-        
-        // Sync NeoForge extended time properties if available
-        // These control the rate at which time passes
+        // Sync game time (total ticks elapsed) - use serverLevelData for write access
         try {
-            mirrorData.setDayTimeFraction(sourceData.getDayTimeFraction());
-            mirrorData.setDayTimePerTick(sourceData.getDayTimePerTick());
+            net.minecraft.world.level.storage.ServerLevelData mirrorData = 
+                    (net.minecraft.world.level.storage.ServerLevelData) mirror.getLevelData();
+            mirrorData.setGameTime(source.getGameTime());
         } catch (Exception e) {
-            // Ignore if not supported - these are NeoForge additions
+            // Ignore if cast fails or method unavailable
         }
     }
 

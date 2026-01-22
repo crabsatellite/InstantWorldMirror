@@ -250,6 +250,12 @@ public class WorldCopyService {
         private boolean completed = false;
         private int saveCounter = 0; // Counter for periodic saves
         private static final int SAVE_INTERVAL = 10; // Save every 10 chunks processed
+        
+        // Phase 2: Auxiliary cleanup for edge structures
+        private boolean mainCleanupComplete = false;
+        private boolean auxiliaryCleanupStarted = false;
+        private java.util.List<long[]> auxiliaryChunks = new java.util.ArrayList<>();
+        private int auxiliaryIndex = 0;
 
         public CleanupTask(int dimensionIndex) {
             this.dimensionIndex = dimensionIndex;
@@ -334,28 +340,181 @@ public class WorldCopyService {
         }
         
         public int getTotalChunks() {
-            return chunksToClean.size();
+            return chunksToClean.size() + auxiliaryChunks.size();
         }
         
         public int getCleanedChunks() {
-            return currentIndex;
+            return currentIndex + auxiliaryIndex;
         }
         
+        /**
+         * Get all chunks that were cleaned (for verification)
+         */
+        public java.util.List<long[]> getAllCleanedChunks() {
+            java.util.List<long[]> all = new java.util.ArrayList<>(chunksToClean);
+            all.addAll(auxiliaryChunks);
+            return all;
+        }
+        
+        /**
+         * Check if main cleanup phase is done (before auxiliary)
+         */
+        public boolean isMainCleanupDone() {
+            return mainCleanupComplete;
+        }
+        
+        /**
+         * Get the next chunk to clean.
+         * After main cleanup is done, switches to auxiliary cleanup mode.
+         */
         public long[] getNextChunk() {
-            if (completed || currentIndex >= chunksToClean.size()) {
+            // Phase 1: Main cleanup
+            if (!mainCleanupComplete) {
+                if (currentIndex >= chunksToClean.size()) {
+                    mainCleanupComplete = true;
+                    InstantWorldMirror.LOGGER.info("Main cleanup phase completed for dimension {}, {} chunks processed",
+                            dimensionIndex, currentIndex);
+                    return null; // Signal to start auxiliary scan
+                }
+                
+                long[] result = chunksToClean.get(currentIndex++);
+                
+                // Periodically save progress
+                saveCounter++;
+                if (saveCounter >= SAVE_INTERVAL) {
+                    saveCounter = 0;
+                    saveProgress();
+                }
+                
+                return result;
+            }
+            
+            // Phase 2: Auxiliary cleanup
+            if (!auxiliaryCleanupStarted) {
+                return null; // Need to initialize auxiliary chunks first
+            }
+            
+            if (auxiliaryIndex >= auxiliaryChunks.size()) {
                 completed = true;
                 return null;
             }
-            long[] result = chunksToClean.get(currentIndex++);
             
-            // Periodically save progress
-            saveCounter++;
-            if (saveCounter >= SAVE_INTERVAL) {
-                saveCounter = 0;
-                saveProgress();
+            return auxiliaryChunks.get(auxiliaryIndex++);
+        }
+        
+        /**
+         * Initialize auxiliary cleanup using BFS (Breadth-First Search).
+         * Starts from the edge of the cleaned area and expands outward.
+         * If a chunk has blocks, its neighbors are added to the search queue.
+         * This ensures even very large structures are fully cleaned.
+         * 
+         * @param mirrorWorld The mirror world to scan
+         * @return The number of additional chunks found with blocks
+         */
+        public int initializeAuxiliaryCleanup(ServerLevel mirrorWorld) {
+            if (auxiliaryCleanupStarted) return auxiliaryChunks.size();
+            auxiliaryCleanupStarted = true;
+            
+            // Get max search radius from config (acts as a safety limit)
+            int maxExpansionRadius = MirrorConfig.EDGE_CLEANUP_RADIUS.get();
+            
+            // If edge cleanup is disabled, mark as complete
+            if (maxExpansionRadius <= 0) {
+                InstantWorldMirror.LOGGER.info("Edge cleanup disabled by config, skipping auxiliary scan");
+                completed = true;
+                return 0;
             }
             
-            return result;
+            // Track all chunks we've already processed or will process
+            Set<Long> processed = new java.util.HashSet<>();
+            for (long[] chunk : chunksToClean) {
+                processed.add(packChunkPos((int)chunk[0], (int)chunk[1]));
+            }
+            
+            // Calculate the bounding box of cleaned chunks
+            int minChunkX = Integer.MAX_VALUE, maxChunkX = Integer.MIN_VALUE;
+            int minChunkZ = Integer.MAX_VALUE, maxChunkZ = Integer.MIN_VALUE;
+            
+            for (long[] chunk : chunksToClean) {
+                int cx = (int) chunk[0];
+                int cz = (int) chunk[1];
+                minChunkX = Math.min(minChunkX, cx);
+                maxChunkX = Math.max(maxChunkX, cx);
+                minChunkZ = Math.min(minChunkZ, cz);
+                maxChunkZ = Math.max(maxChunkZ, cz);
+            }
+            
+            // Calculate center for distance limiting
+            int centerX = (minChunkX + maxChunkX) / 2;
+            int centerZ = (minChunkZ + maxChunkZ) / 2;
+            int baseRadius = Math.max(maxChunkX - centerX, maxChunkZ - centerZ);
+            int maxRadius = baseRadius + maxExpansionRadius;
+            
+            // BFS queue: start with the immediate edge of the cleaned area
+            java.util.Queue<long[]> queue = new java.util.LinkedList<>();
+            
+            // Add initial edge chunks (one layer outside the cleaned area)
+            for (int cx = minChunkX - 1; cx <= maxChunkX + 1; cx++) {
+                // Top and bottom edges
+                addToQueueIfNew(queue, processed, cx, minChunkZ - 1);
+                addToQueueIfNew(queue, processed, cx, maxChunkZ + 1);
+            }
+            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                // Left and right edges
+                addToQueueIfNew(queue, processed, minChunkX - 1, cz);
+                addToQueueIfNew(queue, processed, maxChunkX + 1, cz);
+            }
+            
+            InstantWorldMirror.LOGGER.info("Starting BFS edge scan from {} initial edge chunks, max radius: {}",
+                    queue.size(), maxRadius);
+            
+            int chunksScanned = 0;
+            int chunksWithBlocks = 0;
+            
+            // BFS loop
+            while (!queue.isEmpty()) {
+                long[] current = queue.poll();
+                int cx = (int) current[0];
+                int cz = (int) current[1];
+                chunksScanned++;
+                
+                // Check if this chunk has any non-air blocks
+                if (hasBlocksInChunk(mirrorWorld, cx, cz)) {
+                    auxiliaryChunks.add(current);
+                    chunksWithBlocks++;
+                    
+                    // Add neighbors to queue (expand BFS)
+                    // Only expand if within max radius limit
+                    int distFromCenter = Math.max(Math.abs(cx - centerX), Math.abs(cz - centerZ));
+                    if (distFromCenter < maxRadius) {
+                        addToQueueIfNew(queue, processed, cx - 1, cz);
+                        addToQueueIfNew(queue, processed, cx + 1, cz);
+                        addToQueueIfNew(queue, processed, cx, cz - 1);
+                        addToQueueIfNew(queue, processed, cx, cz + 1);
+                    }
+                }
+            }
+            
+            if (!auxiliaryChunks.isEmpty()) {
+                InstantWorldMirror.LOGGER.info("BFS scan complete: scanned {} chunks, found {} with blocks (edge structures)",
+                        chunksScanned, chunksWithBlocks);
+            } else {
+                InstantWorldMirror.LOGGER.info("BFS scan complete: scanned {} chunks, no edge blocks found",
+                        chunksScanned);
+                completed = true;
+            }
+            
+            return auxiliaryChunks.size();
+        }
+        
+        /**
+         * Helper method for BFS: add chunk to queue if not already processed
+         */
+        private void addToQueueIfNew(java.util.Queue<long[]> queue, Set<Long> processed, int cx, int cz) {
+            long packed = packChunkPos(cx, cz);
+            if (processed.add(packed)) {
+                queue.add(new long[]{cx, cz});
+            }
         }
         
         /**
@@ -377,6 +536,43 @@ public class WorldCopyService {
         }
         
         public boolean isCompleted() { return completed; }
+    }
+    
+    /**
+     * Check if a chunk has any non-air blocks.
+     * Uses efficient section-level checks.
+     */
+    private static boolean hasBlocksInChunk(ServerLevel level, int chunkX, int chunkZ) {
+        try {
+            // Don't force-load chunks, only check if already loaded or can be loaded quickly
+            if (!level.hasChunk(chunkX, chunkZ)) {
+                // Try to load it - if it's just void, it will be fast
+                LevelChunk chunk = level.getChunk(chunkX, chunkZ);
+                if (chunk == null) return false;
+                
+                // Check each section
+                int sectionCount = chunk.getSectionsCount();
+                for (int i = 0; i < sectionCount; i++) {
+                    LevelChunkSection section = chunk.getSection(i);
+                    if (section != null && !section.hasOnlyAir()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            LevelChunk chunk = level.getChunk(chunkX, chunkZ);
+            int sectionCount = chunk.getSectionsCount();
+            for (int i = 0; i < sectionCount; i++) {
+                LevelChunkSection section = chunk.getSection(i);
+                if (section != null && !section.hasOnlyAir()) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // ==================== Block Utilities ====================
@@ -859,16 +1055,9 @@ public class WorldCopyService {
                     StructureStart sourceStart = entry.getValue();
                     
                     if (sourceStart != null && sourceStart.isValid()) {
-                        // Save the structure start to NBT and reload it for the target
+                        // Copy the structure start reference directly to target chunk
                         // This preserves mod-specific data like Twilight Forest's "conquered" flag
                         try {
-                            CompoundTag structureTag = sourceStart.createTag(
-                                    sourceWorld.structureManager().registryAccess(),
-                                    sourceChunk.getPos()
-                            );
-                            
-                            // Set the structure start directly on target chunk
-                            // Note: We're copying the reference, which should work for read-only purposes
                             targetChunk.setStartForStructure(structure, sourceStart);
                         } catch (Exception e) {
                             InstantWorldMirror.LOGGER.debug("Could not copy structure start {}: {}", 
@@ -987,6 +1176,9 @@ public class WorldCopyService {
 
     /**
      * Process all cleanup queues - call from server tick
+     * Includes two phases:
+     * 1. Main cleanup: clean all tracked chunks
+     * 2. Auxiliary cleanup: scan and clean edge chunks with remaining blocks (structures that extend beyond copy radius)
      */
     public static void processCleanupQueues(MinecraftServer server) {
         // Periodically save pending modifications (even if no cleanup tasks)
@@ -1017,16 +1209,26 @@ public class WorldCopyService {
             
             // Process chunks per tick (configurable)
             // Always force load chunks to ensure thorough cleanup
+            int processedThisTick = 0;
             for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
                 long[] chunkCoords = task.getNextChunk();
                 if (chunkCoords != null) {
                     clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
+                    processedThisTick++;
+                } else if (task.isMainCleanupDone() && !task.isCompleted()) {
+                    // Main cleanup done, start auxiliary cleanup phase
+                    int additionalChunks = task.initializeAuxiliaryCleanup(mirrorWorld);
+                    if (additionalChunks > 0) {
+                        InstantWorldMirror.LOGGER.info("Starting auxiliary cleanup for {} edge chunks in dimension {}",
+                                additionalChunks, dimIndex);
+                    }
+                    break; // Wait for next tick to process auxiliary chunks
                 }
             }
             
             // Log progress every 10 chunks
             int cleanedChunks = task.getCleanedChunks();
-            if (cleanedChunks % 10 == 0 && cleanedChunks > 0) {
+            if (cleanedChunks % 10 == 0 && cleanedChunks > 0 && processedThisTick > 0) {
                 InstantWorldMirror.LOGGER.debug("Cleanup progress for dim {}: {}/{} chunks",
                         dimIndex, cleanedChunks, task.getTotalChunks());
             }
@@ -1037,6 +1239,13 @@ public class WorldCopyService {
                 
                 // Final pass: clear ALL remaining entities in the dimension
                 clearAllEntitiesInDimension(mirrorWorld);
+                
+                // Final verification scan - check if any blocks remain
+                int remainingBlocks = countRemainingBlocks(mirrorWorld, task);
+                if (remainingBlocks > 0) {
+                    InstantWorldMirror.LOGGER.warn("Cleanup finished but {} blocks may still remain in dimension {}. " +
+                            "This could be from very distant structures.", remainingBlocks, dimIndex);
+                }
                 
                 // Clear tracking data for this dimension
                 clearModifiedChunkTracking(dimIndex);
@@ -1049,6 +1258,56 @@ public class WorldCopyService {
                         dimIndex);
             }
         }
+    }
+    
+    /**
+     * Count remaining non-air blocks in cleaned chunks of the mirror world.
+     * This is a verification pass to detect any missed blocks.
+     * Samples a subset of blocks to avoid performance issues.
+     */
+    private static int countRemainingBlocks(ServerLevel mirrorWorld, CleanupTask task) {
+        int totalBlocks = 0;
+        
+        try {
+            // Sample some chunks from the cleaned area to verify
+            java.util.Random random = new java.util.Random();
+            java.util.List<long[]> allChunks = task.getAllCleanedChunks();
+            int sampleSize = Math.min(10, allChunks.size());
+            
+            for (int i = 0; i < sampleSize; i++) {
+                int index = random.nextInt(allChunks.size());
+                long[] coords = allChunks.get(index);
+                int chunkX = (int) coords[0];
+                int chunkZ = (int) coords[1];
+                
+                try {
+                    LevelChunk chunk = mirrorWorld.getChunk(chunkX, chunkZ);
+                    int sectionCount = chunk.getSectionsCount();
+                    
+                    for (int s = 0; s < sectionCount; s++) {
+                        LevelChunkSection section = chunk.getSection(s);
+                        if (section != null && !section.hasOnlyAir()) {
+                            // Count non-air blocks in this section (sample a few positions)
+                            for (int x = 0; x < 16; x += 4) {
+                                for (int y = 0; y < 16; y += 4) {
+                                    for (int z = 0; z < 16; z += 4) {
+                                        if (!section.getBlockState(x, y, z).isAir()) {
+                                            totalBlocks++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // Chunk might not be loaded
+                }
+            }
+        } catch (Exception e) {
+            // Ignore errors during verification
+        }
+        
+        return totalBlocks;
     }
 
     /**

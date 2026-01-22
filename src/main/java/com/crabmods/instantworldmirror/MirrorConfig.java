@@ -36,6 +36,14 @@ public class MirrorConfig {
                     "Lower values = less lag during cleanup")
             .defineInRange("cleanupChunksPerTick", 1, 1, 10);
 
+    public static final ModConfigSpec.IntValue EDGE_CLEANUP_RADIUS = BUILDER
+            .comment("Maximum extra radius (in chunks) for BFS edge cleanup scan (default: 3)",
+                    "After main cleanup, uses BFS to find and clean structures extending beyond copy area.",
+                    "BFS expands outward only when blocks are found, up to this maximum radius.",
+                    "Higher values = can handle larger edge structures but with safety limit.",
+                    "Set to 0 to disable edge cleanup scanning.")
+            .defineInRange("edgeCleanupRadius", 3, 0, 16);
+
     // ==================== Portal Settings ====================
     
     public static final ModConfigSpec.IntValue ENTRY_PORTAL_LIFETIME = BUILDER
