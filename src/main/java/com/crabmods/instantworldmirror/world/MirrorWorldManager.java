@@ -1299,13 +1299,17 @@ public class MirrorWorldManager {
             player.getInventory().load(savedInventory);
             
             // Restore ender chest contents (uses fromTag instead of load)
+            // IMPORTANT: Must clear ender chest first to prevent items from mirror world being kept
             if (persistentData.contains(SAVED_ENDERCHEST_KEY)) {
                 ListTag savedEnderChest = persistentData.getList(SAVED_ENDERCHEST_KEY, 10);
+                player.getEnderChestInventory().clearContent(); // Clear before restoring
                 player.getEnderChestInventory().fromTag(savedEnderChest, player.registryAccess());
                 InstantWorldMirror.LOGGER.info("Restored inventory and ender chest from persistent data for player {}",
                         player.getName().getString());
             } else {
-                InstantWorldMirror.LOGGER.info("Restored inventory from persistent data for player {} (no ender chest data)",
+                // No saved ender chest data - clear it to prevent items from mirror world
+                player.getEnderChestInventory().clearContent();
+                InstantWorldMirror.LOGGER.info("Restored inventory from persistent data for player {} (cleared ender chest - no saved data)",
                         player.getName().getString());
             }
 
