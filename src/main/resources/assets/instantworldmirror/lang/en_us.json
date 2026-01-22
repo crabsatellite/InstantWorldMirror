@@ -7,6 +7,7 @@
   "message.instantworldmirror.return_portal_created": "§aOpening return portal...",
   "message.instantworldmirror.portal_expired": "§7The portal has faded away...",
   "message.instantworldmirror.returned": "§aReturned to the original world",
+  "message.instantworldmirror.returned_to_corresponding_position": "§aReturned to the corresponding overworld position",
   "message.instantworldmirror.invalid_block": "§eCannot open portal on this block",
   "message.instantworldmirror.access_denied": "§cYou are not allowed to enter the Mirror World",
   "message.instantworldmirror.portal_blocked": "§cPortals are disabled in the Mirror World!",

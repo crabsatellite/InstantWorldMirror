@@ -535,6 +535,322 @@ public class MirrorWorldManager {
         }
     }
 
+    /**
+     * Teleport player from mirror world back to overworld, considering the portal position
+     * If the return portal is far from the original entry point, teleport to the corresponding overworld position
+     * 
+     * @param player The player to teleport
+     * @param portalPos The position of the return portal used
+     * @return true if teleportation was successful
+     */
+    public static boolean returnToOverworldFromPosition(ServerPlayer player, BlockPos portalPos) {
+        if (player.level().isClientSide) {
+            return false;
+        }
+
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return false;
+        }
+
+        // Get player's saved original position
+        BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
+        
+        // If no original position or portal is close to original position (within 16 blocks), use normal return
+        if (originalPos == null || portalPos.closerThan(originalPos, 16.0)) {
+            return returnToOverworld(player);
+        }
+        
+        // Portal is far from original entry point - teleport to corresponding overworld position
+        InstantWorldMirror.LOGGER.info("Player {} using distant return portal at {} (original entry: {}), teleporting to corresponding overworld position",
+                player.getName().getString(), portalPos, originalPos);
+        
+        return returnToOverworldAtPosition(player, portalPos);
+    }
+    
+    /**
+     * Teleport player from mirror world to a specific position in the overworld
+     * Used when player uses a return portal far from their original entry point
+     * 
+     * @param player The player to teleport
+     * @param targetMirrorPos The position in mirror world (will be converted to overworld coordinates)
+     * @return true if teleportation was successful
+     */
+    private static boolean returnToOverworldAtPosition(ServerPlayer player, BlockPos targetMirrorPos) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return false;
+        }
+
+        // Check if player is in mirror world
+        if (!isInMirrorWorld(player)) {
+            InstantWorldMirror.LOGGER.warn("returnToOverworldAtPosition: player {} is not in mirror world", 
+                    player.getName().getString());
+            return false;
+        }
+
+        sessionLock.writeLock().lock();
+        try {
+            // Get player's session
+            UUID sessionId = playerToSession.get(player.getUUID());
+            MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+
+            // Get original dimension (default to overworld)
+            ResourceKey<Level> originalDimension = playerOriginalDimensions.get(player.getUUID());
+            if (originalDimension == null) {
+                CompoundTag persistentData = player.getPersistentData();
+                if (persistentData.contains(ORIGINAL_DIM_KEY)) {
+                    ResourceLocation dimLoc = ResourceLocation.tryParse(persistentData.getString(ORIGINAL_DIM_KEY));
+                    if (dimLoc != null) {
+                        originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
+                    }
+                }
+            }
+            if (originalDimension == null) {
+                originalDimension = Level.OVERWORLD;
+            }
+
+            ServerLevel targetLevel = server.getLevel(originalDimension);
+            if (targetLevel == null) {
+                targetLevel = server.overworld();
+            }
+
+            // Find safe landing position at the corresponding overworld coordinates
+            BlockPos safePos = findSafeLandingPosition(targetLevel, targetMirrorPos);
+            
+            InstantWorldMirror.LOGGER.info("Found safe landing position {} for player {} (original target: {})",
+                    safePos, player.getName().getString(), targetMirrorPos);
+
+            // Handle inventory
+            boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+            if (allowItemTransfer) {
+                clearSavedData(player);
+            } else {
+                restorePlayerInventory(player);
+            }
+
+            // Mark player as being teleported by the mod
+            playersBeingTeleported.add(player.getUUID());
+            
+            try {
+                // Execute teleportation to safe position
+                player.teleportTo(
+                        targetLevel,
+                        safePos.getX() + 0.5,
+                        safePos.getY(),
+                        safePos.getZ() + 0.5,
+                        player.getYRot(),
+                        player.getXRot()
+                );
+            } finally {
+                playersBeingTeleported.remove(player.getUUID());
+            }
+            
+            // Verify teleport success
+            if (isInMirrorWorld(player)) {
+                InstantWorldMirror.LOGGER.error("Teleport FAILED - {} still in mirror world!", player.getName().getString());
+                return false;
+            }
+
+            // Clear dimension effects on client
+            if (session != null) {
+                clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
+            }
+
+            // Cleanup player tracking data
+            cleanupPlayerTrackingData(player.getUUID());
+
+            // Handle session cleanup
+            if (session != null) {
+                boolean isHost = session.isHost(player.getUUID());
+                
+                if (isHost) {
+                    InstantWorldMirror.LOGGER.info("Host {} leaving session {}, kicking all other players",
+                            player.getName().getString(), session.getSessionId());
+                    kickAllPlayersFromSession(session, server, player.getUUID());
+                    destroySession(session, server);
+                } else {
+                    boolean sessionNowEmpty = session.removePlayer(player.getUUID());
+                    if (sessionNowEmpty) {
+                        destroySession(session, server);
+                    }
+                }
+            }
+
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.returned_to_corresponding_position"), true);
+            InstantWorldMirror.LOGGER.info("Player {} returned from mirror world to corresponding position {}", 
+                    player.getName().getString(), safePos);
+
+            return true;
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+    
+    /**
+     * Find a safe landing position near the target position
+     * Checks for solid ground, avoids lava/water/void, and ensures there's space for the player
+     * 
+     * @param level The target level
+     * @param targetPos The desired position
+     * @return A safe position for the player to land
+     */
+    private static BlockPos findSafeLandingPosition(ServerLevel level, BlockPos targetPos) {
+        // First check if the target position is already safe
+        if (isPositionSafe(level, targetPos)) {
+            return targetPos;
+        }
+        
+        // Search in expanding radius for a safe position
+        int maxRadius = 16;
+        for (int radius = 1; radius <= maxRadius; radius++) {
+            // Search in a spiral pattern at the same Y level first
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    // Only check positions on the edge of current radius
+                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) {
+                        continue;
+                    }
+                    
+                    BlockPos checkPos = targetPos.offset(dx, 0, dz);
+                    BlockPos safePos = findSafeYLevel(level, checkPos);
+                    if (safePos != null && isPositionSafe(level, safePos)) {
+                        return safePos;
+                    }
+                }
+            }
+        }
+        
+        // If no safe position found nearby, try to find any safe Y level at target X/Z
+        BlockPos verticalSafe = findSafeYLevel(level, targetPos);
+        if (verticalSafe != null) {
+            return verticalSafe;
+        }
+        
+        // Last resort: return spawn position
+        InstantWorldMirror.LOGGER.warn("Could not find safe position near {}, using spawn point", targetPos);
+        return level.getSharedSpawnPos();
+    }
+    
+    /**
+     * Find a safe Y level at the given X/Z coordinates
+     * Scans from max build height down to find solid ground with space above
+     */
+    private static BlockPos findSafeYLevel(ServerLevel level, BlockPos horizontalPos) {
+        int minY = level.getMinBuildHeight();
+        int maxY = level.getMaxBuildHeight();
+        
+        // Start from the target Y or a reasonable height if target is too high/low
+        int startY = Math.max(minY + 1, Math.min(horizontalPos.getY(), maxY - 3));
+        
+        // Search downward from start position
+        for (int y = startY; y >= minY + 1; y--) {
+            BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
+            if (isPositionSafe(level, checkPos)) {
+                return checkPos;
+            }
+        }
+        
+        // Search upward from start position
+        for (int y = startY + 1; y <= maxY - 2; y++) {
+            BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
+            if (isPositionSafe(level, checkPos)) {
+                return checkPos;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Check if a position is safe for player teleportation
+     * Requirements:
+     * - Block below must be solid (not air, liquid, or dangerous)
+     * - Block at position and above must be air/passable
+     * - Not in void
+     * - Not in lava/fire
+     */
+    private static boolean isPositionSafe(ServerLevel level, BlockPos pos) {
+        // Check if position is in valid world bounds
+        if (pos.getY() < level.getMinBuildHeight() + 1 || pos.getY() > level.getMaxBuildHeight() - 2) {
+            return false;
+        }
+        
+        BlockPos below = pos.below();
+        BlockPos above = pos.above();
+        
+        net.minecraft.world.level.block.state.BlockState belowState = level.getBlockState(below);
+        net.minecraft.world.level.block.state.BlockState atState = level.getBlockState(pos);
+        net.minecraft.world.level.block.state.BlockState aboveState = level.getBlockState(above);
+        
+        // Block below must be solid and not dangerous
+        if (!belowState.isSolid()) {
+            return false;
+        }
+        
+        // Check for dangerous blocks below (lava, fire, magma, cactus, etc.)
+        if (isDangerousBlock(belowState)) {
+            return false;
+        }
+        
+        // Position and above must be passable (air or non-solid)
+        if (atState.isSolid() || aboveState.isSolid()) {
+            return false;
+        }
+        
+        // Check for dangerous blocks at position
+        if (isDangerousBlock(atState) || isDangerousBlock(aboveState)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Check if a block state represents a dangerous block
+     */
+    private static boolean isDangerousBlock(net.minecraft.world.level.block.state.BlockState state) {
+        net.minecraft.world.level.block.Block block = state.getBlock();
+        
+        // Lava
+        if (block == net.minecraft.world.level.block.Blocks.LAVA) {
+            return true;
+        }
+        
+        // Fire
+        if (block == net.minecraft.world.level.block.Blocks.FIRE || 
+            block == net.minecraft.world.level.block.Blocks.SOUL_FIRE) {
+            return true;
+        }
+        
+        // Magma block
+        if (block == net.minecraft.world.level.block.Blocks.MAGMA_BLOCK) {
+            return true;
+        }
+        
+        // Cactus
+        if (block == net.minecraft.world.level.block.Blocks.CACTUS) {
+            return true;
+        }
+        
+        // Sweet berry bush
+        if (block == net.minecraft.world.level.block.Blocks.SWEET_BERRY_BUSH) {
+            return true;
+        }
+        
+        // Wither rose
+        if (block == net.minecraft.world.level.block.Blocks.WITHER_ROSE) {
+            return true;
+        }
+        
+        // Powder snow
+        if (block == net.minecraft.world.level.block.Blocks.POWDER_SNOW) {
+            return true;
+        }
+        
+        return false;
+    }
+
     // ==================== Session Lifecycle ====================
     
     /**

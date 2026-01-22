@@ -312,7 +312,10 @@ public class MirrorPortalEntity extends Entity {
                     }
                     
                     setTeleportCooldown(serverPlayer.getUUID(), currentTick);
-                    boolean success = MirrorWorldManager.returnToOverworld(serverPlayer);
+                    
+                    // Use the new method that considers portal position
+                    // If this portal is far from where player entered, teleport to corresponding position
+                    boolean success = MirrorWorldManager.returnToOverworldFromPosition(serverPlayer, this.blockPosition());
                     
                     if (success) {
                         this.level().playSound(null, this.getX(), this.getY(), this.getZ(),

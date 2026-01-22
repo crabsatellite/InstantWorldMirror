@@ -7,6 +7,7 @@
   "message.instantworldmirror.return_portal_created": "§a正在打开返回传送门...",
   "message.instantworldmirror.portal_expired": "§7传送门已消散...",
   "message.instantworldmirror.returned": "§a已返回原世界",
+  "message.instantworldmirror.returned_to_corresponding_position": "§a已传送至主世界对应位置",
   "message.instantworldmirror.invalid_block": "§e无法在此方块上打开传送门",
   "message.instantworldmirror.access_denied": "§c你没有权限进入镜面世界",
   "message.instantworldmirror.portal_blocked": "§c镜面世界中禁止使用传送门！",
