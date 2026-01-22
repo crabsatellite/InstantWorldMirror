@@ -29,7 +29,6 @@
   "command.instantworldmirror.server_unavailable": "§cServer not available",
   "command.instantworldmirror.mob.on": "Mob spawning enabled in Mirror World",
   "command.instantworldmirror.mob.off": "Mob spawning disabled in Mirror World",
-  "command.instantworldmirror.admin.granted": "Admin permission granted to %s",
   "command.instantworldmirror.allow.success": "Player %s can now enter Mirror World",
   "command.instantworldmirror.deny.success": "Player %s can no longer enter Mirror World",
   "command.instantworldmirror.itemtransfer.enabled": "Item transfer enabled for %s",

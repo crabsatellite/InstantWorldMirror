@@ -29,7 +29,6 @@
   "command.instantworldmirror.server_unavailable": "§c服务器不可用",
   "command.instantworldmirror.mob.on": "镜面世界生物生成已开启",
   "command.instantworldmirror.mob.off": "镜面世界生物生成已关闭",
-  "command.instantworldmirror.admin.granted": "已授予 %s 管理员权限",
   "command.instantworldmirror.allow.success": "玩家 %s 现在可以进入镜面世界",
   "command.instantworldmirror.deny.success": "玩家 %s 已被禁止进入镜面世界",
   "command.instantworldmirror.itemtransfer.enabled": "已为 %s 开启物品传送权限",

@@ -56,13 +56,6 @@ public class ModCommands {
                                         .executes(ModCommands::mobOffCommand)
                                 )
                         )
-                        // /iwm admin <player> - Grant admin permission
-                        .then(Commands.literal("admin")
-                                .requires(source -> source.hasPermission(4))
-                                .then(Commands.argument("player", EntityArgument.player())
-                                        .executes(ModCommands::adminCommand)
-                                )
-                        )
                         // /iwm allow <player> - Allow player to enter mirror world
                         .then(Commands.literal("allow")
                                 .requires(source -> source.hasPermission(2))
@@ -136,20 +129,6 @@ public class ModCommands {
                 true
         );
         return 1;
-    }
-
-    private static int adminCommand(CommandContext<CommandSourceStack> context) {
-        try {
-            ServerPlayer target = EntityArgument.getPlayer(context, "player");
-            context.getSource().sendSuccess(
-                    () -> Component.translatable("command.instantworldmirror.admin.granted", target.getName().getString()),
-                    true
-            );
-            return 1;
-        } catch (Exception e) {
-            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
-            return 0;
-        }
     }
 
     private static int allowCommand(CommandContext<CommandSourceStack> context) {
