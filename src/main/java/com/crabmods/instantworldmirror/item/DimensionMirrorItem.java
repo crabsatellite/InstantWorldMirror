@@ -263,10 +263,4 @@ public class DimensionMirrorItem extends Item {
         // Only allow Efficiency enchantment
         return enchantment.is(Enchantments.EFFICIENCY);
     }
-    
-    @Override
-    public boolean isPrimaryItemFor(ItemStack stack, net.minecraft.core.Holder<Enchantment> enchantment) {
-        // Efficiency is the primary enchantment for this item (appears in enchanting table)
-        return enchantment.is(Enchantments.EFFICIENCY);
-    }
 }
