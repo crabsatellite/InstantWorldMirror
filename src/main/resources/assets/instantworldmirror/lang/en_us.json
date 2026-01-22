@@ -21,6 +21,7 @@
   "message.instantworldmirror.return_failed": "§cFailed to return to the original world. Please try again or use /iwm return.",
   "message.instantworldmirror.wait_for_host": "§eWaiting for the portal owner to enter first...",
   "message.instantworldmirror.host_left": "§cThe portal owner has left. You have been returned to the original world.",
+  "message.instantworldmirror.cooldown": "§eCooldown: %d seconds remaining",
   "command.instantworldmirror.return.success": "Forcefully returned to the original world",
   "command.instantworldmirror.return.not_in_mirror": "§cYou are not in the Mirror World!",
   "command.instantworldmirror.player_only": "§cThis command can only be used by players!",

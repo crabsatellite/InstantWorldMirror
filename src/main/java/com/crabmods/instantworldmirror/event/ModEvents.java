@@ -3,6 +3,7 @@ package com.crabmods.instantworldmirror.event;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.command.ModCommands;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
@@ -121,11 +122,14 @@ public class ModEvents {
     }
 
     /**
-     * Player logout event - cleanup player data and session
+     * Player logout event - cleanup player data and session, save cooldown
      */
     @SubscribeEvent
     public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Save cooldown before logout
+            DimensionMirrorItem.saveCooldown(player);
+            
             // Handle disconnect - remove from session and cleanup if needed
             MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
             
@@ -365,10 +369,14 @@ public class ModEvents {
 
     /**
      * Player login event - if player logs in to mirror world, teleport back to overworld and restore inventory
+     * Also restores any saved item cooldowns
      */
     @SubscribeEvent
     public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Restore any saved cooldown first
+            DimensionMirrorItem.restoreCooldown(player);
+            
             // Check if player has saved inventory data (might have been in mirror world before server restart)
             if (MirrorWorldManager.hasSavedInventory(player)) {
                 // Player has saved data, restore inventory
@@ -426,10 +434,18 @@ public class ModEvents {
     }
 
     /**
-     * Server stopping event - cleanup all sessions
+     * Server stopping event - cleanup all sessions and save player cooldowns
      */
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        // Save cooldowns for all online players
+        for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
+            DimensionMirrorItem.saveCooldown(player);
+        }
+        
+        // Clear the in-memory cooldown map
+        DimensionMirrorItem.clearAllCooldowns();
+        
         MirrorWorldManager.clearAllSessions();
         WorldCopyService.clearAllTasks();
         InstantWorldMirror.LOGGER.info("Server stopping, mirror sessions and tasks cleared.");

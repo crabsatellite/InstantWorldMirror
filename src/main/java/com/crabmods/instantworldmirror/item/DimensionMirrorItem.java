@@ -3,6 +3,7 @@ package com.crabmods.instantworldmirror.item;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.network.SyncCooldownPacket;
 import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
@@ -10,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -24,19 +26,118 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Dimension Mirror - Used to open a portal to the Mirror World
  * 
  * In Overworld: Creates a session and entry portal (anyone can use)
  * In Mirror World: Creates a return portal (only owner can use)
+ * 
+ * Uses a custom server-side cooldown system based on real time (milliseconds)
+ * Similar to Waystones mod - allows creative mode to bypass cooldown
  */
 public class DimensionMirrorItem extends Item {
 
+    private static final String COOLDOWN_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_until";
+    
+    // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
+    private static final Map<UUID, Long> COOLDOWNS = new ConcurrentHashMap<>();
+
     public DimensionMirrorItem(Properties properties) {
         super(properties);
+    }
+    
+    /**
+     * Get remaining cooldown milliseconds for a player (0 = no cooldown)
+     */
+    public static long getRemainingCooldownMillis(UUID playerUUID) {
+        Long endTime = COOLDOWNS.get(playerUUID);
+        if (endTime == null) {
+            return 0;
+        }
+        long remaining = endTime - System.currentTimeMillis();
+        if (remaining <= 0) {
+            COOLDOWNS.remove(playerUUID); // Clean up expired entry
+            return 0;
+        }
+        return remaining;
+    }
+    
+    /**
+     * Set cooldown for a player (in seconds)
+     */
+    public static void setCooldown(UUID playerUUID, int seconds) {
+        long endTime = System.currentTimeMillis() + (seconds * 1000L);
+        COOLDOWNS.put(playerUUID, endTime);
+    }
+    
+    /**
+     * Clear cooldown for a player
+     */
+    public static void clearCooldown(UUID playerUUID) {
+        COOLDOWNS.remove(playerUUID);
+    }
+    
+    /**
+     * Clear all cooldowns (called on server stop)
+     */
+    public static void clearAllCooldowns() {
+        COOLDOWNS.clear();
+    }
+    
+    /**
+     * Save the player's dimension mirror cooldown to persistent data
+     * Called on logout and server stop
+     */
+    public static void saveCooldown(ServerPlayer player) {
+        Long cooldownUntil = COOLDOWNS.get(player.getUUID());
+        
+        if (cooldownUntil != null && cooldownUntil > System.currentTimeMillis()) {
+            CompoundTag persistentData = player.getPersistentData();
+            persistentData.putLong(COOLDOWN_NBT_KEY, cooldownUntil);
+            
+            InstantWorldMirror.LOGGER.debug("Saved cooldown until {} for {}",
+                    cooldownUntil, player.getName().getString());
+        }
+        
+        // Remove from active cooldowns map
+        COOLDOWNS.remove(player.getUUID());
+    }
+    
+    /**
+     * Restore the player's dimension mirror cooldown from persistent data
+     * Called on login
+     */
+    public static void restoreCooldown(ServerPlayer player) {
+        CompoundTag persistentData = player.getPersistentData();
+        
+        if (persistentData.contains(COOLDOWN_NBT_KEY)) {
+            long cooldownUntil = persistentData.getLong(COOLDOWN_NBT_KEY);
+            long now = System.currentTimeMillis();
+            
+            if (cooldownUntil > now) {
+                // Re-apply cooldown (just put back the end timestamp)
+                COOLDOWNS.put(player.getUUID(), cooldownUntil);
+                
+                // Sync to client for HUD display
+                syncCooldownToClient(player);
+                
+                InstantWorldMirror.LOGGER.debug("Restored cooldown for {} ({} ms remaining)",
+                        player.getName().getString(), cooldownUntil - now);
+            } else {
+                InstantWorldMirror.LOGGER.debug("Cooldown expired while {} was offline", 
+                        player.getName().getString());
+            }
+            
+            // Clean up saved data
+            persistentData.remove(COOLDOWN_NBT_KEY);
+        }
     }
 
     @Override
@@ -51,9 +152,30 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.PASS;
         }
 
-        // Check cooldown (skip in creative mode)
-        if (player.getCooldowns().isOnCooldown(this)) {
+        // Client side: return PASS to let server decide
+        // This ensures the interaction reaches the server for cooldown checking
+        if (level.isClientSide) {
             return InteractionResult.PASS;
+        }
+
+        // Server side: handle cooldown
+        ServerPlayer serverPlayer = (ServerPlayer) player;
+        
+        if (player.isCreative()) {
+            // Creative mode: clear any existing cooldown
+            clearCooldown(player.getUUID());
+            InstantWorldMirror.LOGGER.debug("Creative mode: cleared cooldown for {}", player.getName().getString());
+        } else {
+            // Survival/Adventure: check cooldown
+            long remainingMillis = getRemainingCooldownMillis(player.getUUID());
+            if (remainingMillis > 0) {
+                int seconds = (int) (remainingMillis / 1000);
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.cooldown", seconds),
+                        true
+                );
+                return InteractionResult.FAIL;
+            }
         }
 
         // Check if block is solid (non-transparent)
@@ -62,65 +184,67 @@ public class DimensionMirrorItem extends Item {
                     Component.translatable("message.instantworldmirror.invalid_block"),
                     true
             );
-            return InteractionResult.PASS;
+            return InteractionResult.FAIL;
         }
 
         // Check if player is in any mirror world dimension using the proper check
         boolean isInMirrorWorld = ModDimensions.isMirrorWorld(level.dimension());
 
-        if (!level.isClientSide) {
-            ServerLevel serverLevel = (ServerLevel) level;
-            ServerPlayer serverPlayer = (ServerPlayer) player;
+        ServerLevel serverLevel = (ServerLevel) level;
 
-            InteractionResult result;
-            if (isInMirrorWorld) {
-                // In Mirror World: Create return portal
-                result = createReturnPortal(serverLevel, serverPlayer, pos);
-            } else {
-                // In any other dimension (Overworld, Nether, End, mod dimensions): Create entry portal with session
-                result = createEntryPortal(serverLevel, serverPlayer, pos);
-            }
-            
-            // Apply cooldown on success (creative mode has instant cooldown reset)
-            if (result == InteractionResult.SUCCESS) {
-                applyCooldown(player, stack);
-            }
-            
-            return result;
+        InteractionResult result;
+        if (isInMirrorWorld) {
+            // In Mirror World: Create return portal
+            result = createReturnPortal(serverLevel, serverPlayer, pos);
+        } else {
+            // In any other dimension (Overworld, Nether, End, mod dimensions): Create entry portal with session
+            result = createEntryPortal(serverLevel, serverPlayer, pos);
         }
-
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        
+        // Apply cooldown on success (creative mode skips cooldown)
+        if (result == InteractionResult.SUCCESS && !player.isCreative()) {
+            applyCooldown(serverPlayer, stack);
+        }
+        
+        return result;
     }
     
     /**
      * Calculate and apply cooldown based on Efficiency enchantment level
-     * Base cooldown: 5 minutes (6000 ticks)
+     * Base cooldown: 5 minutes (300 seconds)
      * Each efficiency level reduces cooldown by 20%
-     * Efficiency 5 = 30 seconds (600 ticks)
-     * Creative mode = instant (0 ticks)
+     * Efficiency 5 = 30 seconds (minimum)
      */
-    private void applyCooldown(Player player, ItemStack stack) {
-        // Creative mode - no cooldown (or instant reset)
-        if (player.isCreative()) {
-            return;
-        }
-        
-        int baseCooldownTicks = MirrorConfig.getMirrorCooldownTicks();
+    private void applyCooldown(ServerPlayer player, ItemStack stack) {
+        int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
         int efficiencyLevel = getEfficiencyLevel(player.level(), stack);
         
         // Each efficiency level reduces cooldown by 20%
         // Level 0: 100% (5 min), Level 1: 80% (4 min), Level 2: 60% (3 min)
         // Level 3: 40% (2 min), Level 4: 20% (1 min), Level 5: 10% (30 sec, minimum)
         double reduction = Math.min(0.9, efficiencyLevel * 0.2); // Cap at 90% reduction
-        int finalCooldownTicks = (int) (baseCooldownTicks * (1.0 - reduction));
+        int finalCooldownSeconds = (int) (baseCooldownSeconds * (1.0 - reduction));
         
-        // Minimum cooldown is 30 seconds (600 ticks)
-        finalCooldownTicks = Math.max(600, finalCooldownTicks);
+        // Minimum cooldown is 30 seconds
+        finalCooldownSeconds = Math.max(30, finalCooldownSeconds);
         
-        player.getCooldowns().addCooldown(this, finalCooldownTicks);
+        // Set our custom cooldown (real time based)
+        setCooldown(player.getUUID(), finalCooldownSeconds);
         
-        InstantWorldMirror.LOGGER.debug("Applied cooldown {} ticks to {} (efficiency level: {})",
-                finalCooldownTicks, player.getName().getString(), efficiencyLevel);
+        // Sync cooldown to client for HUD display
+        syncCooldownToClient(player);
+        
+        InstantWorldMirror.LOGGER.debug("Applied cooldown {} seconds to {} (efficiency level: {})",
+                finalCooldownSeconds, player.getName().getString(), efficiencyLevel);
+    }
+    
+    /**
+     * Send the current cooldown state to the client for HUD display
+     */
+    public static void syncCooldownToClient(ServerPlayer player) {
+        Long cooldownEnd = COOLDOWNS.get(player.getUUID());
+        long timestamp = (cooldownEnd != null) ? cooldownEnd : 0;
+        PacketDistributor.sendToPlayer(player, new SyncCooldownPacket(timestamp));
     }
     
     /**
@@ -147,12 +271,10 @@ public class DimensionMirrorItem extends Item {
         }
 
         // Create a new session for this player
+        // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
         Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos);
         if (sessionOpt.isEmpty()) {
-            player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.session_create_failed"),
-                    true
-            );
+            // Message already shown in createSession
             return InteractionResult.FAIL;
         }
 

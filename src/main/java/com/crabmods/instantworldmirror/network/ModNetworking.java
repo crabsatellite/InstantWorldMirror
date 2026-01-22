@@ -32,6 +32,12 @@ public class ModNetworking {
                 ClearMirrorEffectsPacket::handle
         );
         
+        registrar.playToClient(
+                SyncCooldownPacket.TYPE,
+                SyncCooldownPacket.STREAM_CODEC,
+                SyncCooldownPacket::handle
+        );
+        
         InstantWorldMirror.LOGGER.info("Registered network packets");
     }
 }
