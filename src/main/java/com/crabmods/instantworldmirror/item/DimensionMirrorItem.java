@@ -17,10 +17,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -412,5 +416,64 @@ public class DimensionMirrorItem extends Item {
     public boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment) {
         // Only allow Efficiency enchantment
         return enchantment.is(Enchantments.EFFICIENCY);
+    }
+    
+    // ==================== Hold to Return to Overworld (Mirror World Only) ====================
+    
+    // Hold duration in ticks to return to overworld (20 ticks = 1 second)
+    private static final int HOLD_DURATION_TICKS = 20;
+    
+    /**
+     * Called when player right-clicks in air (not on a block).
+     * In mirror world: starts the hold-to-return interaction.
+     * In other dimensions: does nothing (useOn handles block interactions).
+     */
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+        ItemStack stack = player.getItemInHand(hand);
+        
+        // Only enable holding interaction in mirror world
+        if (ModDimensions.isMirrorWorld(level.dimension())) {
+            // Start using the item - this enables the hold-to-finish mechanism
+            player.startUsingItem(hand);
+            return InteractionResultHolder.consume(stack);
+        }
+        
+        return InteractionResultHolder.pass(stack);
+    }
+    
+    /**
+     * Duration the item can be used (held) before finishUsingItem is called.
+     * Only applies in mirror world for teleport to spawn.
+     */
+    @Override
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
+        if (entity instanceof Player player && ModDimensions.isMirrorWorld(player.level().dimension())) {
+            return HOLD_DURATION_TICKS;
+        }
+        return 0; // No duration in other dimensions
+    }
+    
+    /**
+     * Animation while holding.
+     */
+    @Override
+    public UseAnim getUseAnimation(ItemStack stack) {
+        return UseAnim.BOW;
+    }
+    
+    /**
+     * Called when the hold duration completes.
+     * Sends packet to server to return player to overworld.
+     */
+    @Override
+    public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
+        if (entity instanceof Player player && ModDimensions.isMirrorWorld(level.dimension())) {
+            // Send return to overworld request to server from client side
+            if (level.isClientSide) {
+                PacketDistributor.sendToServer(new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket());
+            }
+        }
+        return stack;
     }
 }

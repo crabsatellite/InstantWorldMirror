@@ -688,6 +688,113 @@ public class MirrorWorldManager {
     }
     
     /**
+     * Teleport a player to the mirror world spawn point (near where they originally entered).
+     * This does NOT exit the mirror world - the player stays in the mirror world but is
+     * teleported to the spawn location. The target position is offset slightly to avoid
+     * triggering any return portals that may be at the exact spawn point.
+     * 
+     * @param player The player to teleport
+     * @return true if teleportation was successful
+     */
+    public static boolean teleportToMirrorSpawn(ServerPlayer player) {
+        if (player.level().isClientSide) {
+            return false;
+        }
+
+        // Check if player is in mirror world
+        if (!isInMirrorWorld(player)) {
+            InstantWorldMirror.LOGGER.warn("teleportToMirrorSpawn: player {} is not in mirror world", 
+                    player.getName().getString());
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.not_in_mirror_world"),
+                    true
+            );
+            return false;
+        }
+
+        // Get player's current session
+        UUID sessionId = playerToSession.get(player.getUUID());
+        MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+
+        if (session == null) {
+            InstantWorldMirror.LOGGER.warn("teleportToMirrorSpawn: player {} has no active session", 
+                    player.getName().getString());
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.no_active_session"),
+                    true
+            );
+            return false;
+        }
+
+        ServerLevel mirrorLevel = (ServerLevel) player.level();
+        
+        // Get the spawn position (where they originally entered)
+        BlockPos spawnPos = session.getSourcePosition().above();
+        
+        // Apply offset to avoid triggering return portal at spawn (3-4 blocks away)
+        // Use a fixed offset direction based on player's facing to be predictable
+        double angle = player.level().random.nextDouble() * Math.PI * 2;
+        double offsetDistance = 3.5; // 3.5 blocks away from spawn to avoid portal trigger
+        int offsetX = (int) Math.round(Math.cos(angle) * offsetDistance);
+        int offsetZ = (int) Math.round(Math.sin(angle) * offsetDistance);
+        
+        // Calculate target position with offset
+        BlockPos targetPos = spawnPos.offset(offsetX, 0, offsetZ);
+        
+        // Find a safe landing position near the offset target
+        BlockPos safePos = findSafeLandingPosition(mirrorLevel, targetPos);
+        
+        // Verify the safe position is at least 2 blocks away from spawn to avoid portal
+        if (safePos.closerThan(spawnPos, 2.0)) {
+            // Try to find another safe position further away
+            for (int attempt = 0; attempt < 8; attempt++) {
+                double tryAngle = (Math.PI * 2 / 8) * attempt;
+                int tryOffsetX = (int) Math.round(Math.cos(tryAngle) * 4);
+                int tryOffsetZ = (int) Math.round(Math.sin(tryAngle) * 4);
+                BlockPos tryPos = spawnPos.offset(tryOffsetX, 0, tryOffsetZ);
+                BlockPos trySafePos = findSafeLandingPosition(mirrorLevel, tryPos);
+                if (!trySafePos.closerThan(spawnPos, 2.0)) {
+                    safePos = trySafePos;
+                    break;
+                }
+            }
+        }
+
+        // Execute teleportation (stays in same dimension)
+        player.teleportTo(
+                safePos.getX() + 0.5,
+                safePos.getY(),
+                safePos.getZ() + 0.5
+        );
+
+        // Play teleport sound
+        player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                net.minecraft.sounds.SoundEvents.ENDERMAN_TELEPORT, net.minecraft.sounds.SoundSource.PLAYERS, 
+                0.8F, 1.0F);
+
+        // Apply cooldown (same as using the mirror normally) - skip for creative mode
+        if (!player.isCreative()) {
+            // Use base cooldown (30 seconds minimum, since we don't have the item stack here)
+            int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20;
+            int finalCooldownSeconds = Math.max(30, baseCooldownSeconds);
+            com.crabmods.instantworldmirror.item.DimensionMirrorItem.setCooldown(player.getUUID(), finalCooldownSeconds);
+            com.crabmods.instantworldmirror.item.DimensionMirrorItem.syncCooldownToClient(player);
+            InstantWorldMirror.LOGGER.debug("Applied cooldown {} seconds to {} for teleport to spawn",
+                    finalCooldownSeconds, player.getName().getString());
+        }
+
+        player.displayClientMessage(
+                Component.translatable("message.instantworldmirror.teleported_to_spawn"),
+                true
+        );
+        
+        InstantWorldMirror.LOGGER.info("Player {} teleported to mirror spawn at ({}, {}, {})",
+                player.getName().getString(), safePos.getX(), safePos.getY(), safePos.getZ());
+
+        return true;
+    }
+    
+    /**
      * Find a safe landing position near the target position
      * Checks for solid ground, avoids lava/water/void, and ensures there's space for the player
      * 

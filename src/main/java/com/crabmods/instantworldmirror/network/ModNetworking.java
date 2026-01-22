@@ -38,6 +38,13 @@ public class ModNetworking {
                 SyncCooldownPacket::handle
         );
         
+        // Register server-bound packets
+        registrar.playToServer(
+                TeleportToSpawnPacket.TYPE,
+                TeleportToSpawnPacket.STREAM_CODEC,
+                TeleportToSpawnPacket::handle
+        );
+        
         InstantWorldMirror.LOGGER.info("Registered network packets");
     }
 }
