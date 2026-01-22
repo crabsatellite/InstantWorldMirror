@@ -31,7 +31,6 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
     // Color scheme - using cyan/blue tones to differentiate from Waystones
     private static final int TIMER_COLOR = 0xFF88DDFF;         // Light cyan for timer text
     private static final int TIMER_SHADOW_COLOR = 0xFF224466;  // Dark blue for shadow
-    private static final int READY_COLOR = 0xFF88FF88;         // Green when ready
     
     // Position offset from top-left corner
     private static final int OFFSET_X = 10;

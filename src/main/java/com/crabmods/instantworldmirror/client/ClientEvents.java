@@ -15,7 +15,8 @@ import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 
 /**
- * Client-side event handling (MOD bus)
+ * Client-side MOD bus event handling.
+ * Handles renderer registration, HUD overlays, and item decorators.
  */
 @EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientEvents {
