@@ -18,6 +18,8 @@
   "message.instantworldmirror.external_exit": "§e你已离开镜面世界，会话数据已清理。",
   "message.instantworldmirror.force_returned": "§c管理员已强制将你传送回出生点。",
   "message.instantworldmirror.return_failed": "§c返回原世界失败，请重试或使用 /mirror return 命令。",
+  "message.instantworldmirror.wait_for_host": "§e请等待传送门创建者先进入...",
+  "message.instantworldmirror.host_left": "§c传送门创建者已离开，你已被传送回原世界。",
   "command.instantworldmirror.return.success": "已强制返回原世界",
   "command.instantworldmirror.return.not_in_mirror": "§c你不在镜面世界中！",
   "command.instantworldmirror.player_only": "§c此命令只能由玩家执行！",

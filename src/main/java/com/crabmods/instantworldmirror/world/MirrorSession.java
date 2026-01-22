@@ -43,6 +43,9 @@ public class MirrorSession {
     // Whether world copy is complete
     private volatile boolean copyComplete = false;
     
+    // Whether the creator (host) has entered the mirror world
+    private volatile boolean hostEntered = false;
+    
     // Creation timestamp for debugging
     private final long createdAt;
     
@@ -171,6 +174,27 @@ public class MirrorSession {
      */
     public boolean isCopyComplete() {
         return copyComplete;
+    }
+    
+    /**
+     * Mark that the host has entered the mirror world
+     */
+    public void markHostEntered() {
+        this.hostEntered = true;
+    }
+    
+    /**
+     * Check if the host has entered the mirror world
+     */
+    public boolean hasHostEntered() {
+        return hostEntered;
+    }
+    
+    /**
+     * Check if the given player is the host (creator) of this session
+     */
+    public boolean isHost(UUID playerId) {
+        return creatorId.equals(playerId);
     }
     
     public long getCreatedAt() {

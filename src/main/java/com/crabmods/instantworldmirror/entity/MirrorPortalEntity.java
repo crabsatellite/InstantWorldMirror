@@ -329,7 +329,7 @@ public class MirrorPortalEntity extends Entity {
                     }
                     return;
                 } else {
-                    // Entry portal: anyone can use (joins the session)
+                    // Entry portal: Zoom-meeting style - host must enter first, then others can follow
                     
                     // Check access permission
                     if (!MirrorWorldManager.canAccessMirrorWorld(serverPlayer)) {
@@ -344,7 +344,6 @@ public class MirrorPortalEntity extends Entity {
                     // Get session
                     Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
                     if (sessionOpt.isEmpty()) {
-                        // Session was destroyed (e.g., all players left), remove this portal
                         InstantWorldMirror.LOGGER.info("Session {} no longer exists, removing portal", sessionId);
                         serverPlayer.displayClientMessage(
                                 net.minecraft.network.chat.Component.translatable(
@@ -369,10 +368,22 @@ public class MirrorPortalEntity extends Entity {
                         return;
                     }
                     
+                    boolean isHost = session.isHost(serverPlayer.getUUID());
+                    
+                    // Non-host players must wait for host to enter first
+                    if (!isHost && !session.hasHostEntered()) {
+                        serverPlayer.displayClientMessage(
+                                net.minecraft.network.chat.Component.translatable(
+                                        "message.instantworldmirror.wait_for_host"),
+                                true
+                        );
+                        continue;
+                    }
+                    
                     // Check if player already has an active session (prevents entering two sessions)
                     if (MirrorWorldManager.hasActiveSession(serverPlayer.getUUID())) {
                         // If player is the creator of this session, they can enter
-                        if (!session.getCreatorId().equals(serverPlayer.getUUID())) {
+                        if (!isHost) {
                             serverPlayer.displayClientMessage(
                                     net.minecraft.network.chat.Component.translatable(
                                             "message.instantworldmirror.already_has_session"),
@@ -387,17 +398,27 @@ public class MirrorPortalEntity extends Entity {
                     boolean success = MirrorWorldManager.teleportToMirrorWorld(serverPlayer, session);
                     
                     if (success) {
-                        // Play teleport sound and remove portal on success
                         this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
                                 SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
-                        this.discard();
+                        
+                        // Mark host as entered when host enters
+                        if (isHost) {
+                            session.markHostEntered();
+                            InstantWorldMirror.LOGGER.info("Host {} entered session {}, portal now open for others",
+                                    serverPlayer.getName().getString(), sessionId);
+                        }
+                        
+                        // DON'T discard the portal - keep it open for other players
+                        // Portal will be removed when:
+                        // 1. Host exits (triggers session destroy)
+                        // 2. Portal lifetime expires
+                        // 3. Session is destroyed for other reasons
                     } else {
-                        // Teleport failed, remove cooldown
                         teleportCooldowns.remove(serverPlayer.getUUID());
                         InstantWorldMirror.LOGGER.warn("Entry portal FAILED to teleport player {}", 
                                 serverPlayer.getName().getString());
                     }
-                    return; // Exit loop after processing
+                    return;
                 }
             }
         }

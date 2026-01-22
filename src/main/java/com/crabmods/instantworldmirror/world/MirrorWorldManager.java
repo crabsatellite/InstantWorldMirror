@@ -19,8 +19,10 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -459,9 +461,20 @@ public class MirrorWorldManager {
 
             // Handle session cleanup
             if (session != null) {
-                boolean sessionNowEmpty = session.removePlayer(player.getUUID());
-                if (sessionNowEmpty) {
+                boolean isHost = session.isHost(player.getUUID());
+                
+                if (isHost) {
+                    // Host is leaving - kick all other players and destroy session
+                    InstantWorldMirror.LOGGER.info("Host {} leaving session {}, kicking all other players",
+                            player.getName().getString(), session.getSessionId());
+                    kickAllPlayersFromSession(session, server, player.getUUID());
                     destroySession(session, server);
+                } else {
+                    // Non-host leaving - just remove from session
+                    boolean sessionNowEmpty = session.removePlayer(player.getUUID());
+                    if (sessionNowEmpty) {
+                        destroySession(session, server);
+                    }
                 }
             }
 
@@ -475,6 +488,86 @@ public class MirrorWorldManager {
     }
 
     // ==================== Session Lifecycle ====================
+    
+    /**
+     * Kick all players from a session (except the specified exclude player)
+     * Called when the host leaves - all other players are forcibly returned
+     * Must be called with sessionLock.writeLock held
+     */
+    private static void kickAllPlayersFromSession(MirrorSession session, MinecraftServer server, UUID excludePlayerId) {
+        Set<UUID> playersToKick = new HashSet<>(session.getPlayers());
+        playersToKick.remove(excludePlayerId); // Don't kick the player who is already leaving
+        
+        if (playersToKick.isEmpty()) {
+            return;
+        }
+        
+        InstantWorldMirror.LOGGER.info("Kicking {} players from session {} because host left",
+                playersToKick.size(), session.getSessionId());
+        
+        ServerLevel overworld = server.overworld();
+        BlockPos spawnPos = overworld.getSharedSpawnPos();
+        
+        for (UUID playerId : playersToKick) {
+            ServerPlayer kickedPlayer = server.getPlayerList().getPlayer(playerId);
+            if (kickedPlayer == null) {
+                // Player is offline, just clean up tracking data
+                playerOriginalPositions.remove(playerId);
+                playerOriginalDimensions.remove(playerId);
+                playerToSession.remove(playerId);
+                playerItemTransferPermission.remove(playerId);
+                session.removePlayer(playerId);
+                continue;
+            }
+            
+            // Restore inventory first
+            restorePlayerInventory(kickedPlayer);
+            
+            // Get their original position
+            BlockPos originalPos = playerOriginalPositions.get(playerId);
+            ResourceKey<Level> originalDim = playerOriginalDimensions.get(playerId);
+            
+            ServerLevel targetLevel = overworld;
+            BlockPos targetPos = spawnPos;
+            
+            if (originalPos != null && originalDim != null) {
+                ServerLevel level = server.getLevel(originalDim);
+                if (level != null) {
+                    targetLevel = level;
+                    targetPos = originalPos;
+                }
+            }
+            
+            // Teleport back
+            kickedPlayer.teleportTo(
+                    targetLevel,
+                    targetPos.getX() + 0.5,
+                    targetPos.getY(),
+                    targetPos.getZ() + 0.5,
+                    kickedPlayer.getYRot(),
+                    kickedPlayer.getXRot()
+            );
+            
+            // Clear dimension effects
+            clearDimensionEffectsForPlayer(kickedPlayer, session.getDimensionIndex());
+            
+            // Clean up tracking data
+            playerOriginalPositions.remove(playerId);
+            playerOriginalDimensions.remove(playerId);
+            playerToSession.remove(playerId);
+            playerItemTransferPermission.remove(playerId);
+            session.removePlayer(playerId);
+            
+            // Notify the kicked player
+            kickedPlayer.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.host_left"),
+                    true
+            );
+            
+            InstantWorldMirror.LOGGER.info("Kicked player {} from session because host left",
+                    kickedPlayer.getName().getString());
+        }
+    }
 
     /**
      * Destroy a session and cleanup its resources
