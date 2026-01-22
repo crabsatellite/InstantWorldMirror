@@ -50,10 +50,6 @@ public class MirrorConfig {
                     "Set to -1 for permanent portals (until player returns)")
             .defineInRange("returnPortalLifetime", -1, -1, 3600);
 
-    public static final ModConfigSpec.IntValue PORTAL_DURATION = BUILDER
-            .comment("(Deprecated) Use entryPortalLifetime instead. Portal activation duration in seconds (default: 5)")
-            .defineInRange("portalDuration", 5, 1, 60);
-
     public static final ModConfigSpec.IntValue TELEPORT_COOLDOWN = BUILDER
             .comment("Teleport cooldown in ticks (default: 60 = 3 seconds)",
                     "Prevents instant return after entering mirror world")

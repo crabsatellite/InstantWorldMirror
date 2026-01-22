@@ -43,6 +43,7 @@ public class MirrorWorldManager {
 
     // Persistent data keys
     private static final String SAVED_INVENTORY_KEY = InstantWorldMirror.MODID + "_saved_inventory";
+    private static final String SAVED_ENDERCHEST_KEY = InstantWorldMirror.MODID + "_saved_enderchest";
     private static final String ORIGINAL_POS_KEY = InstantWorldMirror.MODID + "_original_pos";
     private static final String ORIGINAL_DIM_KEY = InstantWorldMirror.MODID + "_original_dim";
     private static final String SESSION_ID_KEY = InstantWorldMirror.MODID + "_session_id";
@@ -71,6 +72,10 @@ public class MirrorWorldManager {
 
     // Players denied access to mirror world
     private static final Map<UUID, Boolean> playerAccessDenied = new ConcurrentHashMap<>();
+
+    // Players currently being teleported by the mod (bypass dimension travel block)
+    // This prevents our own teleportation from being blocked by the dimension travel event
+    private static final Set<UUID> playersBeingTeleported = ConcurrentHashMap.newKeySet();
 
     // ==================== Session Management ====================
 
@@ -209,6 +214,44 @@ public class MirrorWorldManager {
      */
     public static ResourceKey<Level> getPlayerOriginalDimension(ServerPlayer player) {
         return playerOriginalDimensions.get(player.getUUID());
+    }
+
+    /**
+     * Check if a player is currently being teleported by the mod
+     * Used by dimension travel event to allow our own teleportation to pass through
+     */
+    public static boolean isBeingTeleportedByMod(UUID playerId) {
+        return playersBeingTeleported.contains(playerId);
+    }
+
+    /**
+     * Mark a player as being teleported by the mod (for external use)
+     * Call this before teleporting a player from mirror world
+     */
+    public static void markPlayerBeingTeleported(UUID playerId) {
+        playersBeingTeleported.add(playerId);
+    }
+
+    /**
+     * Unmark a player as being teleported by the mod (for external use)
+     * Call this after teleportation completes
+     */
+    public static void unmarkPlayerBeingTeleported(UUID playerId) {
+        playersBeingTeleported.remove(playerId);
+    }
+
+    // ==================== Player Data Cleanup ====================
+
+    /**
+     * Clean up all tracking data for a player
+     * Call this when player leaves mirror world by any means
+     */
+    private static void cleanupPlayerTrackingData(UUID playerId) {
+        playerOriginalPositions.remove(playerId);
+        playerOriginalDimensions.remove(playerId);
+        playerToSession.remove(playerId);
+        playerItemTransferPermission.remove(playerId);
+        playerOwnedSession.remove(playerId);
     }
 
     // ==================== World Copy ====================
@@ -432,15 +475,23 @@ public class MirrorWorldManager {
                 restorePlayerInventory(player);
             }
 
-            // Execute teleportation
-            player.teleportTo(
-                    targetLevel,
-                    targetPos.getX() + 0.5,
-                    targetPos.getY(),
-                    targetPos.getZ() + 0.5,
-                    player.getYRot(),
-                    player.getXRot()
-            );
+            // Mark player as being teleported by the mod (to bypass dimension travel block)
+            playersBeingTeleported.add(player.getUUID());
+            
+            try {
+                // Execute teleportation
+                player.teleportTo(
+                        targetLevel,
+                        targetPos.getX() + 0.5,
+                        targetPos.getY(),
+                        targetPos.getZ() + 0.5,
+                        player.getYRot(),
+                        player.getXRot()
+                );
+            } finally {
+                // Always remove from teleport whitelist
+                playersBeingTeleported.remove(player.getUUID());
+            }
             
             // Verify teleport success
             if (isInMirrorWorld(player)) {
@@ -454,10 +505,7 @@ public class MirrorWorldManager {
             }
 
             // Cleanup player tracking data
-            playerOriginalPositions.remove(player.getUUID());
-            playerOriginalDimensions.remove(player.getUUID());
-            playerToSession.remove(player.getUUID());
-            playerItemTransferPermission.remove(player.getUUID());
+            cleanupPlayerTrackingData(player.getUUID());
 
             // Handle session cleanup
             if (session != null) {
@@ -512,10 +560,7 @@ public class MirrorWorldManager {
             ServerPlayer kickedPlayer = server.getPlayerList().getPlayer(playerId);
             if (kickedPlayer == null) {
                 // Player is offline, just clean up tracking data
-                playerOriginalPositions.remove(playerId);
-                playerOriginalDimensions.remove(playerId);
-                playerToSession.remove(playerId);
-                playerItemTransferPermission.remove(playerId);
+                cleanupPlayerTrackingData(playerId);
                 session.removePlayer(playerId);
                 continue;
             }
@@ -523,7 +568,7 @@ public class MirrorWorldManager {
             // Restore inventory first
             restorePlayerInventory(kickedPlayer);
             
-            // Get their original position
+            // Get their original position (before cleanup)
             BlockPos originalPos = playerOriginalPositions.get(playerId);
             ResourceKey<Level> originalDim = playerOriginalDimensions.get(playerId);
             
@@ -538,24 +583,26 @@ public class MirrorWorldManager {
                 }
             }
             
-            // Teleport back
-            kickedPlayer.teleportTo(
-                    targetLevel,
-                    targetPos.getX() + 0.5,
-                    targetPos.getY(),
-                    targetPos.getZ() + 0.5,
-                    kickedPlayer.getYRot(),
-                    kickedPlayer.getXRot()
-            );
+            // Teleport back with whitelist protection
+            playersBeingTeleported.add(playerId);
+            try {
+                kickedPlayer.teleportTo(
+                        targetLevel,
+                        targetPos.getX() + 0.5,
+                        targetPos.getY(),
+                        targetPos.getZ() + 0.5,
+                        kickedPlayer.getYRot(),
+                        kickedPlayer.getXRot()
+                );
+            } finally {
+                playersBeingTeleported.remove(playerId);
+            }
             
             // Clear dimension effects
             clearDimensionEffectsForPlayer(kickedPlayer, session.getDimensionIndex());
             
             // Clean up tracking data
-            playerOriginalPositions.remove(playerId);
-            playerOriginalDimensions.remove(playerId);
-            playerToSession.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
+            cleanupPlayerTrackingData(playerId);
             session.removePlayer(playerId);
             
             // Notify the kicked player
@@ -652,7 +699,7 @@ public class MirrorWorldManager {
             }
 
             // Check if player is in a session
-            UUID sessionId = playerToSession.remove(playerId);
+            UUID sessionId = playerToSession.get(playerId);
             if (sessionId != null) {
                 MirrorSession session = activeSessions.get(sessionId);
                 if (session != null) {
@@ -663,10 +710,8 @@ public class MirrorWorldManager {
                 }
             }
 
-            // Cleanup position data
-            playerOriginalPositions.remove(playerId);
-            playerOriginalDimensions.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
+            // Cleanup all player tracking data
+            cleanupPlayerTrackingData(playerId);
         } finally {
             sessionLock.writeLock().unlock();
         }
@@ -682,7 +727,7 @@ public class MirrorWorldManager {
             UUID playerId = player.getUUID();
             
             // Get the session before cleanup
-            UUID sessionId = playerToSession.remove(playerId);
+            UUID sessionId = playerToSession.get(playerId);
             MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
             
             // Restore player's original inventory (they died, so items stay in mirror world)
@@ -705,10 +750,7 @@ public class MirrorWorldManager {
             }
             
             // Cleanup all player data
-            playerOriginalPositions.remove(playerId);
-            playerOriginalDimensions.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
-            playerOwnedSession.remove(playerId);
+            cleanupPlayerTrackingData(playerId);
             
             InstantWorldMirror.LOGGER.info("Cleaned up mirror world session data for {} after death",
                     player.getName().getString());
@@ -727,12 +769,20 @@ public class MirrorWorldManager {
             UUID playerId = player.getUUID();
             
             // Check if player was in a session (might already be cleaned up by death handler)
-            UUID sessionId = playerToSession.remove(playerId);
+            UUID sessionId = playerToSession.get(playerId);
             if (sessionId != null) {
                 MirrorSession session = activeSessions.get(sessionId);
                 if (session != null) {
                     InstantWorldMirror.LOGGER.info("Player {} externally left session {}", 
                             player.getName().getString(), sessionId);
+                    
+                    // Restore inventory (external exit should restore items like normal return)
+                    boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false);
+                    if (allowItemTransfer) {
+                        clearSavedData(player);
+                    } else {
+                        restorePlayerInventory(player);
+                    }
                     
                     boolean sessionNowEmpty = session.removePlayer(playerId);
                     if (sessionNowEmpty) {
@@ -740,20 +790,16 @@ public class MirrorWorldManager {
                         destroySession(session, server);
                     }
                 }
-            }
-            
-            // Cleanup position data (player is already in the target dimension)
-            playerOriginalPositions.remove(playerId);
-            playerOriginalDimensions.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
-            
-            // Only send notification if we actually cleaned up a session
-            if (sessionId != null) {
+                
+                // Send notification
                 player.displayClientMessage(
                         Component.translatable("message.instantworldmirror.external_exit"),
                         false
                 );
             }
+            
+            // Cleanup all player tracking data
+            cleanupPlayerTrackingData(playerId);
         } finally {
             sessionLock.writeLock().unlock();
         }
@@ -882,41 +928,72 @@ public class MirrorWorldManager {
     // ==================== Inventory Management ====================
 
     /**
-     * Save player inventory to player's persistent data
+     * Save player inventory and ender chest to player's persistent data
+     * Only saves for survival mode players (creative/spectator players don't need inventory restore)
      */
     private static void savePlayerInventory(ServerPlayer player) {
+        // Only save inventory for survival mode players
+        if (!player.gameMode.isSurvival()) {
+            InstantWorldMirror.LOGGER.info("Skipping inventory save for non-survival player {}",
+                    player.getName().getString());
+            return;
+        }
+        
+        CompoundTag persistentData = player.getPersistentData();
+        
+        // Save inventory
         ListTag inventoryTag = new ListTag();
         player.getInventory().save(inventoryTag);
-
-        CompoundTag persistentData = player.getPersistentData();
         persistentData.put(SAVED_INVENTORY_KEY, inventoryTag);
+        
+        // Save ender chest contents (uses createTag instead of save)
+        ListTag enderChestTag = player.getEnderChestInventory().createTag(player.registryAccess());
+        persistentData.put(SAVED_ENDERCHEST_KEY, enderChestTag);
 
+        // Save position
         BlockPos pos = player.blockPosition();
         persistentData.putInt(ORIGINAL_POS_KEY + "_x", pos.getX());
         persistentData.putInt(ORIGINAL_POS_KEY + "_y", pos.getY());
         persistentData.putInt(ORIGINAL_POS_KEY + "_z", pos.getZ());
         persistentData.putString(ORIGINAL_DIM_KEY, player.level().dimension().location().toString());
 
-        InstantWorldMirror.LOGGER.info("Saved inventory to persistent data for player {} ({} items)",
-                player.getName().getString(), inventoryTag.size());
+        InstantWorldMirror.LOGGER.info("Saved inventory and ender chest to persistent data for player {} ({} inventory items, {} ender chest items)",
+                player.getName().getString(), inventoryTag.size(), enderChestTag.size());
     }
 
     /**
-     * Restore inventory from player's persistent data
+     * Restore inventory and ender chest from player's persistent data
+     * Only restores for survival mode players
      */
     private static void restorePlayerInventory(ServerPlayer player) {
+        // Only restore inventory for survival mode players
+        if (!player.gameMode.isSurvival()) {
+            InstantWorldMirror.LOGGER.info("Skipping inventory restore for non-survival player {}",
+                    player.getName().getString());
+            clearSavedData(player);
+            return;
+        }
+        
         CompoundTag persistentData = player.getPersistentData();
 
         if (persistentData.contains(SAVED_INVENTORY_KEY)) {
+            // Restore inventory
             ListTag savedInventory = persistentData.getList(SAVED_INVENTORY_KEY, 10);
-
             player.getInventory().clearContent();
             player.getInventory().load(savedInventory);
+            
+            // Restore ender chest contents (uses fromTag instead of load)
+            if (persistentData.contains(SAVED_ENDERCHEST_KEY)) {
+                ListTag savedEnderChest = persistentData.getList(SAVED_ENDERCHEST_KEY, 10);
+                player.getEnderChestInventory().fromTag(savedEnderChest, player.registryAccess());
+                InstantWorldMirror.LOGGER.info("Restored inventory and ender chest from persistent data for player {}",
+                        player.getName().getString());
+            } else {
+                InstantWorldMirror.LOGGER.info("Restored inventory from persistent data for player {} (no ender chest data)",
+                        player.getName().getString());
+            }
 
             clearSavedData(player);
-
-            InstantWorldMirror.LOGGER.info("Restored inventory from persistent data for player {}",
-                    player.getName().getString());
         } else {
             InstantWorldMirror.LOGGER.warn("No saved inventory found in persistent data for player {}",
                     player.getName().getString());
@@ -931,11 +1008,12 @@ public class MirrorWorldManager {
     }
 
     /**
-     * Clear player's saved data
+     * Clear player's saved data (inventory, ender chest, position, etc.)
      */
     public static void clearSavedData(ServerPlayer player) {
         CompoundTag persistentData = player.getPersistentData();
         persistentData.remove(SAVED_INVENTORY_KEY);
+        persistentData.remove(SAVED_ENDERCHEST_KEY);
         persistentData.remove(ORIGINAL_POS_KEY + "_x");
         persistentData.remove(ORIGINAL_POS_KEY + "_y");
         persistentData.remove(ORIGINAL_POS_KEY + "_z");
@@ -1054,22 +1132,25 @@ public class MirrorWorldManager {
                     // Set the original dimension in memory so the event handler allows the teleport
                     playerOriginalDimensions.put(playerId, originalDimension);
                     
-                    // Teleport player to their original position/dimension
-                    player.teleportTo(targetLevel, 
-                            targetPos.getX() + 0.5, 
-                            targetPos.getY(), 
-                            targetPos.getZ() + 0.5, 
-                            java.util.Set.of(),
-                            player.getYRot(), 
-                            player.getXRot());
+                    // Teleport player to their original position/dimension with whitelist protection
+                    playersBeingTeleported.add(playerId);
+                    try {
+                        player.teleportTo(targetLevel, 
+                                targetPos.getX() + 0.5, 
+                                targetPos.getY(), 
+                                targetPos.getZ() + 0.5, 
+                                java.util.Set.of(),
+                                player.getYRot(), 
+                                player.getXRot());
+                    } finally {
+                        playersBeingTeleported.remove(playerId);
+                    }
                     
                     // Clear their saved data
                     clearSavedData(player);
                     
                     // Remove from tracking maps
-                    playerToSession.remove(playerId);
-                    playerOriginalPositions.remove(playerId);
-                    playerOriginalDimensions.remove(playerId);
+                    cleanupPlayerTrackingData(playerId);
                     
                     // Notify player
                     player.displayClientMessage(

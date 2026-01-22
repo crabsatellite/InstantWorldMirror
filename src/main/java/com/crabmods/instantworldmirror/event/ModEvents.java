@@ -78,14 +78,21 @@ public class ModEvents {
                 // Teleport to overworld spawn point (session should already be cleaned up)
                 ServerLevel overworld = player.getServer().overworld();
                 BlockPos spawnPos = overworld.getSharedSpawnPos();
-                player.teleportTo(
-                        overworld,
-                        spawnPos.getX() + 0.5,
-                        spawnPos.getY(),
-                        spawnPos.getZ() + 0.5,
-                        player.getYRot(),
-                        player.getXRot()
-                );
+                
+                // Use whitelist to bypass dimension travel block
+                MirrorWorldManager.markPlayerBeingTeleported(player.getUUID());
+                try {
+                    player.teleportTo(
+                            overworld,
+                            spawnPos.getX() + 0.5,
+                            spawnPos.getY(),
+                            spawnPos.getZ() + 0.5,
+                            player.getYRot(),
+                            player.getXRot()
+                    );
+                } finally {
+                    MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
+                }
                 InstantWorldMirror.LOGGER.info("Force teleported {} to overworld after respawn in mirror world",
                         player.getName().getString());
             }
@@ -237,7 +244,7 @@ public class ModEvents {
     /**
      * Dimension travel event - prevent using any portal for dimension travel in mirror world
      * This intercepts all portal types (nether portal, end portal, mod portals, etc.)
-     * BUT allows returning to the original dimension the player came from
+     * Only allows teleportation initiated by our mod (marked with whitelist)
      */
     @SubscribeEvent
     public static void onEntityTravelToDimension(EntityTravelToDimensionEvent event) {
@@ -245,16 +252,10 @@ public class ModEvents {
         
         // Check if entity is currently in any mirror world
         if (ModDimensions.isMirrorWorld(entity.level().dimension())) {
-            ResourceKey<Level> targetDimension = event.getDimension();
-            
-            // Check if this is a player returning to their original dimension
+            // Check if this is a player being teleported by our mod
             if (entity instanceof ServerPlayer player) {
-                ResourceKey<Level> originalDimension = MirrorWorldManager.getPlayerOriginalDimension(player);
-                
-                // Allow teleportation to the player's original dimension (where they came from)
-                // This supports returning to End, Nether, or any other modded dimension
-                if (originalDimension != null && targetDimension.equals(originalDimension)) {
-                    // Allow this teleport
+                if (MirrorWorldManager.isBeingTeleportedByMod(player.getUUID())) {
+                    // Allow this teleport - it's our own return teleportation
                     return;
                 }
             }
@@ -359,14 +360,21 @@ public class ModEvents {
                     if (ModDimensions.isMirrorWorld(player.level().dimension())) {
                         ServerLevel overworld = player.getServer().overworld();
                         BlockPos spawnPos = overworld.getSharedSpawnPos();
-                        player.teleportTo(
-                                overworld,
-                                spawnPos.getX() + 0.5,
-                                spawnPos.getY(),
-                                spawnPos.getZ() + 0.5,
-                                player.getYRot(),
-                                player.getXRot()
-                        );
+                        
+                        // Use whitelist to bypass dimension travel block
+                        MirrorWorldManager.markPlayerBeingTeleported(player.getUUID());
+                        try {
+                            player.teleportTo(
+                                    overworld,
+                                    spawnPos.getX() + 0.5,
+                                    spawnPos.getY(),
+                                    spawnPos.getZ() + 0.5,
+                                    player.getYRot(),
+                                    player.getXRot()
+                            );
+                        } finally {
+                            MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
+                        }
                     }
                     // Restore inventory (forceReturn will automatically restore)
                     MirrorWorldManager.forceReturn(player);
@@ -378,14 +386,21 @@ public class ModEvents {
                 player.getServer().execute(() -> {
                     ServerLevel overworld = player.getServer().overworld();
                     BlockPos spawnPos = overworld.getSharedSpawnPos();
-                    player.teleportTo(
-                            overworld,
-                            spawnPos.getX() + 0.5,
-                            spawnPos.getY(),
-                            spawnPos.getZ() + 0.5,
-                            player.getYRot(),
-                            player.getXRot()
-                    );
+                    
+                    // Use whitelist to bypass dimension travel block
+                    MirrorWorldManager.markPlayerBeingTeleported(player.getUUID());
+                    try {
+                        player.teleportTo(
+                                overworld,
+                                spawnPos.getX() + 0.5,
+                                spawnPos.getY(),
+                                spawnPos.getZ() + 0.5,
+                                player.getYRot(),
+                                player.getXRot()
+                        );
+                    } finally {
+                        MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
+                    }
                     InstantWorldMirror.LOGGER.info("Player {} was in Mirror World on login (no saved data), teleported to Overworld", 
                             player.getName().getString());
                 });
