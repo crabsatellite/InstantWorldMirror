@@ -104,6 +104,13 @@ public class MirrorConfig {
                     "Usually 1 is enough since players can only be in one world at a time.")
             .defineInRange("maxMirrorWorldsPerPlayer", 1, 1, 5);
 
+    public static final ModConfigSpec.IntValue STALE_SESSION_CLEANUP_INTERVAL = BUILDER
+            .comment("Interval in seconds for stale session cleanup check (default: 300 = 5 minutes)",
+                    "This is a fallback mechanism to clean up orphaned sessions/dimensions.",
+                    "Lower values = more frequent checks but slightly more CPU usage.",
+                    "Set to 0 to disable automatic stale session cleanup.")
+            .defineInRange("staleSessionCleanupInterval", 300, 0, 3600);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     // ==================== Helper Methods ====================
@@ -136,5 +143,14 @@ public class MirrorConfig {
      */
     public static int getMirrorCooldownTicks() {
         return MIRROR_COOLDOWN.get() * 20;
+    }
+    
+    /**
+     * Get stale session cleanup interval in ticks
+     * Returns 0 if disabled
+     */
+    public static int getStaleSessionCleanupTicks() {
+        int seconds = STALE_SESSION_CLEANUP_INTERVAL.get();
+        return seconds == 0 ? 0 : seconds * 20;
     }
 }

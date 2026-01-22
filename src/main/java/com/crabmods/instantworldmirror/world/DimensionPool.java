@@ -209,6 +209,35 @@ public class DimensionPool {
     public static Optional<UUID> getDimensionSession(int dimIndex) {
         return Optional.ofNullable(dimensionToSession.get(dimIndex));
     }
+    
+    /**
+     * Get the session UUID for a dimension (returns null if none)
+     * Convenience method for null checks
+     */
+    public static UUID getSessionForDimension(int dimIndex) {
+        return dimensionToSession.get(dimIndex);
+    }
+    
+    /**
+     * Force release a dimension without having a session reference
+     * Used for cleanup of orphaned dimensions
+     */
+    public static synchronized void forceReleaseDimension(int dimIndex) {
+        int poolSize = ModDimensions.getPoolSize();
+        if (dimIndex >= 0 && dimIndex < poolSize) {
+            UUID sessionId = dimensionToSession.remove(dimIndex);
+            if (sessionId != null) {
+                sessionToDimension.remove(sessionId);
+            }
+            dimensionToSource.remove(dimIndex);
+            dimensionStates.put(dimIndex, DimensionState.CLEANING);
+            
+            // Save cleanup state to persistent storage
+            markCleanupInProgress(dimIndex, true);
+            
+            InstantWorldMirror.LOGGER.info("Force released orphaned dimension {}", dimIndex);
+        }
+    }
 
     /**
      * Get dimension state

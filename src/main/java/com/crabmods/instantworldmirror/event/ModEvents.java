@@ -277,71 +277,88 @@ public class ModEvents {
         }
     }
 
+    // Tick counter for periodic tasks (avoids expensive gameTime checks)
+    private static int tickCounter = 0;
+    
     /**
      * World tick event - process async copy and cleanup queues
-     * Process once per tick, only on overworld (to avoid duplicate processing)
+     * Optimized: Uses tick counter instead of gameTime modulo for better performance
      */
     @SubscribeEvent
     public static void onWorldTick(LevelTickEvent.Post event) {
-        if (event.getLevel() instanceof ServerLevel serverLevel) {
-            // Only process on overworld tick to avoid duplicate processing
-            if (serverLevel.dimension().equals(Level.OVERWORLD)) {
-                // Process copy queues every tick (async copy system)
-                WorldCopyService.processCopyQueues(serverLevel.getServer());
-                
-                // Process cleanup queues every tick (async cleanup system)
-                WorldCopyService.processCleanupQueues(serverLevel.getServer());
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
+            return; // Early exit for client levels
+        }
+        
+        // Only process on overworld tick to avoid duplicate processing
+        if (serverLevel.dimension().equals(Level.OVERWORLD)) {
+            tickCounter++;
+            
+            // Process copy/cleanup queues every tick ONLY if there are active tasks
+            // The methods have early exit checks internally
+            WorldCopyService.processCopyQueues(serverLevel.getServer());
+            WorldCopyService.processCleanupQueues(serverLevel.getServer());
+            
+            // Fallback: Check for stale sessions at configurable interval
+            int staleCleanupTicks = MirrorConfig.getStaleSessionCleanupTicks();
+            if (staleCleanupTicks > 0 && tickCounter % staleCleanupTicks == 0) {
+                MirrorWorldManager.cleanupStaleSessions(serverLevel.getServer());
             }
             
-            // For mirror dimensions: sync time/weather and track player chunks
-            if (ModDimensions.isMirrorWorld(serverLevel.dimension())) {
-                int dimIndex = ModDimensions.getMirrorWorldIndex(serverLevel.dimension());
-                
-                // Track all player positions every 10 ticks (for cleanup purposes)
-                // Track chunks within player's view distance to ensure all loaded chunks are cleaned up
-                if (serverLevel.getGameTime() % 10 == 0 && dimIndex >= 0) {
-                    // Get server's view distance for proper chunk tracking
-                    int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
-                    for (ServerPlayer player : serverLevel.players()) {
-                        int chunkX = player.getBlockX() >> 4;
-                        int chunkZ = player.getBlockZ() >> 4;
-                        // Track all chunks within player's view distance
-                        WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
-                    }
-                }
-                
-                // Sync time and weather every 20 ticks (1 second)
-                // Use the SOURCE dimension for this mirror world, not always overworld
-                if (serverLevel.getGameTime() % 20 == 0 && dimIndex >= 0) {
-                    ResourceKey<Level> sourceDimKey = DimensionPool.getSourceDimension(dimIndex);
-                    ServerLevel sourceLevel = serverLevel.getServer().getLevel(sourceDimKey);
-                    
-                    // Fallback to overworld if source level is unavailable
-                    if (sourceLevel == null) {
-                        sourceLevel = serverLevel.getServer().overworld();
-                    }
-                    
-                    // Sync time - Note: The End has fixed time (18000), Nether has no daylight cycle
-                    // We sync time regardless, let the dimension type handle rendering
-                    serverLevel.setDayTime(sourceLevel.getDayTime());
-                    
-                    // Sync weather - Note: The End and Nether don't have weather
-                    // but we sync anyway for consistency
-                    boolean sourceRaining = sourceLevel.isRaining();
-                    boolean mirrorRaining = serverLevel.isRaining();
-                    boolean sourceThundering = sourceLevel.isThundering();
-                    boolean mirrorThundering = serverLevel.isThundering();
-                    
-                    // Only update if different
-                    if (sourceRaining != mirrorRaining || sourceThundering != mirrorThundering) {
-                        serverLevel.setWeatherParameters(
-                            sourceRaining ? 0 : 6000,
-                            sourceRaining ? 6000 : 0,
-                            sourceRaining,
-                            sourceThundering
-                        );
-                    }
-                }
+            // Reset counter periodically to avoid overflow (every ~3.6 hours at 20 tps)
+            if (tickCounter >= 262144) {
+                tickCounter = 0;
+            }
+            return; // Exit early for overworld - no mirror world processing needed
+        }
+        
+        // For mirror dimensions: sync time/weather and track player chunks
+        if (!ModDimensions.isMirrorWorld(serverLevel.dimension())) {
+            return; // Not a mirror world, nothing to do
+        }
+        
+        int dimIndex = ModDimensions.getMirrorWorldIndex(serverLevel.dimension());
+        if (dimIndex < 0) {
+            return; // Invalid dimension index
+        }
+        
+        long gameTime = serverLevel.getGameTime();
+        
+        // Track all player positions every 10 ticks (for cleanup purposes)
+        // Only if there are players in this dimension
+        if (gameTime % 10 == 0 && !serverLevel.players().isEmpty()) {
+            int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
+            for (ServerPlayer player : serverLevel.players()) {
+                int chunkX = player.getBlockX() >> 4;
+                int chunkZ = player.getBlockZ() >> 4;
+                WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
+            }
+        }
+        
+        // Sync time and weather every 20 ticks (1 second)
+        if (gameTime % 20 == 0) {
+            ResourceKey<Level> sourceDimKey = DimensionPool.getSourceDimension(dimIndex);
+            ServerLevel sourceLevel = serverLevel.getServer().getLevel(sourceDimKey);
+            
+            // Fallback to overworld if source level is unavailable
+            if (sourceLevel == null) {
+                sourceLevel = serverLevel.getServer().overworld();
+            }
+            
+            // Sync time
+            serverLevel.setDayTime(sourceLevel.getDayTime());
+            
+            // Sync weather - only update if different
+            boolean sourceRaining = sourceLevel.isRaining();
+            boolean sourceThundering = sourceLevel.isThundering();
+            
+            if (sourceRaining != serverLevel.isRaining() || sourceThundering != serverLevel.isThundering()) {
+                serverLevel.setWeatherParameters(
+                    sourceRaining ? 0 : 6000,
+                    sourceRaining ? 6000 : 0,
+                    sourceRaining,
+                    sourceThundering
+                );
             }
         }
     }

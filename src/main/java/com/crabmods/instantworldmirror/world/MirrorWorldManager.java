@@ -1520,6 +1520,77 @@ public class MirrorWorldManager {
     }
 
     /**
+     * Cleanup stale/orphaned sessions and dimensions
+     * This is a fallback mechanism that runs periodically to catch:
+     * 1. Sessions with no players that weren't properly cleaned up
+     * 2. Dimensions marked IN_USE but have no active session
+     * 3. Copy tasks that got stuck/orphaned
+     * 
+     * Called every 5 minutes from ModEvents
+     */
+    public static void cleanupStaleSessions(MinecraftServer server) {
+        sessionLock.writeLock().lock();
+        try {
+            int cleanedSessions = 0;
+            int cleanedDimensions = 0;
+            
+            // 1. Find and destroy empty sessions (no players)
+            java.util.List<UUID> emptySessionIds = new java.util.ArrayList<>();
+            for (Map.Entry<UUID, MirrorSession> entry : activeSessions.entrySet()) {
+                MirrorSession session = entry.getValue();
+                if (session.isEmpty() && !session.isDestroyed()) {
+                    // Check if session has been empty for a while (no owned by anyone)
+                    UUID creatorId = session.getCreatorId();
+                    if (!playerOwnedSession.containsKey(creatorId)) {
+                        emptySessionIds.add(entry.getKey());
+                    }
+                }
+            }
+            
+            for (UUID sessionId : emptySessionIds) {
+                MirrorSession session = activeSessions.get(sessionId);
+                if (session != null) {
+                    InstantWorldMirror.LOGGER.warn("Cleaning up stale empty session: {}", sessionId);
+                    destroySession(session, server);
+                    cleanedSessions++;
+                }
+            }
+            
+            // 2. Find orphaned dimensions (IN_USE but no matching session)
+            int poolSize = ModDimensions.getPoolSize();
+            for (int dimIndex = 0; dimIndex < poolSize; dimIndex++) {
+                DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
+                if (state == DimensionPool.DimensionState.IN_USE) {
+                    UUID sessionId = DimensionPool.getSessionForDimension(dimIndex);
+                    if (sessionId == null || !activeSessions.containsKey(sessionId)) {
+                        // Dimension is marked IN_USE but has no active session
+                        // Check if there are any players in this dimension
+                        ServerLevel mirrorLevel = DimensionPool.getDimensionLevel(server, dimIndex);
+                        if (mirrorLevel != null && mirrorLevel.players().isEmpty()) {
+                            InstantWorldMirror.LOGGER.warn("Cleaning up orphaned dimension {} (no session or players)", dimIndex);
+                            
+                            // Cancel any copy task
+                            WorldCopyService.cancelCopyTask(dimIndex);
+                            
+                            // Force release and cleanup
+                            DimensionPool.forceReleaseDimension(dimIndex);
+                            WorldCopyService.cleanupMirrorWorld(mirrorLevel, dimIndex);
+                            cleanedDimensions++;
+                        }
+                    }
+                }
+            }
+            
+            if (cleanedSessions > 0 || cleanedDimensions > 0) {
+                InstantWorldMirror.LOGGER.info("Stale cleanup completed: {} sessions, {} dimensions", 
+                        cleanedSessions, cleanedDimensions);
+            }
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Clear all sessions (for server shutdown)
      */
     public static void clearAllSessions() {

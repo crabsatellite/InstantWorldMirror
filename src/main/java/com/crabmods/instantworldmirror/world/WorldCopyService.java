@@ -203,7 +203,30 @@ public class WorldCopyService {
         
         public void addBlocksCopied(int count) { totalBlocksCopied += count; }
         public boolean isCompleted() { return completed; }
+        public boolean isCancelled() { return cancelled; }
+        public void cancel() { cancelled = true; completed = true; }
         public int getTotalBlocksCopied() { return totalBlocksCopied; }
+        
+        private boolean cancelled = false;
+    }
+    
+    /**
+     * Cancel a copy task for a dimension
+     * Called when portal is destroyed before copy completes
+     */
+    public static void cancelCopyTask(int dimensionIndex) {
+        CopyTask task = copyTasks.get(dimensionIndex);
+        if (task != null && !task.isCompleted()) {
+            task.cancel();
+            InstantWorldMirror.LOGGER.info("Cancelled copy task for dimension {} at {}% progress", 
+                    dimensionIndex, task.getProgressPercent());
+        }
+        copyTasks.remove(dimensionIndex);
+        
+        // Clear tracked data for this dimension
+        copyCenterPositions.remove(dimensionIndex);
+        modifiedChunks.remove(dimensionIndex);
+        pendingSave.remove(dimensionIndex);
     }
     
     public static class CleanupTask {
@@ -398,6 +421,10 @@ public class WorldCopyService {
             
             if (task.isCompleted()) {
                 iterator.remove();
+                // If cancelled, skip completion notification
+                if (task.isCancelled()) {
+                    InstantWorldMirror.LOGGER.info("Copy task for dimension {} was cancelled", dimIndex);
+                }
                 continue;
             }
             
@@ -425,11 +452,14 @@ public class WorldCopyService {
             if (task.isCompleted()) {
                 iterator.remove();
                 
-                // Notify session that copy is complete
-                MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
-                
-                InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
-                        task.sessionId, dimIndex, task.getTotalBlocksCopied());
+                // Only notify if not cancelled
+                if (!task.isCancelled()) {
+                    // Notify session that copy is complete
+                    MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
+                    
+                    InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
+                            task.sessionId, dimIndex, task.getTotalBlocksCopied());
+                }
             }
         }
     }

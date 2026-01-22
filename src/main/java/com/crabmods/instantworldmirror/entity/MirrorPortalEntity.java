@@ -125,6 +125,33 @@ public class MirrorPortalEntity extends Entity {
         builder.define(DATA_LOADING, true); // Default to loading state
         builder.define(DATA_IS_RETURN, false); // Default to entry portal
     }
+    
+    /**
+     * Called when the entity is removed (killed, discarded, etc.)
+     * Cancel the session and world copy if still in progress
+     */
+    @Override
+    public void remove(RemovalReason reason) {
+        // If this is an entry portal with a session, cancel it
+        if (!isReturnPortal && sessionId != null && this.level() instanceof ServerLevel serverLevel) {
+            // Cancel the world copy task if still running
+            Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
+            if (sessionOpt.isPresent()) {
+                MirrorSession session = sessionOpt.get();
+                int dimIndex = session.getDimensionIndex();
+                if (dimIndex >= 0) {
+                    // Cancel the copy task for this dimension
+                    com.crabmods.instantworldmirror.world.WorldCopyService.cancelCopyTask(dimIndex);
+                }
+            }
+            
+            // Cancel the session
+            MirrorWorldManager.cancelSession(sessionId, serverLevel.getServer());
+            InstantWorldMirror.LOGGER.info("Portal removed (reason: {}), session {} cancelled", reason, sessionId);
+        }
+        
+        super.remove(reason);
+    }
 
     @Override
     public void tick() {
