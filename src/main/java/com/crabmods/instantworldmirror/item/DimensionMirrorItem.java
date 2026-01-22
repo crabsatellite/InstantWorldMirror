@@ -45,9 +45,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DimensionMirrorItem extends Item {
 
     private static final String COOLDOWN_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_until";
+    private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
     
     // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
     private static final Map<UUID, Long> COOLDOWNS = new ConcurrentHashMap<>();
+    
+    // Total cooldown duration tracking (playerUUID -> total cooldown in milliseconds)
+    // Used for progress bar calculation on client
+    private static final Map<UUID, Long> COOLDOWN_DURATIONS = new ConcurrentHashMap<>();
 
     public DimensionMirrorItem(Properties properties) {
         super(properties);
@@ -73,8 +78,10 @@ public class DimensionMirrorItem extends Item {
      * Set cooldown for a player (in seconds)
      */
     public static void setCooldown(UUID playerUUID, int seconds) {
-        long endTime = System.currentTimeMillis() + (seconds * 1000L);
+        long durationMillis = seconds * 1000L;
+        long endTime = System.currentTimeMillis() + durationMillis;
         COOLDOWNS.put(playerUUID, endTime);
+        COOLDOWN_DURATIONS.put(playerUUID, durationMillis);
     }
     
     /**
@@ -82,6 +89,7 @@ public class DimensionMirrorItem extends Item {
      */
     public static void clearCooldown(UUID playerUUID) {
         COOLDOWNS.remove(playerUUID);
+        COOLDOWN_DURATIONS.remove(playerUUID);
     }
     
     /**
@@ -89,6 +97,7 @@ public class DimensionMirrorItem extends Item {
      */
     public static void clearAllCooldowns() {
         COOLDOWNS.clear();
+        COOLDOWN_DURATIONS.clear();
     }
     
     /**
@@ -96,18 +105,24 @@ public class DimensionMirrorItem extends Item {
      * Called on logout and server stop
      */
     public static void saveCooldown(ServerPlayer player) {
-        Long cooldownUntil = COOLDOWNS.get(player.getUUID());
+        UUID playerId = player.getUUID();
+        Long cooldownUntil = COOLDOWNS.get(playerId);
+        Long cooldownDuration = COOLDOWN_DURATIONS.get(playerId);
         
         if (cooldownUntil != null && cooldownUntil > System.currentTimeMillis()) {
             CompoundTag persistentData = player.getPersistentData();
             persistentData.putLong(COOLDOWN_NBT_KEY, cooldownUntil);
+            if (cooldownDuration != null) {
+                persistentData.putLong(COOLDOWN_DURATION_NBT_KEY, cooldownDuration);
+            }
             
-            InstantWorldMirror.LOGGER.debug("Saved cooldown until {} for {}",
-                    cooldownUntil, player.getName().getString());
+            InstantWorldMirror.LOGGER.debug("Saved cooldown until {} (duration: {} ms) for {}",
+                    cooldownUntil, cooldownDuration, player.getName().getString());
         }
         
         // Remove from active cooldowns map
-        COOLDOWNS.remove(player.getUUID());
+        COOLDOWNS.remove(playerId);
+        COOLDOWN_DURATIONS.remove(playerId);
     }
     
     /**
@@ -116,6 +131,7 @@ public class DimensionMirrorItem extends Item {
      */
     public static void restoreCooldown(ServerPlayer player) {
         CompoundTag persistentData = player.getPersistentData();
+        UUID playerId = player.getUUID();
         
         if (persistentData.contains(COOLDOWN_NBT_KEY)) {
             long cooldownUntil = persistentData.getLong(COOLDOWN_NBT_KEY);
@@ -123,7 +139,13 @@ public class DimensionMirrorItem extends Item {
             
             if (cooldownUntil > now) {
                 // Re-apply cooldown (just put back the end timestamp)
-                COOLDOWNS.put(player.getUUID(), cooldownUntil);
+                COOLDOWNS.put(playerId, cooldownUntil);
+                
+                // Restore total cooldown duration if saved
+                if (persistentData.contains(COOLDOWN_DURATION_NBT_KEY)) {
+                    long cooldownDuration = persistentData.getLong(COOLDOWN_DURATION_NBT_KEY);
+                    COOLDOWN_DURATIONS.put(playerId, cooldownDuration);
+                }
                 
                 // Sync to client for HUD display
                 syncCooldownToClient(player);
@@ -137,6 +159,7 @@ public class DimensionMirrorItem extends Item {
             
             // Clean up saved data
             persistentData.remove(COOLDOWN_NBT_KEY);
+            persistentData.remove(COOLDOWN_DURATION_NBT_KEY);
         }
     }
 
@@ -243,9 +266,12 @@ public class DimensionMirrorItem extends Item {
      * Send the current cooldown state to the client for HUD display
      */
     public static void syncCooldownToClient(ServerPlayer player) {
-        Long cooldownEnd = COOLDOWNS.get(player.getUUID());
+        UUID playerId = player.getUUID();
+        Long cooldownEnd = COOLDOWNS.get(playerId);
+        Long totalDuration = COOLDOWN_DURATIONS.get(playerId);
         long timestamp = (cooldownEnd != null) ? cooldownEnd : 0;
-        PacketDistributor.sendToPlayer(player, new SyncCooldownPacket(timestamp));
+        long duration = (totalDuration != null) ? totalDuration : 0;
+        PacketDistributor.sendToPlayer(player, new SyncCooldownPacket(timestamp, duration));
     }
     
     /**

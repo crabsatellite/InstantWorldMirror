@@ -38,6 +38,11 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
     
     @Override
     public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {
+        // Check if HUD display is enabled in client config
+        if (!ClientConfig.shouldShowCooldownHud()) {
+            return;
+        }
+        
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         

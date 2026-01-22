@@ -12,9 +12,10 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 /**
  * Packet sent from server to client to sync the dimension mirror cooldown
  * Sends the cooldown end timestamp (in milliseconds since epoch)
+ * and the total cooldown duration for progress bar calculation
  * The client uses this to display the remaining cooldown time
  */
-public record SyncCooldownPacket(long cooldownEndTimestamp) implements CustomPacketPayload {
+public record SyncCooldownPacket(long cooldownEndTimestamp, long totalCooldownMillis) implements CustomPacketPayload {
     
     public static final Type<SyncCooldownPacket> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "sync_cooldown")
@@ -23,6 +24,8 @@ public record SyncCooldownPacket(long cooldownEndTimestamp) implements CustomPac
     public static final StreamCodec<FriendlyByteBuf, SyncCooldownPacket> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_LONG,
             SyncCooldownPacket::cooldownEndTimestamp,
+            ByteBufCodecs.VAR_LONG,
+            SyncCooldownPacket::totalCooldownMillis,
             SyncCooldownPacket::new
     );
     
@@ -37,9 +40,9 @@ public record SyncCooldownPacket(long cooldownEndTimestamp) implements CustomPac
     public static void handle(SyncCooldownPacket packet, IPayloadContext context) {
         // Execute on client thread
         context.enqueueWork(() -> {
-            ClientCooldownTracker.setCooldownEndTimestamp(packet.cooldownEndTimestamp);
-            InstantWorldMirror.LOGGER.debug("Received cooldown sync: end timestamp = {}", 
-                    packet.cooldownEndTimestamp);
+            ClientCooldownTracker.setCooldown(packet.cooldownEndTimestamp, packet.totalCooldownMillis);
+            InstantWorldMirror.LOGGER.debug("Received cooldown sync: end timestamp = {}, total = {} ms", 
+                    packet.cooldownEndTimestamp, packet.totalCooldownMillis);
         });
     }
 }

@@ -47,6 +47,7 @@ public class InstantWorldMirror {
 
         // Register configuration
         modContainer.registerConfig(ModConfig.Type.COMMON, MirrorConfig.SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, com.crabmods.instantworldmirror.client.ClientConfig.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

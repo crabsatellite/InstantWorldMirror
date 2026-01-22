@@ -9,10 +9,11 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.IItemDecorator;
 
 /**
- * Item decorator that renders a cooldown bar on the Dimension Mirror item
+ * Item decorator that renders a charging bar on the Dimension Mirror item
  * Similar to vanilla durability bar style
  * 
- * Shows a cyan progress bar at the bottom of the item indicating remaining cooldown
+ * Shows a cyan charging bar at the bottom of the item that fills up as cooldown expires
+ * When fully charged (bar full), the mirror can be used again
  */
 @OnlyIn(Dist.CLIENT)
 public class CooldownItemDecorator implements IItemDecorator {
@@ -29,14 +30,15 @@ public class CooldownItemDecorator implements IItemDecorator {
         }
         
         long remainingMillis = ClientCooldownTracker.getRemainingCooldownMillis();
-        long totalCooldownMillis = getTotalCooldownMillis();
+        long totalCooldownMillis = ClientCooldownTracker.getTotalCooldownMillis();
         
         if (remainingMillis <= 0 || totalCooldownMillis <= 0) {
             return false;
         }
         
-        // Calculate progress (1.0 = full cooldown, 0.0 = no cooldown)
-        float progress = Math.min(1.0f, (float) remainingMillis / totalCooldownMillis);
+        // Calculate charge progress (0.0 = empty/just started, 1.0 = fully charged/ready to use)
+        // This is the INVERSE of remaining time - as time passes, charge increases
+        float chargeProgress = 1.0f - Math.min(1.0f, (float) remainingMillis / totalCooldownMillis);
         
         // Bar dimensions - same as vanilla durability bar
         // Vanilla: starts at x+2, y+13, width 13, height 2 (1px background + 1px bar)
@@ -54,8 +56,9 @@ public class CooldownItemDecorator implements IItemDecorator {
         // Draw black background bar (full width, 2px height like vanilla)
         guiGraphics.fill(barX, barY, barX + barWidth, barY + 2, BAR_BG_COLOR);
         
-        // Draw cyan progress bar (1px height, on top of background)
-        int filledWidth = Math.round(barWidth * progress);
+        // Draw cyan charging bar (1px height, on top of background)
+        // Bar fills from left to right as the item charges
+        int filledWidth = Math.round(barWidth * chargeProgress);
         if (filledWidth > 0) {
             guiGraphics.fill(barX, barY, barX + filledWidth, barY + 1, BAR_COLOR);
         }
@@ -64,16 +67,5 @@ public class CooldownItemDecorator implements IItemDecorator {
         guiGraphics.pose().popPose();
         
         return true; // We modified render state
-    }
-    
-    /**
-     * Get total cooldown time for progress calculation
-     * This estimates based on config (default 5 min = 300 seconds)
-     */
-    private long getTotalCooldownMillis() {
-        // Use configured cooldown (in ticks, convert to ms)
-        // Default is 6000 ticks = 300 seconds = 5 minutes
-        int cooldownTicks = com.crabmods.instantworldmirror.MirrorConfig.getMirrorCooldownTicks();
-        return (cooldownTicks / 20) * 1000L;
     }
 }
