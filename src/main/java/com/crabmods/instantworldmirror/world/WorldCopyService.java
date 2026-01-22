@@ -531,9 +531,13 @@ public class WorldCopyService {
             // Mark chunk for saving
             targetChunk.setUnsaved(true);
             
-            // Copy entities in this chunk if enabled
-            if (MirrorConfig.COPY_ENTITIES.get()) {
-                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+            // Copy entities in this chunk based on config
+            // Always copy decoration entities if that config is enabled
+            // Copy all entities only if copyEntities is enabled
+            boolean copyAll = MirrorConfig.COPY_ENTITIES.get();
+            boolean copyDecorations = MirrorConfig.COPY_DECORATION_ENTITIES.get();
+            if (copyAll || copyDecorations) {
+                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, copyAll, copyDecorations);
             }
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -560,10 +564,31 @@ public class WorldCopyService {
     }
 
     /**
-     * Copy entities in a chunk (mobs, animals, etc.)
+     * Check if an entity is a decoration entity (paintings, item frames, armor stands, etc.)
+     */
+    private static boolean isDecorationEntity(net.minecraft.world.entity.Entity entity) {
+        // HangingEntity includes Painting, ItemFrame, GlowItemFrame, LeashFenceKnotEntity
+        if (entity instanceof net.minecraft.world.entity.decoration.HangingEntity) {
+            return true;
+        }
+        // ArmorStand is commonly used for decoration
+        if (entity instanceof net.minecraft.world.entity.decoration.ArmorStand) {
+            return true;
+        }
+        // Display entities (Text Display, Block Display, Item Display) are also decorations
+        if (entity instanceof net.minecraft.world.entity.Display) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Copy entities in a chunk
+     * @param copyAll if true, copy all entities; if false, only copy based on copyDecorations
+     * @param copyDecorations if true (and copyAll is false), only copy decoration entities
      */
     private static void copyEntitiesInChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld, 
-                                             int chunkX, int chunkZ) {
+                                             int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations) {
         try {
             int minX = chunkX * 16;
             int minZ = chunkZ * 16;
@@ -585,6 +610,16 @@ public class WorldCopyService {
             
             for (net.minecraft.world.entity.Entity sourceEntity : entities) {
                 try {
+                    // Check if we should copy this entity
+                    boolean shouldCopy = copyAll;
+                    if (!shouldCopy && copyDecorations) {
+                        shouldCopy = isDecorationEntity(sourceEntity);
+                    }
+                    
+                    if (!shouldCopy) {
+                        continue;
+                    }
+                    
                     // Create a new entity of the same type
                     net.minecraft.world.entity.EntityType<?> entityType = sourceEntity.getType();
                     net.minecraft.world.entity.Entity newEntity = entityType.create(mirrorWorld);

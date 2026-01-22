@@ -81,6 +81,12 @@ public class MirrorConfig {
                     "When true, all entities in the copied area will be duplicated.")
             .define("copyEntities", false);
 
+    public static final ModConfigSpec.BooleanValue COPY_DECORATION_ENTITIES = BUILDER
+            .comment("Copy decoration entities (paintings, item frames, armor stands) when creating mirror world (default: true)",
+                    "These entities are typically used for decoration and are important to preserve.",
+                    "This setting works independently of copyEntities - decoration entities are always copied when true.")
+            .define("copyDecorationEntities", true);
+
     public static final ModConfigSpec.BooleanValue ENABLE_MOB_SPAWNING = BUILDER
             .comment("Enable natural mob spawning in mirror world (default: false)",
                     "When false, no mobs will spawn naturally in mirror worlds.",
