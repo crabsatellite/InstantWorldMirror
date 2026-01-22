@@ -349,8 +349,8 @@ public class ModEvents {
                 sourceLevel = serverLevel.getServer().overworld();
             }
             
-            // Sync time
-            serverLevel.setDayTime(sourceLevel.getDayTime());
+            // Sync time - includes NeoForge extended time properties
+            syncLevelTime(sourceLevel, serverLevel);
             
             // Sync weather - only update if different
             boolean sourceRaining = sourceLevel.isRaining();
@@ -364,6 +364,30 @@ public class ModEvents {
                     sourceThundering
                 );
             }
+        }
+    }
+    
+    /**
+     * Synchronize time from source level to mirror level
+     * Includes NeoForge extended time properties for mod compatibility
+     */
+    private static void syncLevelTime(ServerLevel source, ServerLevel mirror) {
+        var sourceData = source.getLevelData();
+        var mirrorData = mirror.getLevelData();
+        
+        // Sync day time (visual time cycle)
+        mirror.setDayTime(sourceData.getDayTime());
+        
+        // Sync game time (total ticks elapsed) - important for some mods
+        mirrorData.setGameTime(sourceData.getGameTime());
+        
+        // Sync NeoForge extended time properties if available
+        // These control the rate at which time passes
+        try {
+            mirrorData.setDayTimeFraction(sourceData.getDayTimeFraction());
+            mirrorData.setDayTimePerTick(sourceData.getDayTimePerTick());
+        } catch (Exception e) {
+            // Ignore if not supported - these are NeoForge additions
         }
     }
 

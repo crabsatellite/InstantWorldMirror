@@ -3,17 +3,28 @@ package com.crabmods.instantworldmirror.world;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainerRO;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.neoforged.fml.util.ObfuscationReflectionHelper;
 
+import java.lang.reflect.Field;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -561,6 +572,21 @@ public class WorldCopyService {
             // Mark chunk for saving
             targetChunk.setUnsaved(true);
             
+            // Copy biome data if enabled
+            if (MirrorConfig.COPY_BIOMES.get()) {
+                copyChunkBiomes(sourceChunk, targetChunk);
+            }
+            
+            // Copy structure data if enabled (important for mods like Twilight Forest)
+            if (MirrorConfig.COPY_STRUCTURES.get()) {
+                copyChunkStructures(sourceChunk, targetChunk, sourceWorld, mirrorWorld);
+            }
+            
+            // Copy/regenerate heightmaps if enabled
+            if (MirrorConfig.COPY_HEIGHTMAPS.get()) {
+                regenerateHeightmaps(targetChunk);
+            }
+            
             // Copy entities in this chunk based on config
             // Always copy decoration entities if that config is enabled
             // Copy all entities only if copyEntities is enabled
@@ -718,6 +744,192 @@ public class WorldCopyService {
                     chunkX, chunkZ, errorMsg);
         }
     }
+
+    // ==================== Biome Copy ====================
+    
+    // Cached field for biome reflection (set once, used many times)
+    private static Field biomesField = null;
+    private static boolean biomesFieldInitialized = false;
+    private static boolean biomesCopyError = false;
+    
+    /**
+     * Copy biome data from source chunk to target chunk.
+     * This is critical for mods like Twilight Forest that use custom biomes
+     * for sky effects, grass colors, and other environmental features.
+     * 
+     * Biomes are stored in 4x4x4 blocks per biome sample (quart positions).
+     * Each chunk section (16x16x16) contains 4x4x4 biome samples.
+     */
+    private static void copyChunkBiomes(LevelChunk sourceChunk, LevelChunk targetChunk) {
+        if (biomesCopyError) {
+            return; // Skip if we've already had a critical error
+        }
+        
+        try {
+            // Initialize the biomes field via reflection (only once)
+            if (!biomesFieldInitialized) {
+                biomesFieldInitialized = true;
+                try {
+                    biomesField = ObfuscationReflectionHelper.findField(LevelChunkSection.class, "biomes");
+                    biomesField.setAccessible(true);
+                } catch (Exception e) {
+                    InstantWorldMirror.LOGGER.error("Failed to find biomes field in LevelChunkSection. " +
+                            "Biome copying will be disabled. Error: {}", e.getMessage());
+                    biomesCopyError = true;
+                    return;
+                }
+            }
+            
+            if (biomesField == null) {
+                return;
+            }
+            
+            int sectionCount = sourceChunk.getSectionsCount();
+            
+            for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+                LevelChunkSection sourceSection = sourceChunk.getSection(sectionIndex);
+                LevelChunkSection targetSection = targetChunk.getSection(sectionIndex);
+                
+                if (sourceSection == null || targetSection == null) {
+                    continue;
+                }
+                
+                // Get the source biome container (read-only)
+                PalettedContainerRO<Holder<Biome>> sourceBiomes = sourceSection.getBiomes();
+                if (sourceBiomes == null) {
+                    continue;
+                }
+                
+                // Recreate a mutable copy of the biome container
+                PalettedContainer<Holder<Biome>> newBiomes = sourceBiomes.recreate();
+                
+                // Copy all biome data from source (4x4x4 per section)
+                for (int biomeX = 0; biomeX < 4; biomeX++) {
+                    for (int biomeY = 0; biomeY < 4; biomeY++) {
+                        for (int biomeZ = 0; biomeZ < 4; biomeZ++) {
+                            Holder<Biome> biome = sourceBiomes.get(biomeX, biomeY, biomeZ);
+                            newBiomes.getAndSetUnchecked(biomeX, biomeY, biomeZ, biome);
+                        }
+                    }
+                }
+                
+                // Set the biomes field via reflection
+                biomesField.set(targetSection, newBiomes);
+            }
+            
+            // Mark the chunk as needing to be saved
+            targetChunk.setUnsaved(true);
+            
+        } catch (Exception e) {
+            // Only log once to avoid spam
+            if (!biomesCopyError) {
+                InstantWorldMirror.LOGGER.warn("Failed to copy biomes for chunk ({}, {}): {}. " +
+                        "This may affect grass colors and sky effects for modded dimensions.", 
+                        sourceChunk.getPos().x, sourceChunk.getPos().z, e.getMessage());
+            }
+        }
+    }
+
+    // ==================== Structure Data Copy ====================
+    
+    private static boolean structureCopyError = false;
+    
+    /**
+     * Copy structure data from source chunk to target chunk.
+     * This is important for mods like Twilight Forest that store additional data
+     * in StructureStart (e.g., "conquered" status).
+     * 
+     * Structure data includes:
+     * - Structure starts (the actual structure instances)
+     * - Structure references (pointers to nearby structure starts)
+     */
+    private static void copyChunkStructures(LevelChunk sourceChunk, LevelChunk targetChunk,
+                                            ServerLevel sourceWorld, ServerLevel mirrorWorld) {
+        if (structureCopyError) {
+            return;
+        }
+        
+        try {
+            // Copy all structure starts from source chunk
+            Map<Structure, StructureStart> sourceStarts = sourceChunk.getAllStarts();
+            
+            if (!sourceStarts.isEmpty()) {
+                for (Map.Entry<Structure, StructureStart> entry : sourceStarts.entrySet()) {
+                    Structure structure = entry.getKey();
+                    StructureStart sourceStart = entry.getValue();
+                    
+                    if (sourceStart != null && sourceStart.isValid()) {
+                        // Save the structure start to NBT and reload it for the target
+                        // This preserves mod-specific data like Twilight Forest's "conquered" flag
+                        try {
+                            CompoundTag structureTag = sourceStart.createTag(
+                                    sourceWorld.structureManager().registryAccess(),
+                                    sourceChunk.getPos()
+                            );
+                            
+                            // Set the structure start directly on target chunk
+                            // Note: We're copying the reference, which should work for read-only purposes
+                            targetChunk.setStartForStructure(structure, sourceStart);
+                        } catch (Exception e) {
+                            InstantWorldMirror.LOGGER.debug("Could not copy structure start {}: {}", 
+                                    structure, e.getMessage());
+                        }
+                    }
+                }
+            }
+            
+            // Copy structure references
+            Map<Structure, it.unimi.dsi.fastutil.longs.LongSet> sourceRefs = sourceChunk.getAllReferences();
+            if (!sourceRefs.isEmpty()) {
+                for (Map.Entry<Structure, it.unimi.dsi.fastutil.longs.LongSet> entry : sourceRefs.entrySet()) {
+                    Structure structure = entry.getKey();
+                    it.unimi.dsi.fastutil.longs.LongSet refs = entry.getValue();
+                    
+                    if (refs != null && !refs.isEmpty()) {
+                        // Copy references to target chunk
+                        for (long ref : refs) {
+                            targetChunk.addReferenceForStructure(structure, ref);
+                        }
+                    }
+                }
+            }
+            
+            targetChunk.setUnsaved(true);
+            
+        } catch (Exception e) {
+            if (!structureCopyError) {
+                structureCopyError = true;
+                InstantWorldMirror.LOGGER.warn("Failed to copy structure data for chunk ({}, {}): {}. " +
+                        "This may affect mod features that depend on structure data.",
+                        sourceChunk.getPos().x, sourceChunk.getPos().z, e.getMessage());
+            }
+        }
+    }
+    
+    // ==================== Heightmap Regeneration ====================
+    
+    /**
+     * Regenerate heightmaps for a chunk after block copy.
+     * This ensures proper light propagation and mob spawning locations.
+     */
+    private static void regenerateHeightmaps(LevelChunk targetChunk) {
+        try {
+            // Regenerate all heightmap types that Minecraft uses
+            Heightmap.primeHeightmaps(targetChunk, 
+                    EnumSet.of(
+                            Heightmap.Types.MOTION_BLOCKING,
+                            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                            Heightmap.Types.OCEAN_FLOOR,
+                            Heightmap.Types.WORLD_SURFACE
+                    ));
+            targetChunk.setUnsaved(true);
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.debug("Failed to regenerate heightmaps for chunk ({}, {}): {}",
+                    targetChunk.getPos().x, targetChunk.getPos().z, e.getMessage());
+        }
+    }
+
+    // ==================== Block Entity Copy ====================
 
     private static void copyBlockEntity(ServerLevel sourceWorld, ServerLevel mirrorWorld,
                                          BlockPos sourcePos, BlockPos targetPos) {

@@ -97,6 +97,29 @@ public class MirrorConfig {
                     "This is separate from copying existing mobs.")
             .define("enableMobSpawning", false);
 
+    // ==================== Biome and Environment Settings ====================
+    
+    public static final ModConfigSpec.BooleanValue COPY_BIOMES = BUILDER
+            .comment("Copy biome data when creating mirror world (default: true)",
+                    "When true, biome data from the source world is copied to the mirror world.",
+                    "This affects grass/foliage colors, mob spawning rules, and weather.",
+                    "Important for mods like Twilight Forest that use custom biomes for sky effects.",
+                    "Disable this only if you experience compatibility issues.")
+            .define("copyBiomes", true);
+
+    public static final ModConfigSpec.BooleanValue COPY_STRUCTURES = BUILDER
+            .comment("Copy structure data when creating mirror world (default: true)",
+                    "When true, structure starts and references are copied to the mirror world.",
+                    "This is important for mods like Twilight Forest that track structure 'conquered' status.",
+                    "Also affects vanilla structure detection (villages, strongholds, etc.).")
+            .define("copyStructures", true);
+
+    public static final ModConfigSpec.BooleanValue COPY_HEIGHTMAPS = BUILDER
+            .comment("Copy heightmap data when creating mirror world (default: true)",
+                    "When true, heightmaps are properly copied/regenerated for the mirror world.",
+                    "Affects mob spawning locations and light calculations.")
+            .define("copyHeightmaps", true);
+
     // ==================== Server Limits ====================
     
     public static final ModConfigSpec.IntValue MAX_MIRROR_WORLDS_PER_PLAYER = BUILDER
