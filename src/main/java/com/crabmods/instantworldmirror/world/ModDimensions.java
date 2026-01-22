@@ -87,6 +87,14 @@ public class ModDimensions {
     }
     
     /**
+     * Check if a dimension is ANY mirror world dimension (regardless of pool size config)
+     * Used for emergency returns when pool size was changed after player entered
+     */
+    public static boolean isAnyMirrorWorld(ResourceKey<Level> dimension) {
+        return MIRROR_WORLD_POOL.contains(dimension);
+    }
+    
+    /**
      * Get the index of a mirror world dimension (-1 if not a mirror world or out of pool)
      */
     public static int getMirrorWorldIndex(ResourceKey<Level> dimension) {

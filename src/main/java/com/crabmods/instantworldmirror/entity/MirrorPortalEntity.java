@@ -311,9 +311,23 @@ public class MirrorPortalEntity extends Entity {
                         continue;
                     }
                     
-                    // Set cooldown and return to overworld
                     setTeleportCooldown(serverPlayer.getUUID(), currentTick);
-                    MirrorWorldManager.returnToOverworld(serverPlayer);
+                    boolean success = MirrorWorldManager.returnToOverworld(serverPlayer);
+                    
+                    if (success) {
+                        this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
+                        this.discard();
+                    } else {
+                        // Remove cooldown on failure so player can retry
+                        teleportCooldowns.remove(serverPlayer.getUUID());
+                        serverPlayer.displayClientMessage(
+                                net.minecraft.network.chat.Component.translatable(
+                                        "message.instantworldmirror.return_failed"),
+                                true
+                        );
+                    }
+                    return;
                 } else {
                     // Entry portal: anyone can use (joins the session)
                     
@@ -370,14 +384,21 @@ public class MirrorPortalEntity extends Entity {
 
                     // Set cooldown and teleport to mirror world
                     setTeleportCooldown(serverPlayer.getUUID(), currentTick);
-                    MirrorWorldManager.teleportToMirrorWorld(serverPlayer, session);
+                    boolean success = MirrorWorldManager.teleportToMirrorWorld(serverPlayer, session);
+                    
+                    if (success) {
+                        // Play teleport sound and remove portal on success
+                        this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
+                        this.discard();
+                    } else {
+                        // Teleport failed, remove cooldown
+                        teleportCooldowns.remove(serverPlayer.getUUID());
+                        InstantWorldMirror.LOGGER.warn("Entry portal FAILED to teleport player {}", 
+                                serverPlayer.getName().getString());
+                    }
+                    return; // Exit loop after processing
                 }
-
-                // Play teleport sound and remove portal
-                this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
-                this.discard();
-                break;
             }
         }
     }

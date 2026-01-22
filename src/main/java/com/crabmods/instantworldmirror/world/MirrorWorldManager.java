@@ -363,21 +363,48 @@ public class MirrorWorldManager {
             return false;
         }
 
-        // Check if player is in mirror world
+        // Check if player is in mirror world (uses lenient check for pool size changes)
         if (!isInMirrorWorld(player)) {
+            InstantWorldMirror.LOGGER.warn("returnToOverworld: player {} is not in mirror world", 
+                    player.getName().getString());
             return false;
         }
 
         sessionLock.writeLock().lock();
         try {
-            // Get player's session
+            // Get player's session (may be null after server restart)
             UUID sessionId = playerToSession.get(player.getUUID());
             MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
 
-            // Get original position
+            // Get original position - first try memory, then persistent data (for server restart recovery)
             BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
             ResourceKey<Level> originalDimension = playerOriginalDimensions.get(player.getUUID());
+            
+            if (originalPos == null || originalDimension == null) {
+                CompoundTag persistentData = player.getPersistentData();
+                
+                if (persistentData.contains(ORIGINAL_POS_KEY + "_x")) {
+                    originalPos = new BlockPos(
+                            persistentData.getInt(ORIGINAL_POS_KEY + "_x"),
+                            persistentData.getInt(ORIGINAL_POS_KEY + "_y"),
+                            persistentData.getInt(ORIGINAL_POS_KEY + "_z")
+                    );
+                }
+                
+                if (persistentData.contains(ORIGINAL_DIM_KEY)) {
+                    ResourceLocation dimLoc = ResourceLocation.tryParse(persistentData.getString(ORIGINAL_DIM_KEY));
+                    if (dimLoc != null) {
+                        originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
+                    }
+                }
+                
+                if (originalPos != null && originalDimension != null) {
+                    InstantWorldMirror.LOGGER.info("Restored return position from persistent data for {}", 
+                            player.getName().getString());
+                }
+            }
 
+            // Determine target location (fallback to spawn if no saved position)
             ServerLevel targetLevel;
             BlockPos targetPos;
 
@@ -387,6 +414,7 @@ public class MirrorWorldManager {
             } else {
                 targetLevel = server.overworld();
                 targetPos = targetLevel.getSharedSpawnPos();
+                InstantWorldMirror.LOGGER.warn("No saved position for {}, using spawn", player.getName().getString());
             }
 
             if (targetLevel == null) {
@@ -394,13 +422,10 @@ public class MirrorWorldManager {
                 targetPos = targetLevel.getSharedSpawnPos();
             }
 
-            // Check if item transfer is allowed
+            // Handle inventory
             boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
-
             if (allowItemTransfer) {
                 clearSavedData(player);
-                InstantWorldMirror.LOGGER.info("Player {} allowed to keep mirror world items",
-                        player.getName().getString());
             } else {
                 restorePlayerInventory(player);
             }
@@ -414,37 +439,34 @@ public class MirrorWorldManager {
                     player.getYRot(),
                     player.getXRot()
             );
+            
+            // Verify teleport success
+            if (isInMirrorWorld(player)) {
+                InstantWorldMirror.LOGGER.error("Teleport FAILED - {} still in mirror world!", player.getName().getString());
+                return false;
+            }
 
             // Clear dimension effects on client
             if (session != null) {
                 clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
             }
 
-            // Cleanup player data
+            // Cleanup player tracking data
             playerOriginalPositions.remove(player.getUUID());
             playerOriginalDimensions.remove(player.getUUID());
             playerToSession.remove(player.getUUID());
             playerItemTransferPermission.remove(player.getUUID());
 
-            // Remove player from session and check if empty
+            // Handle session cleanup
             if (session != null) {
                 boolean sessionNowEmpty = session.removePlayer(player.getUUID());
-
-                InstantWorldMirror.LOGGER.info("Player {} left session {} (players remaining: {})",
-                        player.getName().getString(), session.getSessionId(), session.getPlayerCount());
-
                 if (sessionNowEmpty) {
-                    // Destroy session immediately
                     destroySession(session, server);
                 }
             }
 
-            player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.returned"),
-                    true
-            );
-
-            InstantWorldMirror.LOGGER.info("Player {} returned to Overworld", player.getName().getString());
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.returned"), true);
+            InstantWorldMirror.LOGGER.info("Player {} returned from mirror world", player.getName().getString());
 
             return true;
         } finally {
@@ -680,9 +702,12 @@ public class MirrorWorldManager {
 
     /**
      * Check if player is in any mirror world dimension
+     * Uses lenient check to handle edge cases where pool size changed
      */
     public static boolean isInMirrorWorld(ServerPlayer player) {
-        return ModDimensions.isMirrorWorld(player.level().dimension());
+        // Use the lenient check that includes all mirror dimensions regardless of current pool config
+        // This ensures players can return even if pool size was reduced after they entered
+        return ModDimensions.isAnyMirrorWorld(player.level().dimension());
     }
 
     /**
