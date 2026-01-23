@@ -23,7 +23,9 @@ import net.minecraft.world.level.block.LightBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -78,6 +80,13 @@ public class MirrorPortalEntity extends Entity {
 
     // Current light block position (for cleanup)
     private BlockPos currentLightPos = null;
+    
+    // Track how long each player has been standing on return portal (for anti-accidental trigger)
+    // Key: Player UUID, Value: Ticks standing on portal
+    private final Map<UUID, Integer> playerStandingTime = new HashMap<>();
+    
+    // Required time to stand on return portal before teleporting (in ticks, 20 ticks = 1 second)
+    private static final int RETURN_PORTAL_STANDING_REQUIRED = 20;
 
     public MirrorPortalEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -359,12 +368,35 @@ public class MirrorPortalEntity extends Entity {
     private void checkPlayerCollision(ServerLevel serverLevel) {
         AABB boundingBox = this.getBoundingBox().inflate(0.5);
         List<Player> players = serverLevel.getEntitiesOfClass(Player.class, boundingBox);
+        
+        // Track which players are currently in the bounding box (for return portal)
+        java.util.Set<UUID> playersInBox = new java.util.HashSet<>();
 
         for (Player player : players) {
             if (player instanceof ServerPlayer serverPlayer) {
                 if (isReturnPortal) {
                     // Return portal: only owner can use
                     if (ownerUUID != null && !player.getUUID().equals(ownerUUID)) {
+                        continue;
+                    }
+                    
+                    playersInBox.add(player.getUUID());
+                    
+                    // Increment standing time
+                    int currentTime = playerStandingTime.getOrDefault(player.getUUID(), 0);
+                    currentTime++;
+                    playerStandingTime.put(player.getUUID(), currentTime);
+                    
+                    // Check if player has been standing long enough
+                    if (currentTime < RETURN_PORTAL_STANDING_REQUIRED) {
+                        // Not ready yet, show progress
+                        float progress = (float) currentTime / RETURN_PORTAL_STANDING_REQUIRED;
+                        serverPlayer.displayClientMessage(
+                                net.minecraft.network.chat.Component.translatable(
+                                        "message.instantworldmirror.portal_activating", 
+                                        String.format("%.0f%%", progress * 100)),
+                                true
+                        );
                         continue;
                     }
                     
@@ -475,6 +507,11 @@ public class MirrorPortalEntity extends Entity {
                     return;
                 }
             }
+        }
+        
+        // Clean up standing time for players who left the return portal area
+        if (isReturnPortal) {
+            playerStandingTime.keySet().removeIf(uuid -> !playersInBox.contains(uuid));
         }
     }
 

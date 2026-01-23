@@ -48,5 +48,6 @@
   "command.instantworldmirror.forceclear.invalid_dim": "§cInvalid dimension index! Valid range: 0-%d",
   "command.instantworldmirror.forceclear.already_empty": "§eThis dimension is already available.",
   "command.instantworldmirror.forceclear.success": "§aForce cleared dimension %d - returned %d players to spawn.",
-  "command.instantworldmirror.forceclear.state_info": "§7(Previous state: %s)"
+  "command.instantworldmirror.forceclear.state_info": "§7(Previous state: %s)",
+  "message.instantworldmirror.portal_activating": "§eActivating return portal: %s"
 }
