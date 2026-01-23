@@ -58,11 +58,6 @@ public class MirrorConfig {
                     "Set to -1 for permanent portals (until player returns)")
             .defineInRange("returnPortalLifetime", -1, -1, 3600);
 
-    public static final ModConfigSpec.IntValue TELEPORT_COOLDOWN = BUILDER
-            .comment("Teleport cooldown in ticks (default: 60 = 3 seconds)",
-                    "Prevents instant return after entering mirror world")
-            .defineInRange("teleportCooldown", 60, 0, 200);
-
     public static final ModConfigSpec.IntValue MAX_PORTAL_LOADING_TIME = BUILDER
             .comment("Maximum time in seconds for portal to stay in loading state (default: 600 = 10 minutes)",
                     "If world copy doesn't complete within this time, portal is removed.",

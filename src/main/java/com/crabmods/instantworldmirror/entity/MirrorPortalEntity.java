@@ -73,10 +73,6 @@ public class MirrorPortalEntity extends Entity {
     // Whether world copy is complete
     private boolean worldCopyComplete = false;
 
-    // Teleport cooldown (prevents instant return after entering mirror world)
-    // Maps player UUID to tick count when they last teleported
-    private static final java.util.Map<UUID, Long> teleportCooldowns = new java.util.concurrent.ConcurrentHashMap<>();
-
     public MirrorPortalEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
         this.noPhysics = true; // No collision
@@ -305,43 +301,19 @@ public class MirrorPortalEntity extends Entity {
     }
 
     /**
-     * Check if player is on teleport cooldown
-     */
-    private static boolean isOnCooldown(UUID playerId, long currentTick) {
-        Long lastTeleport = teleportCooldowns.get(playerId);
-        if (lastTeleport == null) return false;
-        return (currentTick - lastTeleport) < MirrorConfig.TELEPORT_COOLDOWN.get();
-    }
-
-    /**
-     * Set player teleport cooldown
-     */
-    public static void setTeleportCooldown(UUID playerId, long currentTick) {
-        teleportCooldowns.put(playerId, currentTick);
-    }
-
-    /**
      * Check player collision and teleport
      */
     private void checkPlayerCollision(ServerLevel serverLevel) {
         AABB boundingBox = this.getBoundingBox().inflate(0.5);
         List<Player> players = serverLevel.getEntitiesOfClass(Player.class, boundingBox);
-        long currentTick = serverLevel.getGameTime();
 
         for (Player player : players) {
             if (player instanceof ServerPlayer serverPlayer) {
-                // Check cooldown first
-                if (isOnCooldown(serverPlayer.getUUID(), currentTick)) {
-                    continue;
-                }
-
                 if (isReturnPortal) {
                     // Return portal: only owner can use
                     if (ownerUUID != null && !player.getUUID().equals(ownerUUID)) {
                         continue;
                     }
-                    
-                    setTeleportCooldown(serverPlayer.getUUID(), currentTick);
                     
                     // Use the new method that considers portal position
                     // If this portal is far from where player entered, teleport to corresponding position
@@ -352,8 +324,6 @@ public class MirrorPortalEntity extends Entity {
                                 SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
                         this.discard();
                     } else {
-                        // Remove cooldown on failure so player can retry
-                        teleportCooldowns.remove(serverPlayer.getUUID());
                         serverPlayer.displayClientMessage(
                                 net.minecraft.network.chat.Component.translatable(
                                         "message.instantworldmirror.return_failed"),
@@ -427,7 +397,6 @@ public class MirrorPortalEntity extends Entity {
                     }
 
                     // Set cooldown and teleport to mirror world
-                    setTeleportCooldown(serverPlayer.getUUID(), currentTick);
                     boolean success = MirrorWorldManager.teleportToMirrorWorld(serverPlayer, session);
                     
                     if (success) {
@@ -447,7 +416,6 @@ public class MirrorPortalEntity extends Entity {
                         // 2. Portal lifetime expires
                         // 3. Session is destroyed for other reasons
                     } else {
-                        teleportCooldowns.remove(serverPlayer.getUUID());
                         InstantWorldMirror.LOGGER.warn("Entry portal FAILED to teleport player {}", 
                                 serverPlayer.getName().getString());
                     }

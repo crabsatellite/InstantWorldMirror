@@ -12,9 +12,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Packet sent from client to server to request returning to the overworld.
+ * Packet sent from client to server to request teleporting to mirror world spawn.
  * This is used when a player in the mirror world holds right-click with the mirror
- * to quickly return to their original position in the overworld.
+ * to quickly return to the spawn point (entry point) in the mirror world.
  */
 public record TeleportToSpawnPacket() implements CustomPacketPayload {
     
@@ -54,8 +54,8 @@ public record TeleportToSpawnPacket() implements CustomPacketPayload {
                     }
                 }
                 
-                // Return to overworld (original position)
-                MirrorWorldManager.returnToOverworld(serverPlayer);
+                // Teleport to mirror world spawn point
+                MirrorWorldManager.teleportToMirrorSpawn(serverPlayer);
             }
         });
     }
