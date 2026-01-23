@@ -374,7 +374,9 @@ public class MirrorPortalEntity extends Entity {
      * Check player collision and teleport
      */
     private void checkPlayerCollision(ServerLevel serverLevel) {
-        AABB boundingBox = this.getBoundingBox().inflate(0.5);
+        // Use a smaller collision box for return portal to prevent accidental triggers
+        // Entity size is 0.8 x 1.5, so we don't inflate it
+        AABB boundingBox = this.getBoundingBox();
         List<Player> players = serverLevel.getEntitiesOfClass(Player.class, boundingBox);
         
         // Track which players are currently in the bounding box (for return portal)
