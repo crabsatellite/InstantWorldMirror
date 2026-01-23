@@ -369,10 +369,16 @@ public class MirrorWorldManager {
             BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos);
             if (safePos == null) {
                 // No safe position found - clear a 3x3 area at the base position
+                // This only happens in mirror world, so it's safe to modify
                 safePos = baseTargetPos;
                 clearAreaForPlayer(mirrorWorld, safePos);
                 InstantWorldMirror.LOGGER.info("Cleared 3x3 area for player {} at {} in mirror world", 
                         player.getName().getString(), safePos);
+                // Notify player that area was cleared
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.area_cleared"),
+                        true
+                );
             }
 
             // Execute teleportation to safe position
@@ -929,9 +935,8 @@ public class MirrorWorldManager {
             return verticalSafe;
         }
         
-        // Last resort: return spawn position
-        InstantWorldMirror.LOGGER.warn("Could not find safe position near {}, using spawn point", targetPos);
-        return level.getSharedSpawnPos();
+        // No safe position found, return null so caller can handle (e.g., clear area)
+        return null;
     }
     
     /**
