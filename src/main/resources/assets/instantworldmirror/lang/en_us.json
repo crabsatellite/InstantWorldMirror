@@ -25,6 +25,7 @@
   "message.instantworldmirror.teleported_to_spawn": "§aTeleported to mirror world spawn point",
   "message.instantworldmirror.not_in_mirror_world": "§cYou are not in the Mirror World!",
   "message.instantworldmirror.no_active_session": "§cNo active mirror session found",
+  "message.instantworldmirror.no_safe_spawn_returning": "§eNo safe position found near spawn, returning to overworld...",
   "command.instantworldmirror.return.success": "Forcefully returned to the original world",
   "command.instantworldmirror.return.not_in_mirror": "§cYou are not in the Mirror World!",
   "command.instantworldmirror.player_only": "§cThis command can only be used by players!",

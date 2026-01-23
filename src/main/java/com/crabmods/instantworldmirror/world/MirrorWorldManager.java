@@ -693,6 +693,13 @@ public class MirrorWorldManager {
      * teleported to the spawn location. The target position is offset slightly to avoid
      * triggering any return portals that may be at the exact spawn point.
      * 
+     * Requirements:
+     * - Safe position must be within 10 blocks of spawn
+     * - Must be at the same Y level (player can see the portal)
+     * - Must not be underground or underwater
+     * - Must be at least 2 blocks away from spawn to avoid triggering portal
+     * - If no valid position found, return player to overworld
+     * 
      * @param player The player to teleport
      * @return true if teleportation was successful
      */
@@ -728,36 +735,22 @@ public class MirrorWorldManager {
 
         ServerLevel mirrorLevel = (ServerLevel) player.level();
         
-        // Get the spawn position (where they originally entered)
+        // Get the spawn position (where they originally entered, one block above the clicked block)
         BlockPos spawnPos = session.getSourcePosition().above();
+        int spawnY = spawnPos.getY();
         
-        // Apply offset to avoid triggering return portal at spawn (3-4 blocks away)
-        // Use a fixed offset direction based on player's facing to be predictable
-        double angle = player.level().random.nextDouble() * Math.PI * 2;
-        double offsetDistance = 3.5; // 3.5 blocks away from spawn to avoid portal trigger
-        int offsetX = (int) Math.round(Math.cos(angle) * offsetDistance);
-        int offsetZ = (int) Math.round(Math.sin(angle) * offsetDistance);
+        // Try to find a safe position at the same Y level, within 10 blocks, but at least 2 blocks away
+        BlockPos safePos = findSafeSpawnNearbyPosition(mirrorLevel, spawnPos, 2, 10, spawnY);
         
-        // Calculate target position with offset
-        BlockPos targetPos = spawnPos.offset(offsetX, 0, offsetZ);
-        
-        // Find a safe landing position near the offset target
-        BlockPos safePos = findSafeLandingPosition(mirrorLevel, targetPos);
-        
-        // Verify the safe position is at least 2 blocks away from spawn to avoid portal
-        if (safePos.closerThan(spawnPos, 2.0)) {
-            // Try to find another safe position further away
-            for (int attempt = 0; attempt < 8; attempt++) {
-                double tryAngle = (Math.PI * 2 / 8) * attempt;
-                int tryOffsetX = (int) Math.round(Math.cos(tryAngle) * 4);
-                int tryOffsetZ = (int) Math.round(Math.sin(tryAngle) * 4);
-                BlockPos tryPos = spawnPos.offset(tryOffsetX, 0, tryOffsetZ);
-                BlockPos trySafePos = findSafeLandingPosition(mirrorLevel, tryPos);
-                if (!trySafePos.closerThan(spawnPos, 2.0)) {
-                    safePos = trySafePos;
-                    break;
-                }
-            }
+        if (safePos == null) {
+            // No safe position found - return player to overworld
+            InstantWorldMirror.LOGGER.info("No safe spawn position found for {}, returning to overworld", 
+                    player.getName().getString());
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.no_safe_spawn_returning"),
+                    true
+            );
+            return returnToOverworld(player);
         }
 
         // Execute teleportation (stays in same dimension)
@@ -791,6 +784,103 @@ public class MirrorWorldManager {
         InstantWorldMirror.LOGGER.info("Player {} teleported to mirror spawn at ({}, {}, {})",
                 player.getName().getString(), safePos.getX(), safePos.getY(), safePos.getZ());
 
+        return true;
+    }
+    
+    /**
+     * Find a safe position near spawn point for teleporting back.
+     * Requirements:
+     * - Within maxRadius blocks of spawn (horizontal distance)
+     * - At least minRadius blocks away from spawn horizontally (to avoid portal)
+     * - At the same Y level as spawn (so player can see portal)
+     * - Not underground (has sky access)
+     * - Not underwater
+     * - Has solid ground below and air at position and above
+     * 
+     * @param level The level to search in
+     * @param spawnPos The spawn position (portal location)
+     * @param minRadius Minimum horizontal distance from spawn (to avoid portal trigger)
+     * @param maxRadius Maximum horizontal distance from spawn
+     * @param targetY The Y level to search at (same as spawn)
+     * @return A safe position, or null if none found
+     */
+    private static BlockPos findSafeSpawnNearbyPosition(ServerLevel level, BlockPos spawnPos, int minRadius, int maxRadius, int targetY) {
+        // Search in expanding square pattern, but verify horizontal distance
+        for (int radius = minRadius; radius <= maxRadius; radius++) {
+            // Check positions at approximately this radius
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    // Calculate actual horizontal distance
+                    double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+                    
+                    // Must be within [minRadius, maxRadius] horizontal distance
+                    if (horizontalDistance < minRadius || horizontalDistance > maxRadius) {
+                        continue;
+                    }
+                    
+                    // For efficiency, only check positions at approximately this radius level
+                    // (within 0.5 of the current radius we're searching)
+                    if (Math.abs(horizontalDistance - radius) > 0.5 && radius < maxRadius) {
+                        continue;
+                    }
+                    
+                    BlockPos checkPos = new BlockPos(spawnPos.getX() + dx, targetY, spawnPos.getZ() + dz);
+                    if (isValidSpawnNearbyPosition(level, checkPos, spawnPos)) {
+                        return checkPos;
+                    }
+                }
+            }
+        }
+        
+        return null; // No valid position found
+    }
+    
+    /**
+     * Check if a position is valid for teleporting near spawn.
+     * Must have:
+     * - Solid ground below
+     * - Air at position and above (space for player)
+     * - Sky access (not underground)
+     * - Not in water
+     */
+    private static boolean isValidSpawnNearbyPosition(ServerLevel level, BlockPos pos, BlockPos spawnPos) {
+        // Check world bounds
+        if (pos.getY() < level.getMinBuildHeight() + 1 || pos.getY() > level.getMaxBuildHeight() - 2) {
+            return false;
+        }
+        
+        BlockPos below = pos.below();
+        BlockPos above = pos.above();
+        
+        net.minecraft.world.level.block.state.BlockState belowState = level.getBlockState(below);
+        net.minecraft.world.level.block.state.BlockState atState = level.getBlockState(pos);
+        net.minecraft.world.level.block.state.BlockState aboveState = level.getBlockState(above);
+        
+        // Block below must be solid
+        if (!belowState.isSolid()) {
+            return false;
+        }
+        
+        // Check for dangerous blocks below
+        if (isDangerousBlock(belowState)) {
+            return false;
+        }
+        
+        // Position and above must be air/passable (not solid, not water)
+        if (atState.isSolid() || aboveState.isSolid()) {
+            return false;
+        }
+        
+        // Must not be in water
+        if (atState.getFluidState().isSource() || aboveState.getFluidState().isSource()) {
+            return false;
+        }
+        
+        // Must have sky access (not underground) - check if can see sky
+        if (!level.canSeeSky(pos)) {
+            return false;
+        }
+        
         return true;
     }
     
