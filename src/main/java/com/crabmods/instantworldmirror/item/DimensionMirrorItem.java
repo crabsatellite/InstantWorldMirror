@@ -418,14 +418,14 @@ public class DimensionMirrorItem extends Item {
         return enchantment.is(Enchantments.EFFICIENCY);
     }
     
-    // ==================== Hold to Return to Overworld (Mirror World Only) ====================
+    // ==================== Hold to Teleport to Spawn (Mirror World Only) ====================
     
-    // Hold duration in ticks to return to overworld (20 ticks = 1 second)
+    // Hold duration in ticks to teleport to spawn (20 ticks = 1 second)
     private static final int HOLD_DURATION_TICKS = 20;
     
     /**
      * Called when player right-clicks in air (not on a block).
-     * In mirror world: starts the hold-to-return interaction.
+     * In mirror world: starts the hold-to-teleport interaction.
      * In other dimensions: does nothing (useOn handles block interactions).
      */
     @Override
@@ -464,12 +464,12 @@ public class DimensionMirrorItem extends Item {
     
     /**
      * Called when the hold duration completes.
-     * Sends packet to server to return player to overworld.
+     * Sends packet to server to teleport player to mirror world spawn.
      */
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
         if (entity instanceof Player player && ModDimensions.isMirrorWorld(level.dimension())) {
-            // Send return to overworld request to server from client side
+            // Send teleport request to server from client side
             if (level.isClientSide) {
                 PacketDistributor.sendToServer(new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket());
             }

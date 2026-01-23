@@ -18,6 +18,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LightBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import java.util.List;
@@ -72,6 +75,9 @@ public class MirrorPortalEntity extends Entity {
 
     // Whether world copy is complete
     private boolean worldCopyComplete = false;
+
+    // Current light block position (for cleanup)
+    private BlockPos currentLightPos = null;
 
     public MirrorPortalEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -128,6 +134,9 @@ public class MirrorPortalEntity extends Entity {
      */
     @Override
     public void remove(RemovalReason reason) {
+        // Remove light block when entity is removed
+        removeLightBlock();
+        
         // If this is an entry portal with a session, cancel it
         if (!isReturnPortal && sessionId != null && this.level() instanceof ServerLevel serverLevel) {
             // Cancel the world copy task if still running
@@ -159,6 +168,11 @@ public class MirrorPortalEntity extends Entity {
         // Server side: async world copy and inactive portal cleanup
         if (!isClient) {
             ServerLevel serverLevel = (ServerLevel) this.level();
+            
+            // Update light block position (first tick immediately, then every 5 ticks)
+            if (this.tickCount == 1 || this.tickCount % 5 == 0) {
+                updateLightBlock();
+            }
             
             // Start async world copy on first tick (only for entry portals)
             if (!isReturnPortal && !worldCopyStarted && clickPos != null && sessionId != null) {
@@ -273,6 +287,45 @@ public class MirrorPortalEntity extends Entity {
             MirrorWorldManager.cancelSession(sessionId, serverLevel.getServer());
             InstantWorldMirror.LOGGER.info("Portal timed out, session {} cancelled", sessionId);
         }
+    }
+
+    /**
+     * Update the light block at the entity's position
+     */
+    private void updateLightBlock() {
+        if (this.level().isClientSide) return;
+        
+        BlockPos newLightPos = BlockPos.containing(this.getX(), this.getY() + 1.0, this.getZ());
+        
+        // If position hasn't changed and light exists, do nothing
+        if (newLightPos.equals(currentLightPos)) {
+            return;
+        }
+        
+        // Remove old light block
+        removeLightBlock();
+        
+        // Place new light block if position is air
+        BlockState currentState = this.level().getBlockState(newLightPos);
+        if (currentState.isAir()) {
+            // Light level 15 (max brightness)
+            BlockState lightState = Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15);
+            this.level().setBlock(newLightPos, lightState, 3);
+            currentLightPos = newLightPos;
+        }
+    }
+
+    /**
+     * Remove the light block when entity is removed or moves
+     */
+    private void removeLightBlock() {
+        if (this.level().isClientSide || currentLightPos == null) return;
+        
+        BlockState state = this.level().getBlockState(currentLightPos);
+        if (state.is(Blocks.LIGHT)) {
+            this.level().setBlock(currentLightPos, Blocks.AIR.defaultBlockState(), 3);
+        }
+        currentLightPos = null;
     }
 
     /**
@@ -541,11 +594,6 @@ public class MirrorPortalEntity extends Entity {
 
     public boolean isLoading() {
         return this.entityData.get(DATA_LOADING);
-    }
-
-    @Override
-    public boolean isCurrentlyGlowing() {
-        return true; // Always emit light glow effect
     }
 
     @Override
