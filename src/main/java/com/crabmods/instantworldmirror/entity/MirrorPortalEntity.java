@@ -85,6 +85,10 @@ public class MirrorPortalEntity extends Entity {
     // Key: Player UUID, Value: Ticks standing on portal
     private final Map<UUID, Integer> playerStandingTime = new HashMap<>();
     
+    // Track players who have left the portal area at least once (to prevent immediate return after entering)
+    // Player must leave portal area first before they can use the return portal
+    private final java.util.Set<UUID> playersLeftPortalOnce = new java.util.HashSet<>();
+    
     // Required time to stand on return portal before teleporting (in ticks, 20 ticks = 1 second)
     private static final int RETURN_PORTAL_STANDING_REQUIRED = 20;
 
@@ -382,6 +386,15 @@ public class MirrorPortalEntity extends Entity {
                     
                     playersInBox.add(player.getUUID());
                     
+                    // Check if player has left the portal area at least once
+                    // This prevents immediate return after entering the mirror world
+                    if (!playersLeftPortalOnce.contains(player.getUUID())) {
+                        // Player hasn't left portal area yet, mark them as "seen" so we can detect when they leave
+                        // Put 0 in standing time just to track that we've seen this player
+                        playerStandingTime.putIfAbsent(player.getUUID(), 0);
+                        continue;
+                    }
+                    
                     // Increment standing time
                     int currentTime = playerStandingTime.getOrDefault(player.getUUID(), 0);
                     currentTime++;
@@ -510,8 +523,16 @@ public class MirrorPortalEntity extends Entity {
         }
         
         // Clean up standing time for players who left the return portal area
+        // Also mark players as "left portal once" when they leave
         if (isReturnPortal) {
-            playerStandingTime.keySet().removeIf(uuid -> !playersInBox.contains(uuid));
+            // Find players who were tracking but are no longer in the box
+            for (UUID uuid : new java.util.HashSet<>(playerStandingTime.keySet())) {
+                if (!playersInBox.contains(uuid)) {
+                    // Player left the portal area, mark them as having left once
+                    playersLeftPortalOnce.add(uuid);
+                    playerStandingTime.remove(uuid);
+                }
+            }
         }
     }
 

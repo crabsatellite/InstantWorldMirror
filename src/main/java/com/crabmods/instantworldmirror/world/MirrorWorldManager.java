@@ -361,21 +361,26 @@ public class MirrorWorldManager {
             // If this player owned this session (creator entering), remove from owned
             playerOwnedSession.remove(player.getUUID());
 
-            // Calculate target position with a small offset to avoid portal re-trigger
-            // This prevents issues with Nether portals that would otherwise teleport player back
-            BlockPos targetPos = session.getSourcePosition().above();
+            // Calculate target position (source position + 1 block up)
+            BlockPos baseTargetPos = session.getSourcePosition().above();
             
-            // Add offset in the direction player is facing to move them out of any portal
-            float yaw = player.getYRot();
-            double offsetX = -Math.sin(Math.toRadians(yaw)) * 1.5;
-            double offsetZ = Math.cos(Math.toRadians(yaw)) * 1.5;
+            // Find a safe position to teleport to (avoid being stuck in walls or water)
+            // Search nearby for a safe spot, no distance limit
+            BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos);
+            if (safePos == null) {
+                // No safe position found - clear a 3x3 area at the base position
+                safePos = baseTargetPos;
+                clearAreaForPlayer(mirrorWorld, safePos);
+                InstantWorldMirror.LOGGER.info("Cleared 3x3 area for player {} at {} in mirror world", 
+                        player.getName().getString(), safePos);
+            }
 
-            // Execute teleportation with offset
+            // Execute teleportation to safe position
             player.teleportTo(
                     mirrorWorld,
-                    targetPos.getX() + 0.5 + offsetX,
-                    targetPos.getY(),
-                    targetPos.getZ() + 0.5 + offsetZ,
+                    safePos.getX() + 0.5,
+                    safePos.getY(),
+                    safePos.getZ() + 0.5,
                     player.getYRot(),
                     player.getXRot()
             );
@@ -383,8 +388,8 @@ public class MirrorWorldManager {
             // Sync dimension effects to client
             syncDimensionEffectsToPlayer(player, session);
 
-            // Auto-spawn return portal at player's feet
-            spawnReturnPortal(mirrorWorld, player, targetPos);
+            // Auto-spawn return portal at player's feet (use safe position)
+            spawnReturnPortal(mirrorWorld, player, safePos);
 
             InstantWorldMirror.LOGGER.info("Player {} teleported to Mirror World dimension {} (session: {}, players in session: {})",
                     player.getName().getString(), session.getDimensionIndex(), session.getSessionId(), session.getPlayerCount());
@@ -1000,6 +1005,11 @@ public class MirrorWorldManager {
             return false;
         }
         
+        // Must not be in water (underwater)
+        if (atState.getFluidState().isSource() || aboveState.getFluidState().isSource()) {
+            return false;
+        }
+        
         return true;
     }
     
@@ -1046,6 +1056,35 @@ public class MirrorWorldManager {
         }
         
         return false;
+    }
+    
+    /**
+     * Clear a 3x3x2 area for player to safely land
+     * Clears the player's standing position and above (2 blocks high for player)
+     * Also ensures there's solid ground below
+     * @param level The level to modify
+     * @param pos The center position where player will stand
+     */
+    private static void clearAreaForPlayer(ServerLevel level, BlockPos pos) {
+        // Clear 3x3 area at player height (2 blocks high for player body)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos clearPos = pos.offset(dx, 0, dz);
+                BlockPos abovePos = clearPos.above();
+                
+                // Clear the two blocks where player body would be
+                level.setBlock(clearPos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                level.setBlock(abovePos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        
+        // Ensure solid ground below the center position
+        BlockPos belowPos = pos.below();
+        net.minecraft.world.level.block.state.BlockState belowState = level.getBlockState(belowPos);
+        if (!belowState.isSolid() || isDangerousBlock(belowState)) {
+            // Place a stone block as floor
+            level.setBlock(belowPos, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+        }
     }
 
     // ==================== Session Lifecycle ====================
