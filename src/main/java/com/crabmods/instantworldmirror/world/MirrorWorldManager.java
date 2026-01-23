@@ -390,6 +390,10 @@ public class MirrorWorldManager {
                     player.getYRot(),
                     player.getXRot()
             );
+            
+            // Record the time when player entered mirror world (for return portal protection)
+            CompoundTag playerData = player.getPersistentData();
+            playerData.putLong("MirrorWorldEnterTime", mirrorWorld.getGameTime());
 
             // Sync dimension effects to client
             syncDimensionEffectsToPlayer(player, session);

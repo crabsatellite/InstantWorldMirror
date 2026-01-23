@@ -87,10 +87,14 @@ public class MirrorPortalEntity extends Entity {
     
     // Track players who have left the portal area at least once (to prevent immediate return after entering)
     // Player must leave portal area first before they can use the return portal
+    // This only applies during the first 10 seconds after entering the mirror world
     private final java.util.Set<UUID> playersLeftPortalOnce = new java.util.HashSet<>();
     
     // Required time to stand on return portal before teleporting (in ticks, 20 ticks = 1 second)
     private static final int RETURN_PORTAL_STANDING_REQUIRED = 20;
+    
+    // Time window during which the "leave first" requirement applies (10 seconds = 200 ticks)
+    private static final int LEAVE_FIRST_PROTECTION_TICKS = 200;
 
     public MirrorPortalEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -388,7 +392,16 @@ public class MirrorPortalEntity extends Entity {
                     
                     // Check if player has left the portal area at least once
                     // This prevents immediate return after entering the mirror world
-                    if (!playersLeftPortalOnce.contains(player.getUUID())) {
+                    // Only applies during the first 10 seconds after entering the mirror world
+                    boolean isWithinProtectionPeriod = false;
+                    net.minecraft.nbt.CompoundTag playerData = player.getPersistentData();
+                    if (playerData.contains("MirrorWorldEnterTime")) {
+                        long enterTime = playerData.getLong("MirrorWorldEnterTime");
+                        long currentTime = this.level().getGameTime();
+                        isWithinProtectionPeriod = (currentTime - enterTime) < LEAVE_FIRST_PROTECTION_TICKS;
+                    }
+                    
+                    if (isWithinProtectionPeriod && !playersLeftPortalOnce.contains(player.getUUID())) {
                         // Player hasn't left portal area yet, mark them as "seen" so we can detect when they leave
                         // Put 0 in standing time just to track that we've seen this player
                         playerStandingTime.putIfAbsent(player.getUUID(), 0);
@@ -396,14 +409,14 @@ public class MirrorPortalEntity extends Entity {
                     }
                     
                     // Increment standing time
-                    int currentTime = playerStandingTime.getOrDefault(player.getUUID(), 0);
-                    currentTime++;
-                    playerStandingTime.put(player.getUUID(), currentTime);
+                    int currentStandTime = playerStandingTime.getOrDefault(player.getUUID(), 0);
+                    currentStandTime++;
+                    playerStandingTime.put(player.getUUID(), currentStandTime);
                     
                     // Check if player has been standing long enough
-                    if (currentTime < RETURN_PORTAL_STANDING_REQUIRED) {
+                    if (currentStandTime < RETURN_PORTAL_STANDING_REQUIRED) {
                         // Not ready yet, show progress
-                        float progress = (float) currentTime / RETURN_PORTAL_STANDING_REQUIRED;
+                        float progress = (float) currentStandTime / RETURN_PORTAL_STANDING_REQUIRED;
                         serverPlayer.displayClientMessage(
                                 net.minecraft.network.chat.Component.translatable(
                                         "message.instantworldmirror.portal_activating", 

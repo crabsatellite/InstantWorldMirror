@@ -8,6 +8,7 @@
   "message.instantworldmirror.returned": "§aReturned to the original world",
   "message.instantworldmirror.returned_to_corresponding_position": "§aReturned to the corresponding overworld position",
   "message.instantworldmirror.invalid_block": "§eCannot open portal on this block",
+  "message.instantworldmirror.no_space_for_portal": "§eNot enough space above for the portal",
   "message.instantworldmirror.access_denied": "§cYou are not allowed to enter the Mirror World",
   "message.instantworldmirror.portal_blocked": "§cPortals are disabled in the Mirror World!",
   "message.instantworldmirror.already_has_session": "§cYou already have an active mirror portal. Wait for it to expire or use it first.",

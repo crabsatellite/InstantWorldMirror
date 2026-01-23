@@ -8,6 +8,7 @@
   "message.instantworldmirror.returned": "§a已返回原世界",
   "message.instantworldmirror.returned_to_corresponding_position": "§a已传送至主世界对应位置",
   "message.instantworldmirror.invalid_block": "§e无法在此方块上打开传送门",
+  "message.instantworldmirror.no_space_for_portal": "§e传送门上方没有足够的空间",
   "message.instantworldmirror.access_denied": "§c你没有权限进入镜面世界",
   "message.instantworldmirror.portal_blocked": "§c镜面世界中禁止使用传送门！",
   "message.instantworldmirror.already_has_session": "§c你已经有一个活动的镜面传送门，请等待它消失或先使用它。",

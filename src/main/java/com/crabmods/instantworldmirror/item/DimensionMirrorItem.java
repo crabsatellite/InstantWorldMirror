@@ -214,6 +214,20 @@ public class DimensionMirrorItem extends Item {
             );
             return InteractionResult.FAIL;
         }
+        
+        // Check if there's enough space above the block for the portal (2 blocks high)
+        BlockPos portalPos = pos.above();
+        BlockPos portalPosAbove = portalPos.above();
+        BlockState portalState = level.getBlockState(portalPos);
+        BlockState portalStateAbove = level.getBlockState(portalPosAbove);
+        
+        if (portalState.isSolid() || portalStateAbove.isSolid()) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.no_space_for_portal"),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
 
         // Check if player is in any mirror world dimension using the proper check
         boolean isInMirrorWorld = ModDimensions.isMirrorWorld(level.dimension());
