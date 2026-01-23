@@ -544,6 +544,11 @@ public class MirrorPortalEntity extends Entity {
     }
 
     @Override
+    public boolean isCurrentlyGlowing() {
+        return true; // Always emit light glow effect
+    }
+
+    @Override
     public boolean isPickable() {
         return false;
     }
