@@ -555,7 +555,8 @@ public class MirrorPortalEntity extends Entity {
      * Spawn ambient particle effects
      */
     private void spawnAmbientParticles() {
-        if (isReturnPortal) {
+        // Use the synced data getter to check if this is a return portal (works on client)
+        if (isReturnPortal()) {
             // Return portal - golden/orange particle effect
             if (this.random.nextInt(2) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
@@ -563,11 +564,12 @@ public class MirrorPortalEntity extends Entity {
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
                 this.level().addParticle(ParticleTypes.FLAME, x, y, z, 0, 0.05, 0);
             }
+            // Golden/orange particles instead of white ENCHANT particles
             if (this.random.nextInt(3) == 0) {
                 double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.8;
                 double y = this.getY() + this.random.nextDouble() * 1.5;
                 double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.8;
-                this.level().addParticle(ParticleTypes.ENCHANT, x, y, z, 0, 0.2, 0);
+                this.level().addParticle(ParticleTypes.LAVA, x, y, z, 0, 0.02, 0);
             }
             // Golden spiral effect
             if (this.random.nextInt(4) == 0) {
