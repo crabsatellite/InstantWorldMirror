@@ -2,6 +2,8 @@ package com.crabmods.instantworldmirror.entity;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.block.PortalLightBlockEntity;
+import com.crabmods.instantworldmirror.registry.ModBlocks;
 import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import net.minecraft.core.BlockPos;
@@ -19,7 +21,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.LightBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
@@ -148,12 +150,10 @@ public class MirrorPortalEntity extends Entity {
     /**
      * Called when the entity is removed (killed, discarded, etc.)
      * Cancel the session and world copy if still in progress
+     * Note: PortalLightBlockEntity will automatically detect this and remove itself
      */
     @Override
     public void remove(RemovalReason reason) {
-        // Remove light block when entity is removed
-        removeLightBlock();
-        
         // If this is an entry portal with a session, cancel it
         if (!isReturnPortal && sessionId != null && this.level() instanceof ServerLevel serverLevel) {
             // Cancel the world copy task if still running
@@ -307,11 +307,13 @@ public class MirrorPortalEntity extends Entity {
     }
 
     /**
-     * Update the light block at the entity's position
+     * Update the light block at the entity's position.
+     * Uses PortalLightBlock which automatically tracks this entity and removes itself when entity is gone.
      */
     private void updateLightBlock() {
         if (this.level().isClientSide) return;
         
+        ServerLevel serverLevel = (ServerLevel) this.level();
         BlockPos newLightPos = BlockPos.containing(this.getX(), this.getY() + 1.0, this.getZ());
         
         // If position hasn't changed and light exists, do nothing
@@ -319,30 +321,43 @@ public class MirrorPortalEntity extends Entity {
             return;
         }
         
-        // Remove old light block
+        // Remove old light block (only if it was our block)
         removeLightBlock();
         
-        // Place new light block if position is air
-        BlockState currentState = this.level().getBlockState(newLightPos);
-        if (currentState.isAir()) {
-            // Light level 15 (max brightness)
-            BlockState lightState = Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15);
-            this.level().setBlock(newLightPos, lightState, 3);
+        // Place new portal light block if position is air or replaceable
+        BlockState currentState = serverLevel.getBlockState(newLightPos);
+        if (currentState.isAir() || currentState.canBeReplaced()) {
+            // Place our custom portal light block
+            serverLevel.setBlockAndUpdate(newLightPos, ModBlocks.PORTAL_LIGHT_BLOCK.get().defaultBlockState());
+            
+            // Set the block entity's portal reference
+            BlockEntity be = serverLevel.getBlockEntity(newLightPos);
+            if (be instanceof PortalLightBlockEntity lightBE) {
+                lightBE.setPortalEntityId(this.getUUID());
+            }
+            
             currentLightPos = newLightPos;
         }
     }
 
     /**
-     * Remove the light block when entity is removed or moves
+     * Remove the light block when entity moves.
+     * Note: When entity is removed, the PortalLightBlockEntity will automatically detect this and remove itself.
      */
     private void removeLightBlock() {
-        if (this.level().isClientSide || currentLightPos == null) return;
+        if (this.level() == null || this.level().isClientSide) return;
         
-        BlockState state = this.level().getBlockState(currentLightPos);
-        if (state.is(Blocks.LIGHT)) {
-            this.level().setBlock(currentLightPos, Blocks.AIR.defaultBlockState(), 3);
+        ServerLevel serverLevel = (ServerLevel) this.level();
+        
+        // Remove the tracked light block position
+        if (currentLightPos != null) {
+            BlockState state = serverLevel.getBlockState(currentLightPos);
+            if (state.is(ModBlocks.PORTAL_LIGHT_BLOCK.get())) {
+                serverLevel.setBlockAndUpdate(currentLightPos, Blocks.AIR.defaultBlockState());
+                serverLevel.getChunkSource().blockChanged(currentLightPos);
+            }
+            currentLightPos = null;
         }
-        currentLightPos = null;
     }
 
     /**
@@ -555,55 +570,28 @@ public class MirrorPortalEntity extends Entity {
      * Spawn ambient particle effects
      */
     private void spawnAmbientParticles() {
-        // Use the synced data getter to check if this is a return portal (works on client)
-        if (isReturnPortal()) {
-            // Return portal - golden/orange particle effect
-            if (this.random.nextInt(2) == 0) {
-                double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
-                double y = this.getY() - 0.5 + this.random.nextDouble() * 2.0;
-                double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
-                this.level().addParticle(ParticleTypes.FLAME, x, y, z, 0, 0.05, 0);
-            }
-            // Golden/orange particles instead of white ENCHANT particles
-            if (this.random.nextInt(3) == 0) {
-                double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.8;
-                double y = this.getY() + this.random.nextDouble() * 1.5;
-                double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.8;
-                this.level().addParticle(ParticleTypes.LAVA, x, y, z, 0, 0.02, 0);
-            }
-            // Golden spiral effect
-            if (this.random.nextInt(4) == 0) {
-                double angle = this.tickCount * 0.2;
-                double radius = 0.5;
-                double x = this.getX() + Math.cos(angle) * radius;
-                double y = this.getY() + 0.5 + (this.tickCount % 20) * 0.05;
-                double z = this.getZ() + Math.sin(angle) * radius;
-                this.level().addParticle(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 0, 0.02, 0);
-            }
-        } else {
-            // Entry portal - blue-purple particle effect
-            if (this.random.nextInt(2) == 0) {
-                double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
-                double y = this.getY() - 0.5 + this.random.nextDouble() * 2.0;
-                double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
-                this.level().addParticle(ParticleTypes.PORTAL, x, y, z, 0, 0.1, 0);
-            }
-            // White particle (END_ROD) - reduced by half
-            if (this.random.nextInt(6) == 0) {
-                double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.6;
-                double y = this.getY() + this.random.nextDouble() * 1.0;
-                double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.6;
-                this.level().addParticle(ParticleTypes.END_ROD, x, y, z, 0, 0.02, 0);
-            }
-            // Blue spiral effect
-            if (this.random.nextInt(4) == 0) {
-                double angle = this.tickCount * 0.2;
-                double radius = 0.5;
-                double x = this.getX() + Math.cos(angle) * radius;
-                double y = this.getY() + 0.5 + (this.tickCount % 20) * 0.05;
-                double z = this.getZ() + Math.sin(angle) * radius;
-                this.level().addParticle(ParticleTypes.REVERSE_PORTAL, x, y, z, 0, 0.02, 0);
-            }
+        // Portal particle effect
+        if (this.random.nextInt(2) == 0) {
+            double x = this.getX() + (this.random.nextDouble() - 0.5) * 1.0;
+            double y = this.getY() - 0.5 + this.random.nextDouble() * 2.0;
+            double z = this.getZ() + (this.random.nextDouble() - 0.5) * 1.0;
+            this.level().addParticle(ParticleTypes.PORTAL, x, y, z, 0, 0.1, 0);
+        }
+        // White particle (END_ROD) - reduced by half
+        if (this.random.nextInt(6) == 0) {
+            double x = this.getX() + (this.random.nextDouble() - 0.5) * 0.6;
+            double y = this.getY() + this.random.nextDouble() * 1.0;
+            double z = this.getZ() + (this.random.nextDouble() - 0.5) * 0.6;
+            this.level().addParticle(ParticleTypes.END_ROD, x, y, z, 0, 0.02, 0);
+        }
+        // Blue spiral effect
+        if (this.random.nextInt(4) == 0) {
+            double angle = this.tickCount * 0.2;
+            double radius = 0.5;
+            double x = this.getX() + Math.cos(angle) * radius;
+            double y = this.getY() + 0.5 + (this.tickCount % 20) * 0.05;
+            double z = this.getZ() + Math.sin(angle) * radius;
+            this.level().addParticle(ParticleTypes.REVERSE_PORTAL, x, y, z, 0, 0.02, 0);
         }
     }
 

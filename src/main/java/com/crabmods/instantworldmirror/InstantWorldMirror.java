@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror;
 
 import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.registry.ModBlocks;
 import com.crabmods.instantworldmirror.registry.ModChunkGenerators;
 import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
 import com.crabmods.instantworldmirror.registry.ModItems;
@@ -34,6 +35,10 @@ public class InstantWorldMirror {
 
         // Register items
         ModItems.ITEMS.register(modEventBus);
+
+        // Register blocks and block entities
+        ModBlocks.BLOCKS.register(modEventBus);
+        ModBlocks.BLOCK_ENTITIES.register(modEventBus);
 
         // Register creative tabs
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);

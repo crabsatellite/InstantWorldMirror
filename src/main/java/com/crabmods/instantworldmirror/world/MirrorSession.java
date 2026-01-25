@@ -46,14 +46,19 @@ public class MirrorSession {
     // Whether the creator (host) has entered the mirror world
     private volatile boolean hostEntered = false;
     
+    // Whether the source position was in water (affects teleportation safety check)
+    // If true, water positions are considered safe (player is doing underwater exploration)
+    private final boolean sourceInWater;
+    
     // Creation timestamp for debugging
     private final long createdAt;
     
-    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension) {
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension, boolean sourceInWater) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
         this.sourceDimension = sourceDimension;
+        this.sourceInWater = sourceInWater;
         this.createdAt = System.currentTimeMillis();
     }
     
@@ -97,6 +102,15 @@ public class MirrorSession {
     
     public ResourceKey<Level> getSourceDimension() {
         return sourceDimension;
+    }
+    
+    /**
+     * Check if the source position was in water
+     * If true, water positions should be considered safe during teleportation
+     * (player is doing underwater exploration)
+     */
+    public boolean isSourceInWater() {
+        return sourceInWater;
     }
     
     /**

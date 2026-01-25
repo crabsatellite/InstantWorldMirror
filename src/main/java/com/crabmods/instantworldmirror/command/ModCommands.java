@@ -15,6 +15,7 @@ import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -119,6 +120,11 @@ public class ModCommands {
     private static int mobOnCommand(CommandContext<CommandSourceStack> context) {
         // Enable mob spawning at runtime
         MirrorConfig.setRuntimeMobSpawning(true);
+        
+        // Also set doMobSpawning game rule in all active mirror worlds
+        MinecraftServer server = context.getSource().getServer();
+        setMirrorWorldsMobSpawning(server, true);
+        
         context.getSource().sendSuccess(
                 () -> Component.translatable("command.instantworldmirror.mob.on"), 
                 true
@@ -129,11 +135,28 @@ public class ModCommands {
     private static int mobOffCommand(CommandContext<CommandSourceStack> context) {
         // Disable mob spawning at runtime
         MirrorConfig.setRuntimeMobSpawning(false);
+        
+        // Also set doMobSpawning game rule in all active mirror worlds
+        MinecraftServer server = context.getSource().getServer();
+        setMirrorWorldsMobSpawning(server, false);
+        
         context.getSource().sendSuccess(
                 () -> Component.translatable("command.instantworldmirror.mob.off"), 
                 true
         );
         return 1;
+    }
+    
+    /**
+     * Set doMobSpawning game rule in all mirror world dimensions
+     */
+    private static void setMirrorWorldsMobSpawning(MinecraftServer server, boolean enabled) {
+        for (int i = 0; i < ModDimensions.getPoolSize(); i++) {
+            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, i);
+            if (mirrorWorld != null) {
+                mirrorWorld.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(enabled, server);
+            }
+        }
     }
 
     private static int mobStatusCommand(CommandContext<CommandSourceStack> context) {

@@ -256,6 +256,12 @@ public class WorldCopyService {
         private boolean auxiliaryCleanupStarted = false;
         private java.util.List<long[]> auxiliaryChunks = new java.util.ArrayList<>();
         private int auxiliaryIndex = 0;
+        
+        // Retry queue for chunks that couldn't be processed (not loaded yet)
+        private final java.util.Queue<long[]> retryQueue = new java.util.LinkedList<>();
+        private final java.util.Map<Long, Integer> retryCount = new java.util.HashMap<>();
+        private static final int MAX_RETRIES = 50; // Max retries per chunk before skipping
+        private int skippedChunks = 0;
 
         public CleanupTask(int dimensionIndex) {
             this.dimensionIndex = dimensionIndex;
@@ -395,11 +401,40 @@ public class WorldCopyService {
             }
             
             if (auxiliaryIndex >= auxiliaryChunks.size()) {
+                // Before completing, check if there are retries to process
+                if (!retryQueue.isEmpty()) {
+                    return retryQueue.poll();
+                }
                 completed = true;
+                if (skippedChunks > 0) {
+                    InstantWorldMirror.LOGGER.warn("Cleanup completed for dimension {} but {} chunks were skipped due to loading issues",
+                            dimensionIndex, skippedChunks);
+                }
                 return null;
             }
             
             return auxiliaryChunks.get(auxiliaryIndex++);
+        }
+        
+        /**
+         * Mark a chunk for retry (when it couldn't be cleaned because it wasn't loaded)
+         */
+        public void markForRetry(int chunkX, int chunkZ) {
+            long key = packChunkPos(chunkX, chunkZ);
+            int count = retryCount.getOrDefault(key, 0) + 1;
+            if (count <= MAX_RETRIES) {
+                retryCount.put(key, count);
+                retryQueue.offer(new long[]{chunkX, chunkZ});
+            } else {
+                // Give up on this chunk after max retries - just skip it
+                skippedChunks++;
+                InstantWorldMirror.LOGGER.debug("Skipping cleanup of chunk [{}, {}] after {} retries",
+                        chunkX, chunkZ, MAX_RETRIES);
+            }
+        }
+        
+        public int getSkippedChunks() {
+            return skippedChunks;
         }
         
         /**
@@ -541,27 +576,18 @@ public class WorldCopyService {
     /**
      * Check if a chunk has any non-air blocks.
      * Uses efficient section-level checks.
+     * Uses non-blocking chunk access to prevent server hang.
      */
     private static boolean hasBlocksInChunk(ServerLevel level, int chunkX, int chunkZ) {
         try {
-            // Don't force-load chunks, only check if already loaded or can be loaded quickly
-            if (!level.hasChunk(chunkX, chunkZ)) {
-                // Try to load it - if it's just void, it will be fast
-                LevelChunk chunk = level.getChunk(chunkX, chunkZ);
-                if (chunk == null) return false;
-                
-                // Check each section
-                int sectionCount = chunk.getSectionsCount();
-                for (int i = 0; i < sectionCount; i++) {
-                    LevelChunkSection section = chunk.getSection(i);
-                    if (section != null && !section.hasOnlyAir()) {
-                        return true;
-                    }
-                }
+            // Use non-blocking chunk access
+            LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+            if (chunk == null) {
+                // Chunk not loaded - assume no blocks (safe for cleanup)
                 return false;
             }
             
-            LevelChunk chunk = level.getChunk(chunkX, chunkZ);
+            // Check each section
             int sectionCount = chunk.getSectionsCount();
             for (int i = 0; i < sectionCount; i++) {
                 LevelChunkSection section = chunk.getSection(i);
@@ -593,6 +619,15 @@ public class WorldCopyService {
         int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
         int dimIndex = session.getDimensionIndex();
         
+        // Sync game rules from source world to mirror world
+        MinecraftServer server = sourceWorld.getServer();
+        if (server != null) {
+            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
+            if (mirrorWorld != null) {
+                syncGameRules(sourceWorld, mirrorWorld);
+            }
+        }
+        
         CopyTask task = new CopyTask(
                 session.getSessionId(),
                 session.getSourcePosition(),
@@ -609,6 +644,25 @@ public class WorldCopyService {
         
         InstantWorldMirror.LOGGER.info("Queued world copy for session {} to dimension {} - {} chunks total",
                 session.getSessionId(), dimIndex, task.getTotalChunks());
+    }
+    
+    /**
+     * Sync game rules from source world to mirror world
+     * This ensures the mirror world has the same rules (mob spawning, daylight cycle, etc.)
+     */
+    private static void syncGameRules(ServerLevel sourceWorld, ServerLevel mirrorWorld) {
+        try {
+            net.minecraft.world.level.GameRules sourceRules = sourceWorld.getGameRules();
+            net.minecraft.world.level.GameRules mirrorRules = mirrorWorld.getGameRules();
+            
+            // Use assignFrom to copy all game rules from source to mirror
+            mirrorRules.assignFrom(sourceRules, mirrorWorld.getServer());
+            
+            InstantWorldMirror.LOGGER.debug("Synced game rules from {} to mirror world", 
+                    sourceWorld.dimension().location());
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.warn("Failed to sync game rules: {}", e.getMessage());
+        }
     }
 
     /**
@@ -701,7 +755,20 @@ public class WorldCopyService {
         int blocksCopied = 0;
         
         try {
-            LevelChunk sourceChunk = sourceWorld.getChunk(chunkX, chunkZ);
+            // For SOURCE world: Use non-blocking access since player should be nearby
+            // and the chunk should already be loaded
+            LevelChunk sourceChunk = sourceWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+            if (sourceChunk == null) {
+                // Source chunk not loaded - this is unusual, request async load and retry later
+                sourceWorld.getChunkSource().getChunk(chunkX, chunkZ, 
+                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+                return 0;
+            }
+            
+            // For TARGET world (mirror world): We need to ensure the chunk exists
+            // Mirror world is an empty dimension, so chunk generation is fast (just void)
+            // Use getChunk which will create the chunk if needed
+            // This should be fast since mirror world has no terrain generation
             LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
             
             // Optimization 1: Use heightmap to find max height with blocks
@@ -816,7 +883,10 @@ public class WorldCopyService {
     }
 
     /**
-     * Check if an entity is a decoration entity (paintings, item frames, armor stands, etc.)
+     * Check if an entity is a decoration or static entity that should be copied.
+     * This includes:
+     * - Decoration entities: paintings, item frames, armor stands, display entities
+     * - Vehicle entities: minecarts, boats
      */
     private static boolean isDecorationEntity(net.minecraft.world.entity.Entity entity) {
         // HangingEntity includes Painting, ItemFrame, GlowItemFrame, LeashFenceKnotEntity
@@ -829,6 +899,12 @@ public class WorldCopyService {
         }
         // Display entities (Text Display, Block Display, Item Display) are also decorations
         if (entity instanceof net.minecraft.world.entity.Display) {
+            return true;
+        }
+        // VehicleEntity includes all minecarts and boats
+        // AbstractMinecart: Minecart, MinecartChest, MinecartCommandBlock, MinecartFurnace, MinecartHopper, MinecartSpawner, MinecartTNT
+        // Boat, ChestBoat
+        if (entity instanceof net.minecraft.world.entity.vehicle.VehicleEntity) {
             return true;
         }
         return false;
@@ -1208,12 +1284,16 @@ public class WorldCopyService {
             if (mirrorWorld == null) continue;
             
             // Process chunks per tick (configurable)
-            // Always force load chunks to ensure thorough cleanup
+            // Use non-blocking chunk access to prevent server hang
             int processedThisTick = 0;
             for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
                 long[] chunkCoords = task.getNextChunk();
                 if (chunkCoords != null) {
-                    clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
+                    int result = clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
+                    if (result == -1) {
+                        // Chunk wasn't loaded - add to retry queue for later processing
+                        task.markForRetry((int) chunkCoords[0], (int) chunkCoords[1]);
+                    }
                     processedThisTick++;
                 } else if (task.isMainCleanupDone() && !task.isCompleted()) {
                     // Main cleanup done, start auxiliary cleanup phase
@@ -1281,7 +1361,12 @@ public class WorldCopyService {
                 int chunkZ = (int) coords[1];
                 
                 try {
-                    LevelChunk chunk = mirrorWorld.getChunk(chunkX, chunkZ);
+                    // Use non-blocking chunk access
+                    LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+                    if (chunk == null) {
+                        // Chunk not loaded, skip
+                        continue;
+                    }
                     int sectionCount = chunk.getSectionsCount();
                     
                     for (int s = 0; s < sectionCount; s++) {
@@ -1311,16 +1396,23 @@ public class WorldCopyService {
     }
 
     /**
-     * Clear a chunk with aggressive cleanup - always force loads chunk
+     * Clear a chunk with aggressive cleanup
      * Uses section-level processing for efficiency
      * IMPORTANT: Properly handles water/fluids by scanning all blocks
+     * @return number of blocks cleared, or -1 if chunk was not loaded and needs retry
      */
     private static int clearChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
         int blocksCleared = 0;
 
         try {
-            // Always force load the chunk for thorough cleanup
-            LevelChunk chunk = mirrorWorld.getChunk(chunkX, chunkZ);
+            // First try non-blocking access
+            LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+            if (chunk == null) {
+                // Chunk not loaded - request async load for next tick
+                mirrorWorld.getChunkSource().getChunk(chunkX, chunkZ,
+                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+                return -1; // Signal retry needed
+            }
             
             int minY = mirrorWorld.getMinBuildHeight();
             int maxY = mirrorWorld.getMaxBuildHeight();
@@ -1439,10 +1531,12 @@ public class WorldCopyService {
                         int chunkX = (int) (chunkKey & 0xFFFFFFFFL);
                         int chunkZ = (int) (chunkKey >> 32);
                         
-                        // Force load the chunk and clear entities
+                        // Use non-blocking chunk access
                         try {
-                            mirrorWorld.getChunk(chunkX, chunkZ);
-                            removed += clearEntitiesInChunkForced(mirrorWorld, chunkX, chunkZ);
+                            LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+                            if (chunk != null) {
+                                removed += clearEntitiesInChunkForced(mirrorWorld, chunkX, chunkZ);
+                            }
                         } catch (Exception ignored) {
                             // Chunk might not exist, skip
                         }

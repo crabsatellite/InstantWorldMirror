@@ -142,11 +142,23 @@ public class MirrorWorldManager {
                 return Optional.empty();
             }
 
+            // Check if the source position is in water (for underwater exploration support)
+            // We check the block above sourcePos since that's where the player stands
+            ServerLevel sourceLevel = (ServerLevel) player.level();
+            BlockPos playerStandPos = sourcePos.above();
+            boolean sourceInWater = isPositionInWater(sourceLevel, playerStandPos);
+            
+            if (sourceInWater) {
+                InstantWorldMirror.LOGGER.info("Player {} creating mirror from underwater position at {}",
+                        player.getName().getString(), sourcePos);
+            }
+
             // Create session first to get the session ID
             MirrorSession session = new MirrorSession(
                     player.getUUID(),
                     sourcePos,
-                    player.level().dimension()
+                    player.level().dimension(),
+                    sourceInWater
             );
 
             // Allocate a dimension from the pool using actual session ID and source dimension
@@ -365,9 +377,10 @@ public class MirrorWorldManager {
             // Calculate target position (source position + 1 block up)
             BlockPos baseTargetPos = session.getSourcePosition().above();
             
-            // Find a safe position to teleport to (avoid being stuck in walls or water)
-            // Search nearby for a safe spot, no distance limit
-            BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos);
+            // Find a safe position to teleport to (avoid being stuck in walls)
+            // If source was in water, allow water positions (player is doing underwater exploration)
+            boolean allowWater = session.isSourceInWater();
+            BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater);
             if (safePos == null) {
                 // No safe position found - clear a 3x3 area at the base position
                 // This only happens in mirror world, so it's safe to modify
@@ -631,8 +644,11 @@ public class MirrorWorldManager {
                 targetLevel = server.overworld();
             }
 
+            // Check if player originally entered from water (allow water landing if so)
+            boolean allowWater = session != null && session.isSourceInWater();
+
             // Find safe landing position at the corresponding overworld coordinates
-            BlockPos safePos = findSafeLandingPosition(targetLevel, targetMirrorPos);
+            BlockPos safePos = findSafeLandingPosition(targetLevel, targetMirrorPos, allowWater);
             
             InstantWorldMirror.LOGGER.info("Found safe landing position {} for player {} (original target: {})",
                     safePos, player.getName().getString(), targetMirrorPos);
@@ -901,16 +917,26 @@ public class MirrorWorldManager {
     }
     
     /**
+     * Check if a position is in water (for underwater exploration detection)
+     */
+    private static boolean isPositionInWater(ServerLevel level, BlockPos pos) {
+        net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+        return state.getFluidState().isSource() && 
+               state.getFluidState().getType() == net.minecraft.world.level.material.Fluids.WATER;
+    }
+    
+    /**
      * Find a safe landing position near the target position
-     * Checks for solid ground, avoids lava/water/void, and ensures there's space for the player
+     * Checks for solid ground, avoids lava/void, and ensures there's space for the player
      * 
      * @param level The target level
      * @param targetPos The desired position
+     * @param allowWater If true, water positions are considered safe (for underwater exploration)
      * @return A safe position for the player to land
      */
-    private static BlockPos findSafeLandingPosition(ServerLevel level, BlockPos targetPos) {
+    private static BlockPos findSafeLandingPosition(ServerLevel level, BlockPos targetPos, boolean allowWater) {
         // First check if the target position is already safe
-        if (isPositionSafe(level, targetPos)) {
+        if (isPositionSafe(level, targetPos, allowWater)) {
             return targetPos;
         }
         
@@ -926,8 +952,8 @@ public class MirrorWorldManager {
                     }
                     
                     BlockPos checkPos = targetPos.offset(dx, 0, dz);
-                    BlockPos safePos = findSafeYLevel(level, checkPos);
-                    if (safePos != null && isPositionSafe(level, safePos)) {
+                    BlockPos safePos = findSafeYLevel(level, checkPos, allowWater);
+                    if (safePos != null && isPositionSafe(level, safePos, allowWater)) {
                         return safePos;
                     }
                 }
@@ -935,7 +961,7 @@ public class MirrorWorldManager {
         }
         
         // If no safe position found nearby, try to find any safe Y level at target X/Z
-        BlockPos verticalSafe = findSafeYLevel(level, targetPos);
+        BlockPos verticalSafe = findSafeYLevel(level, targetPos, allowWater);
         if (verticalSafe != null) {
             return verticalSafe;
         }
@@ -947,8 +973,13 @@ public class MirrorWorldManager {
     /**
      * Find a safe Y level at the given X/Z coordinates
      * Scans from max build height down to find solid ground with space above
+     * 
+     * @param level The level to search in
+     * @param horizontalPos The X/Z position to search at
+     * @param allowWater If true, water positions are considered safe
+     * @return A safe Y position, or null if none found
      */
-    private static BlockPos findSafeYLevel(ServerLevel level, BlockPos horizontalPos) {
+    private static BlockPos findSafeYLevel(ServerLevel level, BlockPos horizontalPos, boolean allowWater) {
         int minY = level.getMinBuildHeight();
         int maxY = level.getMaxBuildHeight();
         
@@ -958,7 +989,7 @@ public class MirrorWorldManager {
         // Search downward from start position
         for (int y = startY; y >= minY + 1; y--) {
             BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
-            if (isPositionSafe(level, checkPos)) {
+            if (isPositionSafe(level, checkPos, allowWater)) {
                 return checkPos;
             }
         }
@@ -966,7 +997,7 @@ public class MirrorWorldManager {
         // Search upward from start position
         for (int y = startY + 1; y <= maxY - 2; y++) {
             BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
-            if (isPositionSafe(level, checkPos)) {
+            if (isPositionSafe(level, checkPos, allowWater)) {
                 return checkPos;
             }
         }
@@ -981,8 +1012,14 @@ public class MirrorWorldManager {
      * - Block at position and above must be air/passable
      * - Not in void
      * - Not in lava/fire
+     * - Not in water (unless allowWater is true for underwater exploration)
+     * 
+     * @param level The level to check
+     * @param pos The position to check
+     * @param allowWater If true, water positions are considered safe
+     * @return true if the position is safe
      */
-    private static boolean isPositionSafe(ServerLevel level, BlockPos pos) {
+    private static boolean isPositionSafe(ServerLevel level, BlockPos pos, boolean allowWater) {
         // Check if position is in valid world bounds
         if (pos.getY() < level.getMinBuildHeight() + 1 || pos.getY() > level.getMaxBuildHeight() - 2) {
             return false;
@@ -994,6 +1031,23 @@ public class MirrorWorldManager {
         net.minecraft.world.level.block.state.BlockState belowState = level.getBlockState(below);
         net.minecraft.world.level.block.state.BlockState atState = level.getBlockState(pos);
         net.minecraft.world.level.block.state.BlockState aboveState = level.getBlockState(above);
+        
+        // For underwater exploration, check if we're in water and have space
+        if (allowWater) {
+            // If target position is in water, it's safe (player was in water when placing mirror)
+            if (atState.getFluidState().isSource() && 
+                atState.getFluidState().getType() == net.minecraft.world.level.material.Fluids.WATER) {
+                // Just need space for player (not blocked by solid blocks)
+                if (!atState.isSolid() && !aboveState.isSolid()) {
+                    // Not in dangerous blocks
+                    if (!isDangerousBlock(atState) && !isDangerousBlock(aboveState)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // Standard safety check for non-water positions
         
         // Block below must be solid and not dangerous
         if (!belowState.isSolid()) {
@@ -1015,7 +1069,7 @@ public class MirrorWorldManager {
             return false;
         }
         
-        // Must not be in water (underwater)
+        // Must not be in water (underwater) - unless allowWater is true (handled above)
         if (atState.getFluidState().isSource() || aboveState.getFluidState().isSource()) {
             return false;
         }
@@ -1200,26 +1254,17 @@ public class MirrorWorldManager {
             portalToSession.remove(portalId);
             
             // Actively destroy the portal entity in the source dimension
-            // This ensures light blocks are cleaned up even if the chunk is not loaded
             ServerLevel sourceLevel = server.getLevel(session.getSourceDimension());
             if (sourceLevel != null) {
                 Entity portalEntity = sourceLevel.getEntity(portalId);
                 if (portalEntity != null) {
+                    // Discard the portal - PortalLightBlockEntity will auto-cleanup
                     portalEntity.discard();
-                    InstantWorldMirror.LOGGER.debug("Actively destroyed portal entity {} for session {}", 
+                    InstantWorldMirror.LOGGER.debug("Destroyed portal entity {} for session {}", 
                             portalId, sessionId);
-                } else {
-                    // Portal entity not found (chunk not loaded or already removed)
-                    // Try to clean up the light block directly at the expected position
-                    // Portal is created at sourcePosition.above() + 0.5, light is at portal Y + 1
-                    BlockPos sourcePos = session.getSourcePosition();
-                    if (sourcePos != null) {
-                        BlockPos expectedLightPos = sourcePos.above(3); // above() for portal + 1 for light offset + 1 for Y+1
-                        cleanupLightBlockAt(sourceLevel, expectedLightPos);
-                        // Also check one block below in case of slight positioning differences
-                        cleanupLightBlockAt(sourceLevel, expectedLightPos.below());
-                    }
                 }
+                // Note: If portal entity not found, its PortalLightBlock will auto-remove
+                // when it detects the portal entity no longer exists
             }
         }
 
@@ -1422,22 +1467,6 @@ public class MirrorWorldManager {
         
         InstantWorldMirror.LOGGER.info("Auto-spawned return portal for player {} at {}",
                 player.getName().getString(), targetPos);
-    }
-
-    /**
-     * Cleanup a light block at the specified position if it exists
-     * Used for cleanup when portal entity is not accessible
-     */
-    private static void cleanupLightBlockAt(ServerLevel level, BlockPos pos) {
-        try {
-            net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
-            if (state.is(net.minecraft.world.level.block.Blocks.LIGHT)) {
-                level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-                InstantWorldMirror.LOGGER.debug("Cleaned up orphaned light block at {}", pos);
-            }
-        } catch (Exception e) {
-            // Ignore errors - chunk might not be loaded
-        }
     }
 
     /**
