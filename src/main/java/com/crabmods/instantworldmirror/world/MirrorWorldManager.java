@@ -16,6 +16,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -1193,10 +1194,33 @@ public class MirrorWorldManager {
         // Also cleanup playerOwnedSession if creator never entered
         playerOwnedSession.values().removeIf(id -> id.equals(sessionId));
 
-        // Cleanup portal to session mapping
+        // Cleanup portal to session mapping and actively destroy the portal entity
         UUID portalId = session.getPortalEntityId();
         if (portalId != null) {
             portalToSession.remove(portalId);
+            
+            // Actively destroy the portal entity in the source dimension
+            // This ensures light blocks are cleaned up even if the chunk is not loaded
+            ServerLevel sourceLevel = server.getLevel(session.getSourceDimension());
+            if (sourceLevel != null) {
+                Entity portalEntity = sourceLevel.getEntity(portalId);
+                if (portalEntity != null) {
+                    portalEntity.discard();
+                    InstantWorldMirror.LOGGER.debug("Actively destroyed portal entity {} for session {}", 
+                            portalId, sessionId);
+                } else {
+                    // Portal entity not found (chunk not loaded or already removed)
+                    // Try to clean up the light block directly at the expected position
+                    // Portal is created at sourcePosition.above() + 0.5, light is at portal Y + 1
+                    BlockPos sourcePos = session.getSourcePosition();
+                    if (sourcePos != null) {
+                        BlockPos expectedLightPos = sourcePos.above(3); // above() for portal + 1 for light offset + 1 for Y+1
+                        cleanupLightBlockAt(sourceLevel, expectedLightPos);
+                        // Also check one block below in case of slight positioning differences
+                        cleanupLightBlockAt(sourceLevel, expectedLightPos.below());
+                    }
+                }
+            }
         }
 
         // Release dimension back to pool (starts cleanup)
@@ -1398,6 +1422,22 @@ public class MirrorWorldManager {
         
         InstantWorldMirror.LOGGER.info("Auto-spawned return portal for player {} at {}",
                 player.getName().getString(), targetPos);
+    }
+
+    /**
+     * Cleanup a light block at the specified position if it exists
+     * Used for cleanup when portal entity is not accessible
+     */
+    private static void cleanupLightBlockAt(ServerLevel level, BlockPos pos) {
+        try {
+            net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+            if (state.is(net.minecraft.world.level.block.Blocks.LIGHT)) {
+                level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                InstantWorldMirror.LOGGER.debug("Cleaned up orphaned light block at {}", pos);
+            }
+        } catch (Exception e) {
+            // Ignore errors - chunk might not be loaded
+        }
     }
 
     /**

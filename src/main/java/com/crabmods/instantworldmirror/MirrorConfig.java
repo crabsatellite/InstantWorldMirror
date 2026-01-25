@@ -139,8 +139,45 @@ public class MirrorConfig {
 
     public static final ModConfigSpec SPEC = BUILDER.build();
 
+    // ==================== Runtime State ====================
+    // These can be changed at runtime via commands, separate from persistent config
+    
+    // Runtime mob spawning state - can be toggled with /iwm mob on/off
+    // null means use config value, true/false means override config
+    private static Boolean runtimeMobSpawningEnabled = null;
+
     // ==================== Helper Methods ====================
     
+    /**
+     * Check if mob spawning is enabled in mirror world
+     * Uses runtime override if set, otherwise falls back to config
+     */
+    public static boolean isMobSpawningEnabled() {
+        if (runtimeMobSpawningEnabled != null) {
+            return runtimeMobSpawningEnabled;
+        }
+        return ENABLE_MOB_SPAWNING.get();
+    }
+    
+    /**
+     * Set runtime mob spawning state (for /iwm mob command)
+     * @param enabled true to enable, false to disable, null to use config default
+     */
+    public static void setRuntimeMobSpawning(Boolean enabled) {
+        runtimeMobSpawningEnabled = enabled;
+    }
+    
+    /**
+     * Get the current mob spawning state (for status display)
+     * @return "on" if enabled, "off" if disabled, "config" if using config default
+     */
+    public static String getMobSpawningStatus() {
+        if (runtimeMobSpawningEnabled != null) {
+            return runtimeMobSpawningEnabled ? "on (runtime)" : "off (runtime)";
+        }
+        return ENABLE_MOB_SPAWNING.get() ? "on (config)" : "off (config)";
+    }
+
     /**
      * Get entry portal lifetime in ticks
      */

@@ -207,8 +207,8 @@ public class ModEvents {
         Level level = event.getLevel().getLevel();
         
         if (ModDimensions.isMirrorWorld(level.dimension())) {
-            // Check config - if mob spawning is disabled, cancel natural spawns only
-            if (!MirrorConfig.ENABLE_MOB_SPAWNING.get()) {
+            // Check if mob spawning is enabled (uses runtime override or config)
+            if (!MirrorConfig.isMobSpawningEnabled()) {
                 MobSpawnType spawnType = event.getSpawnType();
                 
                 // Allow player-triggered spawns:

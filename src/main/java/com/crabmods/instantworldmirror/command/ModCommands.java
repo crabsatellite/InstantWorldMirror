@@ -46,7 +46,7 @@ public class ModCommands {
                         .then(Commands.literal("return")
                                 .executes(ModCommands::returnCommand)
                         )
-                        // /iwm mob on/off - Control mob spawning
+                        // /iwm mob on/off/status - Control mob spawning
                         .then(Commands.literal("mob")
                                 .requires(source -> source.hasPermission(2))
                                 .then(Commands.literal("on")
@@ -54,6 +54,9 @@ public class ModCommands {
                                 )
                                 .then(Commands.literal("off")
                                         .executes(ModCommands::mobOffCommand)
+                                )
+                                .then(Commands.literal("status")
+                                        .executes(ModCommands::mobStatusCommand)
                                 )
                         )
                         // /iwm allow <player> - Allow player to enter mirror world
@@ -114,8 +117,8 @@ public class ModCommands {
     }
 
     private static int mobOnCommand(CommandContext<CommandSourceStack> context) {
-        // Note: Runtime config modification requires special handling
-        // This only sends a message, actual config change needs config system
+        // Enable mob spawning at runtime
+        MirrorConfig.setRuntimeMobSpawning(true);
         context.getSource().sendSuccess(
                 () -> Component.translatable("command.instantworldmirror.mob.on"), 
                 true
@@ -124,9 +127,20 @@ public class ModCommands {
     }
 
     private static int mobOffCommand(CommandContext<CommandSourceStack> context) {
+        // Disable mob spawning at runtime
+        MirrorConfig.setRuntimeMobSpawning(false);
         context.getSource().sendSuccess(
                 () -> Component.translatable("command.instantworldmirror.mob.off"), 
                 true
+        );
+        return 1;
+    }
+
+    private static int mobStatusCommand(CommandContext<CommandSourceStack> context) {
+        String status = MirrorConfig.getMobSpawningStatus();
+        context.getSource().sendSuccess(
+                () -> Component.translatable("command.instantworldmirror.mob.status", status), 
+                false
         );
         return 1;
     }

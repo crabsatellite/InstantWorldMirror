@@ -626,6 +626,14 @@ public class MirrorPortalEntity extends Entity {
                     compound.getInt("ClickPosZ")
             );
         }
+        // Restore light block position for cleanup
+        if (compound.contains("LightPosX")) {
+            this.currentLightPos = new BlockPos(
+                    compound.getInt("LightPosX"),
+                    compound.getInt("LightPosY"),
+                    compound.getInt("LightPosZ")
+            );
+        }
     }
 
     @Override
@@ -644,6 +652,12 @@ public class MirrorPortalEntity extends Entity {
             compound.putInt("ClickPosX", this.clickPos.getX());
             compound.putInt("ClickPosY", this.clickPos.getY());
             compound.putInt("ClickPosZ", this.clickPos.getZ());
+        }
+        // Save light block position for cleanup on load
+        if (this.currentLightPos != null) {
+            compound.putInt("LightPosX", this.currentLightPos.getX());
+            compound.putInt("LightPosY", this.currentLightPos.getY());
+            compound.putInt("LightPosZ", this.currentLightPos.getZ());
         }
     }
 
