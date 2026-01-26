@@ -32,9 +32,10 @@ public class MirrorConfig {
             .defineInRange("copyChunksPerTick", 2, 1, 10);
 
     public static final ModConfigSpec.IntValue CLEANUP_CHUNKS_PER_TICK = BUILDER
-            .comment("Number of chunks to cleanup per tick (default: 1)",
-                    "Lower values = less lag during cleanup")
-            .defineInRange("cleanupChunksPerTick", 1, 1, 10);
+            .comment("Number of chunks to cleanup per tick (default: 4)",
+                    "Higher values = faster cleanup. Cleanup uses optimized section-level clearing",
+                    "which is much faster than block-by-block operations.")
+            .defineInRange("cleanupChunksPerTick", 4, 1, 20);
 
     public static final ModConfigSpec.IntValue EDGE_CLEANUP_RADIUS = BUILDER
             .comment("Maximum extra radius (in chunks) for BFS edge cleanup scan (default: 3)",
