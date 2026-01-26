@@ -257,6 +257,15 @@ public class WorldCopyService {
         private java.util.List<long[]> auxiliaryChunks = new java.util.ArrayList<>();
         private int auxiliaryIndex = 0;
         
+        // Phase 3: Region file scan (fallback for untracked chunks)
+        private boolean auxiliaryCleanupComplete = false;
+        private boolean regionScanStarted = false;
+        private boolean regionScanComplete = false;
+        private java.util.List<long[]> regionScanChunks = new java.util.ArrayList<>();
+        private int regionScanIndex = 0;
+        private int regionScanPass = 0; // Track how many passes we've done
+        private static final int MAX_REGION_SCAN_PASSES = 5; // Safety limit
+        
         // Retry queue for chunks that couldn't be processed (not loaded yet)
         private final java.util.Queue<long[]> retryQueue = new java.util.LinkedList<>();
         private final java.util.Map<Long, Integer> retryCount = new java.util.HashMap<>();
@@ -346,11 +355,11 @@ public class WorldCopyService {
         }
         
         public int getTotalChunks() {
-            return chunksToClean.size() + auxiliaryChunks.size();
+            return chunksToClean.size() + auxiliaryChunks.size() + regionScanChunks.size();
         }
         
         public int getCleanedChunks() {
-            return currentIndex + auxiliaryIndex;
+            return currentIndex + auxiliaryIndex + regionScanIndex;
         }
         
         /**
@@ -359,6 +368,7 @@ public class WorldCopyService {
         public java.util.List<long[]> getAllCleanedChunks() {
             java.util.List<long[]> all = new java.util.ArrayList<>(chunksToClean);
             all.addAll(auxiliaryChunks);
+            all.addAll(regionScanChunks);
             return all;
         }
         
@@ -370,8 +380,24 @@ public class WorldCopyService {
         }
         
         /**
+         * Check if auxiliary cleanup phase is done (before region scan)
+         */
+        public boolean isAuxiliaryCleanupDone() {
+            return auxiliaryCleanupComplete;
+        }
+        
+        /**
+         * Check if region scan needs to start
+         */
+        public boolean needsRegionScan() {
+            return auxiliaryCleanupComplete && !regionScanStarted;
+        }
+        
+        /**
          * Get the next chunk to clean.
-         * After main cleanup is done, switches to auxiliary cleanup mode.
+         * Phase 1: Main cleanup (tracked chunks)
+         * Phase 2: Auxiliary cleanup (BFS edge scan)
+         * Phase 3: Region file scan (fallback for untracked chunks)
          */
         public long[] getNextChunk() {
             // Phase 1: Main cleanup
@@ -395,25 +421,58 @@ public class WorldCopyService {
                 return result;
             }
             
-            // Phase 2: Auxiliary cleanup
-            if (!auxiliaryCleanupStarted) {
-                return null; // Need to initialize auxiliary chunks first
+            // Phase 2: Auxiliary cleanup (BFS edge scan)
+            if (!auxiliaryCleanupComplete) {
+                if (!auxiliaryCleanupStarted) {
+                    return null; // Need to initialize auxiliary chunks first
+                }
+                
+                if (auxiliaryIndex >= auxiliaryChunks.size()) {
+                    // Check retries before moving to phase 3
+                    if (!retryQueue.isEmpty()) {
+                        return retryQueue.poll();
+                    }
+                    auxiliaryCleanupComplete = true;
+                    InstantWorldMirror.LOGGER.info("Auxiliary cleanup phase completed for dimension {}, {} edge chunks processed",
+                            dimensionIndex, auxiliaryChunks.size());
+                    return null; // Signal to start region scan
+                }
+                
+                return auxiliaryChunks.get(auxiliaryIndex++);
             }
             
-            if (auxiliaryIndex >= auxiliaryChunks.size()) {
-                // Before completing, check if there are retries to process
-                if (!retryQueue.isEmpty()) {
-                    return retryQueue.poll();
+            // Phase 3: Region file scan (fallback)
+            if (!regionScanComplete) {
+                if (!regionScanStarted) {
+                    return null; // Need to initialize region scan first
                 }
-                completed = true;
-                if (skippedChunks > 0) {
-                    InstantWorldMirror.LOGGER.warn("Cleanup completed for dimension {} but {} chunks were skipped due to loading issues",
-                            dimensionIndex, skippedChunks);
+                
+                if (regionScanIndex >= regionScanChunks.size()) {
+                    // Check retries
+                    if (!retryQueue.isEmpty()) {
+                        return retryQueue.poll();
+                    }
+                    
+                    // Check if we need another pass
+                    if (regionScanChunks.isEmpty() || regionScanPass >= MAX_REGION_SCAN_PASSES) {
+                        regionScanComplete = true;
+                        completed = true;
+                        if (skippedChunks > 0) {
+                            InstantWorldMirror.LOGGER.warn("Cleanup completed for dimension {} but {} chunks were skipped",
+                                    dimensionIndex, skippedChunks);
+                        }
+                        return null;
+                    }
+                    
+                    // Signal need for another region scan pass
+                    regionScanStarted = false;
+                    return null;
                 }
-                return null;
+                
+                return regionScanChunks.get(regionScanIndex++);
             }
             
-            return auxiliaryChunks.get(auxiliaryIndex++);
+            return null;
         }
         
         /**
@@ -536,10 +595,88 @@ public class WorldCopyService {
             } else {
                 InstantWorldMirror.LOGGER.info("BFS scan complete: scanned {} chunks, no edge blocks found",
                         chunksScanned);
-                completed = true;
+                // Don't mark completed yet - still need region scan phase
+                auxiliaryCleanupComplete = true;
             }
             
             return auxiliaryChunks.size();
+        }
+        
+        /**
+         * Initialize region file scan for fallback cleanup.
+         * Scans the dimension's region folder to find ALL chunks that exist on disk,
+         * then checks each one for blocks. This is the ultimate fallback to ensure
+         * no untracked chunks with blocks remain.
+         * 
+         * @param mirrorWorld The mirror world to scan
+         * @return The number of chunks found with blocks
+         */
+        public int initializeRegionScan(ServerLevel mirrorWorld) {
+            if (regionScanStarted && regionScanIndex < regionScanChunks.size()) {
+                return regionScanChunks.size(); // Already in progress
+            }
+            
+            regionScanStarted = true;
+            regionScanPass++;
+            regionScanChunks.clear();
+            regionScanIndex = 0;
+            
+            InstantWorldMirror.LOGGER.info("Starting region file scan pass {} for dimension {}",
+                    regionScanPass, dimensionIndex);
+            
+            // Get all chunks that have already been processed
+            Set<Long> processedChunks = new java.util.HashSet<>();
+            for (long[] chunk : chunksToClean) {
+                processedChunks.add(packChunkPos((int)chunk[0], (int)chunk[1]));
+            }
+            for (long[] chunk : auxiliaryChunks) {
+                processedChunks.add(packChunkPos((int)chunk[0], (int)chunk[1]));
+            }
+            
+            // Scan region files to find all existing chunks
+            Set<Long> regionChunks = scanRegionFilesForChunks(mirrorWorld);
+            
+            if (regionChunks.isEmpty()) {
+                InstantWorldMirror.LOGGER.info("No region files found for dimension {}, scan complete", dimensionIndex);
+                regionScanComplete = true;
+                completed = true;
+                return 0;
+            }
+            
+            InstantWorldMirror.LOGGER.info("Found {} total chunks in region files", regionChunks.size());
+            
+            // Check each chunk from region files that we haven't processed yet
+            int chunksWithBlocks = 0;
+            for (Long packed : regionChunks) {
+                // Skip already processed chunks
+                if (processedChunks.contains(packed)) {
+                    continue;
+                }
+                
+                int cx = unpackChunkX(packed);
+                int cz = unpackChunkZ(packed);
+                
+                // Check if this chunk has blocks
+                if (hasBlocksInChunk(mirrorWorld, cx, cz)) {
+                    regionScanChunks.add(new long[]{cx, cz});
+                    chunksWithBlocks++;
+                    
+                    // Also add to processed so we don't check again
+                    processedChunks.add(packed);
+                }
+            }
+            
+            if (chunksWithBlocks > 0) {
+                InstantWorldMirror.LOGGER.info("Region scan pass {}: found {} untracked chunks with blocks",
+                        regionScanPass, chunksWithBlocks);
+            } else {
+                InstantWorldMirror.LOGGER.info("Region scan pass {}: no untracked blocks found, cleanup complete",
+                        regionScanPass);
+                regionScanComplete = true;
+                completed = true;
+            }
+            
+            return chunksWithBlocks;
         }
         
         /**
@@ -571,6 +708,119 @@ public class WorldCopyService {
         }
         
         public boolean isCompleted() { return completed; }
+    }
+    
+    /**
+     * Scan region files to find all chunks that exist on disk.
+     * Region files are named r.X.Z.mca where X and Z are region coordinates.
+     * Each region contains 32x32 chunks.
+     * 
+     * @param mirrorWorld The world to scan
+     * @return Set of packed chunk positions that exist in region files
+     */
+    private static Set<Long> scanRegionFilesForChunks(ServerLevel mirrorWorld) {
+        Set<Long> chunks = new java.util.HashSet<>();
+        
+        try {
+            // Get the dimension's save folder path
+            // For custom dimensions: world/dimensions/namespace/dimension_name/region/
+            java.nio.file.Path worldFolder = mirrorWorld.getServer().getWorldPath(
+                    net.minecraft.world.level.storage.LevelResource.ROOT);
+            
+            // Build the path to the dimension's region folder
+            String dimensionPath = mirrorWorld.dimension().location().toString().replace(":", "/");
+            java.nio.file.Path regionFolder = worldFolder.resolve("dimensions").resolve(dimensionPath).resolve("region");
+            
+            if (!java.nio.file.Files.exists(regionFolder)) {
+                InstantWorldMirror.LOGGER.debug("Region folder does not exist: {}", regionFolder);
+                return chunks;
+            }
+            
+            // Scan for .mca files
+            try (java.nio.file.DirectoryStream<java.nio.file.Path> stream = 
+                    java.nio.file.Files.newDirectoryStream(regionFolder, "r.*.*.mca")) {
+                for (java.nio.file.Path regionFile : stream) {
+                    String fileName = regionFile.getFileName().toString();
+                    // Parse r.X.Z.mca
+                    String[] parts = fileName.split("\\.");
+                    if (parts.length >= 4) {
+                        try {
+                            int regionX = Integer.parseInt(parts[1]);
+                            int regionZ = Integer.parseInt(parts[2]);
+                            
+                            // Each region contains 32x32 chunks
+                            // We need to check which chunks actually have data
+                            // For efficiency, just add all possible chunks in this region
+                            // The hasBlocksInChunk check will filter out empty ones
+                            Set<Long> regionChunks = scanRegionFileForChunks(regionFile, regionX, regionZ);
+                            chunks.addAll(regionChunks);
+                            
+                        } catch (NumberFormatException e) {
+                            // Skip malformed file names
+                            InstantWorldMirror.LOGGER.debug("Skipping malformed region file: {}", fileName);
+                        }
+                    }
+                }
+            }
+            
+            InstantWorldMirror.LOGGER.debug("Found {} chunks in {} region files", chunks.size(), 
+                    java.nio.file.Files.list(regionFolder).count());
+            
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.warn("Error scanning region files: {}", e.getMessage());
+        }
+        
+        return chunks;
+    }
+    
+    /**
+     * Scan a single region file to find which chunks have data.
+     * Region file format: 4KB header contains 1024 chunk location entries (32x32).
+     * Each entry is 4 bytes: 3 bytes offset, 1 byte sector count.
+     * If the entry is 0, the chunk doesn't exist.
+     * 
+     * @param regionFile Path to the region file
+     * @param regionX Region X coordinate
+     * @param regionZ Region Z coordinate
+     * @return Set of packed chunk positions that have data in this region
+     */
+    private static Set<Long> scanRegionFileForChunks(java.nio.file.Path regionFile, int regionX, int regionZ) {
+        Set<Long> chunks = new java.util.HashSet<>();
+        
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(regionFile.toFile(), "r")) {
+            // Read the 4KB header (1024 chunk entries, 4 bytes each)
+            byte[] header = new byte[4096];
+            int bytesRead = raf.read(header);
+            
+            if (bytesRead < 4096) {
+                return chunks; // File too small, no valid data
+            }
+            
+            // Check each chunk entry
+            for (int localZ = 0; localZ < 32; localZ++) {
+                for (int localX = 0; localX < 32; localX++) {
+                    int index = (localX + localZ * 32) * 4;
+                    
+                    // Read 4-byte entry (big-endian)
+                    int offset = ((header[index] & 0xFF) << 16) | 
+                                 ((header[index + 1] & 0xFF) << 8) | 
+                                 (header[index + 2] & 0xFF);
+                    int sectorCount = header[index + 3] & 0xFF;
+                    
+                    // If offset and sectorCount are both non-zero, chunk has data
+                    if (offset != 0 && sectorCount != 0) {
+                        int chunkX = regionX * 32 + localX;
+                        int chunkZ = regionZ * 32 + localZ;
+                        chunks.add(packChunkPos(chunkX, chunkZ));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If we can't read the file, return empty set
+            InstantWorldMirror.LOGGER.debug("Error reading region file {}: {}", regionFile, e.getMessage());
+        }
+        
+        return chunks;
     }
     
     /**
@@ -815,11 +1065,12 @@ public class WorldCopyService {
                             if (y < minY) continue;
                             
                             sourcePos.set(worldX, y, worldZ);
-                            
+
                             // Optimization 6: Get state directly from section (faster than world.getBlockState)
                             BlockState state = sourceSection.getBlockState(localX, localY, localZ);
-                            
-                            if (!state.isAir() && !isPortalBlock(state)) {
+
+                            // Null check for corrupted/uninitialized section data
+                            if (state != null && !state.isAir() && !isPortalBlock(state)) {
                                 targetPos.set(worldX, y, worldZ);
                                 mirrorWorld.setBlock(targetPos, state, 2 | 16); // 16 = no neighbor updates
                                 
@@ -1200,17 +1451,79 @@ public class WorldCopyService {
                                          BlockPos sourcePos, BlockPos targetPos) {
         BlockEntity sourceBE = sourceWorld.getBlockEntity(sourcePos);
         if (sourceBE != null) {
-            BlockEntity targetBE = mirrorWorld.getBlockEntity(targetPos);
-            if (targetBE != null) {
-                try {
+            try {
+                // Verify the target block matches the source block type
+                BlockState targetState = mirrorWorld.getBlockState(targetPos);
+                BlockState sourceState = sourceWorld.getBlockState(sourcePos);
+                
+                // Only copy if blocks match (prevents mismatched block entity errors)
+                if (!targetState.is(sourceState.getBlock())) {
+                    return;
+                }
+                
+                BlockEntity targetBE = mirrorWorld.getBlockEntity(targetPos);
+                if (targetBE != null && targetBE.getType() == sourceBE.getType()) {
                     targetBE.loadWithComponents(
                             sourceBE.saveWithoutMetadata(sourceWorld.registryAccess()),
                             sourceWorld.registryAccess()
                     );
-                } catch (Exception e) {
-                    // Ignore block entity copy errors
+                    targetBE.setChanged();
+                }
+            } catch (Exception e) {
+                // Ignore block entity copy errors - block might not support the operation
+                InstantWorldMirror.LOGGER.trace("Could not copy block entity at {}: {}", 
+                        sourcePos, e.getMessage());
+            }
+        }
+    }
+    
+    // Cached field for pending block entities (set once, used many times)
+    private static Field pendingBlockEntitiesField = null;
+    private static boolean pendingBEFieldInitialized = false;
+    
+    /**
+     * Clear pending block entities from a chunk.
+     * Pending BEs are NBT data stored in the chunk that haven't been loaded yet.
+     * If not cleared, they can cause "Invalid block entity" errors when the chunk is saved
+     * after we've cleared the blocks.
+     */
+    private static void clearPendingBlockEntities(LevelChunk chunk) {
+        try {
+            // Initialize the field once via reflection
+            if (!pendingBEFieldInitialized) {
+                pendingBEFieldInitialized = true;
+                for (java.lang.reflect.Field field : LevelChunk.class.getDeclaredFields()) {
+                    if (java.util.Map.class.isAssignableFrom(field.getType())) {
+                        field.setAccessible(true);
+                        // Test if this is the right field by checking the type parameter
+                        // pendingBlockEntities is Map<BlockPos, CompoundTag>
+                        try {
+                            Object testValue = field.get(chunk);
+                            if (testValue instanceof java.util.Map<?, ?> testMap && !testMap.isEmpty()) {
+                                Object firstKey = testMap.keySet().iterator().next();
+                                if (firstKey instanceof BlockPos) {
+                                    pendingBlockEntitiesField = field;
+                                    break;
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
                 }
             }
+            
+            // Clear the map if we found the field
+            if (pendingBlockEntitiesField != null) {
+                Object value = pendingBlockEntitiesField.get(chunk);
+                if (value instanceof java.util.Map<?, ?> map && !map.isEmpty()) {
+                    int count = map.size();
+                    map.clear();
+                    if (count > 0) {
+                        InstantWorldMirror.LOGGER.debug("Cleared {} pending block entities from chunk", count);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.debug("Could not clear pending BEs via reflection: {}", e.getMessage());
         }
     }
 
@@ -1252,9 +1565,10 @@ public class WorldCopyService {
 
     /**
      * Process all cleanup queues - call from server tick
-     * Includes two phases:
+     * Includes three phases:
      * 1. Main cleanup: clean all tracked chunks
-     * 2. Auxiliary cleanup: scan and clean edge chunks with remaining blocks (structures that extend beyond copy radius)
+     * 2. Auxiliary cleanup: BFS scan and clean edge chunks with remaining blocks
+     * 3. Region scan: scan region files for any untracked chunks with blocks (ultimate fallback)
      */
     public static void processCleanupQueues(MinecraftServer server) {
         // Periodically save pending modifications (even if no cleanup tasks)
@@ -1295,14 +1609,22 @@ public class WorldCopyService {
                         task.markForRetry((int) chunkCoords[0], (int) chunkCoords[1]);
                     }
                     processedThisTick++;
-                } else if (task.isMainCleanupDone() && !task.isCompleted()) {
-                    // Main cleanup done, start auxiliary cleanup phase
+                } else if (task.isMainCleanupDone() && !task.isAuxiliaryCleanupDone()) {
+                    // Main cleanup done, start auxiliary cleanup phase (BFS edge scan)
                     int additionalChunks = task.initializeAuxiliaryCleanup(mirrorWorld);
                     if (additionalChunks > 0) {
                         InstantWorldMirror.LOGGER.info("Starting auxiliary cleanup for {} edge chunks in dimension {}",
                                 additionalChunks, dimIndex);
                     }
                     break; // Wait for next tick to process auxiliary chunks
+                } else if (task.isAuxiliaryCleanupDone() && task.needsRegionScan()) {
+                    // Auxiliary cleanup done, start region file scan (ultimate fallback)
+                    int untrackedChunks = task.initializeRegionScan(mirrorWorld);
+                    if (untrackedChunks > 0) {
+                        InstantWorldMirror.LOGGER.info("Starting region scan cleanup for {} untracked chunks in dimension {}",
+                                untrackedChunks, dimIndex);
+                    }
+                    break; // Wait for next tick to process region scan chunks
                 }
             }
             
@@ -1376,7 +1698,8 @@ public class WorldCopyService {
                             for (int x = 0; x < 16; x += 4) {
                                 for (int y = 0; y < 16; y += 4) {
                                     for (int z = 0; z < 16; z += 4) {
-                                        if (!section.getBlockState(x, y, z).isAir()) {
+                                        BlockState state = section.getBlockState(x, y, z);
+                                        if (state != null && !state.isAir()) {
                                             totalBlocks++;
                                         }
                                     }
@@ -1414,14 +1737,20 @@ public class WorldCopyService {
                 return -1; // Signal retry needed
             }
             
+            // CRITICAL: Clear pending block entities FIRST before clearing blocks
+            // This prevents "Invalid block entity" errors when the chunk is saved
+            clearPendingBlockEntities(chunk);
+            
+            // Also remove all loaded block entities
+            for (BlockPos bePos : new java.util.ArrayList<>(chunk.getBlockEntities().keySet())) {
+                mirrorWorld.removeBlockEntity(bePos);
+            }
+            
             int minY = mirrorWorld.getMinBuildHeight();
             int maxY = mirrorWorld.getMaxBuildHeight();
             
-            // Optimization 2: Use MutableBlockPos
+            // Use MutableBlockPos for efficiency
             BlockPos.MutableBlockPos pos = MUTABLE_POS.get();
-            
-            // Collect all block entities in chunk first (batch operation)
-            Set<BlockPos> blockEntityPositions = new HashSet<>(chunk.getBlockEntities().keySet());
             
             // Process section by section using chunk's section count
             int sectionCount = chunk.getSectionsCount();
@@ -1452,16 +1781,10 @@ public class WorldCopyService {
                             // Check section state directly (faster)
                             BlockState state = section.getBlockState(localX, localY, localZ);
                             
-                            if (!state.isAir()) {
-                                pos.set(worldX, y, worldZ);
-                                
-                                // Remove block entity if present
-                                if (blockEntityPositions.contains(pos.immutable())) {
-                                    mirrorWorld.removeBlockEntity(pos);
-                                }
-                                
-                                // Set to air with minimal updates
-                                mirrorWorld.setBlock(pos, Blocks.AIR.defaultBlockState(), 2 | 16);
+                            // Null check for corrupted/uninitialized section data
+                            if (state != null && !state.isAir()) {
+                                // Block entities were already cleared at the start of this method
+                                mirrorWorld.setBlock(pos, Blocks.AIR.defaultBlockState(), 2 | 16 | 64);
                                 blocksCleared++;
                             }
                         }
@@ -1528,8 +1851,9 @@ public class WorldCopyService {
                 Set<Long> trackedChunks = modifiedChunks.get(dimIndex);
                 if (trackedChunks != null) {
                     for (Long chunkKey : trackedChunks) {
-                        int chunkX = (int) (chunkKey & 0xFFFFFFFFL);
-                        int chunkZ = (int) (chunkKey >> 32);
+                        // Use helper methods to ensure correct unpacking
+                        int chunkX = unpackChunkX(chunkKey);
+                        int chunkZ = unpackChunkZ(chunkKey);
                         
                         // Use non-blocking chunk access
                         try {

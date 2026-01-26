@@ -35,12 +35,6 @@ public class ModDimensions {
     // Pool of all possible mirror world dimensions (pre-defined)
     public static final List<ResourceKey<Level>> MIRROR_WORLD_POOL = new ArrayList<>();
     
-    // Legacy single dimension (for backwards compatibility checks)
-    public static final ResourceKey<Level> MIRROR_WORLD = ResourceKey.create(
-            Registries.DIMENSION,
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "mirror_world_0")
-    );
-    
     static {
         // Initialize all possible dimensions (up to max)
         for (int i = 0; i < MAX_MIRROR_WORLD_POOL_SIZE; i++) {

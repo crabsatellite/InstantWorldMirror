@@ -77,8 +77,38 @@ public class MirrorWorldManager {
     // Players currently being teleported by the mod (bypass dimension travel block)
     // This prevents our own teleportation from being blocked by the dimension travel event
     private static final Set<UUID> playersBeingTeleported = ConcurrentHashMap.newKeySet();
+    
+    // Purge mode flag - when true, mirror creation is disabled
+    private static volatile boolean purgeMode = false;
 
-    // ==================== Session Management ====================
+    // ==================== Purge Mode Management ====================
+    
+    /**
+     * Enable purge mode - disables all mirror world creation
+     * Call this before deleting mirror world files
+     */
+    public static void enablePurgeMode() {
+        purgeMode = true;
+        InstantWorldMirror.LOGGER.info("Purge mode enabled - mirror world creation is now disabled");
+    }
+    
+    /**
+     * Disable purge mode - re-enables mirror world creation
+     * Note: This is typically not called since purge requires restart
+     */
+    public static void disablePurgeMode() {
+        purgeMode = false;
+        InstantWorldMirror.LOGGER.info("Purge mode disabled - mirror world creation is now enabled");
+    }
+    
+    /**
+     * Check if purge mode is active
+     */
+    public static boolean isPurgeModeActive() {
+        return purgeMode;
+    }
+
+    // ==================== Session Management ======================================
 
     /**
      * Check if player already has an active session (either created or inside one)
@@ -133,6 +163,16 @@ public class MirrorWorldManager {
      * @return the created session, or empty if player already has an active session or no dimensions available
      */
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos) {
+        // Check if purge mode is active
+        if (purgeMode) {
+            InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.purge_mode_active"),
+                    true
+            );
+            return Optional.empty();
+        }
+        
         sessionLock.writeLock().lock();
         try {
             // Check if player already has an active session
@@ -283,9 +323,10 @@ public class MirrorWorldManager {
             return;
         }
 
-        ServerLevel mirrorWorld = server.getLevel(ModDimensions.MIRROR_WORLD);
+        // Get the mirror world dimension for this session
+        ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, session.getDimensionIndex());
         if (mirrorWorld == null) {
-            InstantWorldMirror.LOGGER.error("Mirror world dimension not found!");
+            InstantWorldMirror.LOGGER.error("Mirror world dimension {} not found!", session.getDimensionIndex());
             return;
         }
 

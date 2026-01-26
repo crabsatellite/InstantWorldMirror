@@ -1,6 +1,9 @@
 package com.crabmods.instantworldmirror.command;
 
+import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
@@ -19,10 +22,17 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.LevelResource;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Mod command registration class
@@ -95,6 +105,11 @@ public class ModCommands {
                                         .suggests(MIRROR_DIMENSION_SUGGESTIONS)
                                         .executes(ModCommands::forceClearCommand)
                                 )
+                        )
+                        // /iwm purge - Completely delete mirror world save files (requires restart)
+                        .then(Commands.literal("purge")
+                                .requires(source -> source.hasPermission(3))
+                                .executes(ModCommands::purgeCommand)
                         )
         );
     }
@@ -307,6 +322,127 @@ public class ModCommands {
             source.sendFailure(Component.translatable("command.instantworldmirror.forceclear.invalid_dim", 
                     ModDimensions.getPoolSize() - 1));
             return 0;
+        }
+    }
+    
+    /**
+     * /iwm purge - Completely delete all mirror world save files
+     * This marks them for deletion and requires a server restart to take effect
+     * Requires permission level 3 or above
+     * 
+     * Process:
+     * 1. Enable purge mode to prevent new mirror sessions
+     * 2. Force return all players in mirror worlds to overworld spawn
+     * 3. Delete all mirror world save directories
+     * 4. Notify that restart is required
+     */
+    private static int purgeCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+        
+        if (server == null) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
+            return 0;
+        }
+        
+        // Step 1: Enable purge mode to prevent new mirror sessions
+        MirrorWorldManager.enablePurgeMode();
+        source.sendSuccess(() -> Component.translatable(
+                "command.instantworldmirror.purge.mode_enabled"
+        ), true);
+        
+        // Step 2: Force return all players in mirror worlds to overworld spawn
+        int totalPlayersReturned = 0;
+        for (int i = 0; i < ModDimensions.getPoolSize(); i++) {
+            totalPlayersReturned += MirrorWorldManager.forceClearDimension(i, server);
+        }
+        
+        // Step 3: Remove all existing mirror portal entities from all dimensions
+        int portalsRemoved = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            for (MirrorPortalEntity portal : level.getEntities(ModEntities.MIRROR_PORTAL.get(), entity -> true)) {
+                portal.discard();
+                portalsRemoved++;
+            }
+        }
+        final int finalPortalsRemoved = portalsRemoved;
+        if (portalsRemoved > 0) {
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.purge.portals_removed",
+                    finalPortalsRemoved
+            ), true);
+        }
+        
+        // Step 4: Delete all mirror world save directories
+        Path worldPath = server.getWorldPath(LevelResource.ROOT);
+        Path dimensionsPath = worldPath.resolve("dimensions").resolve(InstantWorldMirror.MODID);
+        
+        int deletedCount = 0;
+        int failedCount = 0;
+        
+        // Delete all mirror world directories
+        for (int i = 0; i < ModDimensions.MAX_MIRROR_WORLD_POOL_SIZE; i++) {
+            Path mirrorWorldPath = dimensionsPath.resolve("mirror_world_" + i);
+            if (Files.exists(mirrorWorldPath)) {
+                try {
+                    // Recursively delete the directory
+                    deleteDirectoryRecursively(mirrorWorldPath);
+                    deletedCount++;
+                    InstantWorldMirror.LOGGER.info("Deleted mirror world directory: {}", mirrorWorldPath);
+                } catch (IOException e) {
+                    failedCount++;
+                    InstantWorldMirror.LOGGER.error("Failed to delete mirror world directory: {}", mirrorWorldPath, e);
+                }
+            }
+        }
+        
+        final int finalDeletedCount = deletedCount;
+        final int finalFailedCount = failedCount;
+        final int finalPlayersReturned = totalPlayersReturned;
+        
+        if (deletedCount > 0) {
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.purge.success",
+                    finalDeletedCount, finalPlayersReturned
+            ), true);
+            
+            // Warn about restart requirement
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.purge.restart_required"
+            ), false);
+        }
+        
+        if (failedCount > 0) {
+            source.sendFailure(Component.translatable(
+                    "command.instantworldmirror.purge.partial_failure",
+                    finalFailedCount
+            ));
+        }
+        
+        if (deletedCount == 0 && failedCount == 0) {
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.purge.nothing_to_delete"
+            ), false);
+        }
+        
+        return deletedCount > 0 ? 1 : 0;
+    }
+    
+    /**
+     * Recursively delete a directory and all its contents
+     */
+    private static void deleteDirectoryRecursively(Path directory) throws IOException {
+        if (Files.exists(directory)) {
+            try (Stream<Path> walk = Files.walk(directory)) {
+                walk.sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to delete: " + path, e);
+                        }
+                    });
+            }
         }
     }
 }

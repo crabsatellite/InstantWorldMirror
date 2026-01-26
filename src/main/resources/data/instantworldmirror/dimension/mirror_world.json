@@ -1,7 +1,0 @@
-{
-  "type": "instantworldmirror:mirror_world",
-  "generator": {
-    "type": "instantworldmirror:mirror_chunk_generator",
-    "biome": "minecraft:plains"
-  }
-}
