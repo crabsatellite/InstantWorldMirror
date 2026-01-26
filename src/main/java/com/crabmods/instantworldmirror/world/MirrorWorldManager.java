@@ -453,10 +453,12 @@ public class MirrorWorldManager {
             // Sync dimension effects to client
             syncDimensionEffectsToPlayer(player, session);
 
-            // Auto-spawn return portal at player's feet (use safe position)
-            spawnReturnPortal(mirrorWorld, player, safePos);
+            // Auto-spawn return portal ONLY for the host (prevents duplicates)
+            if (session.isHost(player.getUUID())) {
+                spawnReturnPortal(mirrorWorld, player, safePos, session.getSessionId());
+            }
 
-            InstantWorldMirror.LOGGER.info("Player {} teleported to Mirror World dimension {} (session: {}, players in session: {})",
+            InstantWorldMirror.LOGGER.info("Player {} teleported to Mirror World dimension {} (session: {}, players: {})",
                     player.getName().getString(), session.getDimensionIndex(), session.getSessionId(), session.getPlayerCount());
 
             return true;
@@ -1508,34 +1510,37 @@ public class MirrorWorldManager {
 
     /**
      * Spawn a return portal at player's location in mirror world
+     * This creates an auto-generated return portal that persists until the session ends
+     * 
+     * @param mirrorWorld the mirror world level
+     * @param player the player (host) who entered
+     * @param targetPos the position to spawn the portal
+     * @param sessionId the session ID this portal belongs to
      */
-    private static void spawnReturnPortal(ServerLevel mirrorWorld, ServerPlayer player, BlockPos targetPos) {
-        // Find a solid block below the player to place portal on
+    private static void spawnReturnPortal(ServerLevel mirrorWorld, ServerPlayer player, BlockPos targetPos, UUID sessionId) {
         BlockPos portalBase = targetPos.below();
         
-        // Play sound
         mirrorWorld.playSound(null, targetPos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.5F);
         
-        // Create return portal entity
+        // Create auto-generated return portal (permanent until session ends)
         MirrorPortalEntity returnPortal = new MirrorPortalEntity(
                 mirrorWorld,
                 portalBase.getX() + 0.5,
                 portalBase.getY() + 1.5,
                 portalBase.getZ() + 0.5,
                 player.getUUID(),
-                true // is return portal
+                true,      // is return portal
+                true,      // is auto-generated
+                sessionId  // session ID for tracking
         );
         
         mirrorWorld.addFreshEntity(returnPortal);
         
-        // Track the chunk where the return portal is spawned for cleanup
+        // Track chunk for cleanup
         int dimIndex = ModDimensions.getMirrorWorldIndex(mirrorWorld.dimension());
         if (dimIndex >= 0) {
             WorldCopyService.trackModifiedChunk(dimIndex, targetPos.getX() >> 4, targetPos.getZ() >> 4);
         }
-        
-        InstantWorldMirror.LOGGER.info("Auto-spawned return portal for player {} at {}",
-                player.getName().getString(), targetPos);
     }
 
     /**
