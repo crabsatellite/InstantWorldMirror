@@ -16,6 +16,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -142,6 +143,7 @@ public class ModEvents {
 
     /**
      * Block place event - prevent placing portal-related blocks in mirror world
+     * Only restricts survival and adventure players
      * Also track chunk modifications for cleanup
      */
     @SubscribeEvent
@@ -151,10 +153,20 @@ public class ModEvents {
         if (ModDimensions.isMirrorWorld(level.dimension())) {
             BlockState state = event.getPlacedBlock();
             
-            // Prevent placing end portal frames
+            // Prevent placing end portal frames (only for survival/adventure players)
             if (state.is(Blocks.END_PORTAL_FRAME)) {
-                event.setCanceled(true);
-                return;
+                if (event.getEntity() instanceof ServerPlayer player) {
+                    GameType gameType = player.gameMode.getGameModeForPlayer();
+                    if (gameType == GameType.SURVIVAL || gameType == GameType.ADVENTURE) {
+                        event.setCanceled(true);
+                        return;
+                    }
+                    // Creative/Spectator players can place end portal frames
+                } else {
+                    // Non-player entity - block it to be safe
+                    event.setCanceled(true);
+                    return;
+                }
             }
             
             // Track this chunk as modified (for cleanup)
@@ -248,6 +260,7 @@ public class ModEvents {
     /**
      * Dimension travel event - prevent using any portal for dimension travel in mirror world
      * This intercepts all portal types (nether portal, end portal, mod portals, etc.)
+     * Only restricts survival and adventure players
      * Only allows teleportation initiated by our mod (marked with whitelist)
      */
     @SubscribeEvent
@@ -262,9 +275,16 @@ public class ModEvents {
                     // Allow this teleport - it's our own return teleportation
                     return;
                 }
+                
+                // Only restrict survival and adventure players
+                GameType gameType = player.gameMode.getGameModeForPlayer();
+                if (gameType != GameType.SURVIVAL && gameType != GameType.ADVENTURE) {
+                    // Creative/Spectator players can use portals freely
+                    return;
+                }
             }
             
-            // Block all other dimension travel (nether portal, end portal, etc.)
+            // Block dimension travel for survival/adventure players and non-player entities
             // Only our mirror portal return system should be used
             event.setCanceled(true);
             

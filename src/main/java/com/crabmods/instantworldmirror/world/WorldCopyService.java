@@ -260,9 +260,8 @@ public class WorldCopyService {
         private int currentIndex = 0;
         private boolean initialized = false;
         private boolean completed = false;
-        private int saveCounter = 0; // Counter for periodic saves
-        private static final int SAVE_INTERVAL = 10; // Save every 10 chunks processed
-        private int tickCounter = 0; // Counter for logging frequency
+        private int saveCounter = 0;
+        private static final int SAVE_INTERVAL = 10;
         
         // Phase 2: Auxiliary cleanup for edge structures (INCREMENTAL BFS)
         private boolean mainCleanupComplete = false;
@@ -337,9 +336,6 @@ public class WorldCopyService {
                     }
                 }
                 
-                int copyChunks = (copyRadius * 2 + 1) * (copyRadius * 2 + 1);
-                InstantWorldMirror.LOGGER.info("Added {} chunks from copy radius for dimension {}", 
-                        copyChunks, dimensionIndex);
             }
             
             // Second: add tracked chunks from memory
@@ -359,11 +355,6 @@ public class WorldCopyService {
                 }
             }
             
-            if (additionalChunks > 0 || restoredChunks > 0) {
-                InstantWorldMirror.LOGGER.info("Added {} tracked chunks + {} restored chunks outside copy radius", 
-                        additionalChunks, restoredChunks);
-            }
-            
             // Convert to list for processing
             for (Long packed : allChunksToClean) {
                 chunksToClean.add(new long[]{unpackChunkX(packed), unpackChunkZ(packed)});
@@ -372,12 +363,9 @@ public class WorldCopyService {
             // Restore progress if available and valid
             if (savedProgress > 0 && savedProgress < chunksToClean.size()) {
                 this.currentIndex = savedProgress;
-                InstantWorldMirror.LOGGER.info("Restored cleanup progress for dimension {}: {}/{} chunks",
-                        dimensionIndex, savedProgress, chunksToClean.size());
             }
             
-            InstantWorldMirror.LOGGER.info("Cleanup task initialized for dimension {} with {} total chunks to clean (starting at {})",
-                    dimensionIndex, chunksToClean.size(), currentIndex);
+            InstantWorldMirror.LOGGER.info("Cleanup initialized for dimension {}: {} chunks", dimensionIndex, chunksToClean.size());
         }
         
         public int getTotalChunks() {
@@ -444,9 +432,7 @@ public class WorldCopyService {
             if (!mainCleanupComplete) {
                 if (currentIndex >= chunksToClean.size()) {
                     mainCleanupComplete = true;
-                    InstantWorldMirror.LOGGER.info("Main cleanup phase completed for dimension {}, {} chunks processed",
-                            dimensionIndex, currentIndex);
-                    return null; // Signal to start auxiliary scan
+                    return null;
                 }
                 
                 long[] result = chunksToClean.get(currentIndex++);
@@ -473,14 +459,11 @@ public class WorldCopyService {
                 }
                 
                 if (auxiliaryIndex >= auxiliaryChunks.size()) {
-                    // Check retries before moving to phase 3
                     if (!retryQueue.isEmpty()) {
                         return retryQueue.poll();
                     }
                     auxiliaryCleanupComplete = true;
-                    InstantWorldMirror.LOGGER.info("Auxiliary cleanup phase completed for dimension {}, {} edge chunks processed",
-                            dimensionIndex, auxiliaryChunks.size());
-                    return null; // Signal to start region scan
+                    return null;
                 }
                 
                 return auxiliaryChunks.get(auxiliaryIndex++);
@@ -556,9 +539,7 @@ public class WorldCopyService {
             // Get max search radius from config (acts as a safety limit)
             int maxExpansionRadius = MirrorConfig.EDGE_CLEANUP_RADIUS.get();
             
-            // If edge cleanup is disabled, skip directly to completion
             if (maxExpansionRadius <= 0) {
-                InstantWorldMirror.LOGGER.info("Edge cleanup disabled by config, skipping auxiliary and region scan");
                 auxiliaryBfsScanComplete = true;
                 auxiliaryCleanupComplete = true;
                 regionScanStarted = true;
@@ -605,11 +586,8 @@ public class WorldCopyService {
                 addToQueueIfNew(bfsQueue, bfsProcessed, maxChunkX + 1, cz);
             }
             
-            InstantWorldMirror.LOGGER.info("BFS edge scan initialized with {} initial edge chunks, max radius: {}",
-                    bfsQueue.size(), bfsMaxRadius);
-            
             bfsChunksScanned = 0;
-            return 0; // Actual count determined after incremental processing
+            return 0;
         }
         
         /**
@@ -643,16 +621,9 @@ public class WorldCopyService {
                 }
             }
             
-            // Check if BFS is complete
             if (bfsQueue.isEmpty()) {
                 auxiliaryBfsScanComplete = true;
-                if (!auxiliaryChunks.isEmpty()) {
-                    InstantWorldMirror.LOGGER.info("BFS scan complete: scanned {} chunks, found {} with blocks (edge structures)",
-                            bfsChunksScanned, auxiliaryChunks.size());
-                } else {
-                    InstantWorldMirror.LOGGER.info("BFS scan complete: scanned {} chunks, no edge blocks found",
-                            bfsChunksScanned);
-                    // No edge blocks, skip to region scan
+                if (auxiliaryChunks.isEmpty()) {
                     auxiliaryCleanupComplete = true;
                 }
                 return false;
@@ -681,9 +652,6 @@ public class WorldCopyService {
             regionCheckIndex = 0;
             regionChunksToCheck.clear();
             
-            InstantWorldMirror.LOGGER.info("Starting region file scan pass {} for dimension {}",
-                    regionScanPass, dimensionIndex);
-            
             // Build set of already processed chunks
             regionProcessedChunks = new java.util.HashSet<>();
             for (long[] chunk : chunksToClean) {
@@ -697,26 +665,19 @@ public class WorldCopyService {
             Set<Long> regionChunks = scanRegionFilesForChunks(mirrorWorld);
             
             if (regionChunks.isEmpty()) {
-                InstantWorldMirror.LOGGER.info("No region files found for dimension {}, scan complete", dimensionIndex);
                 regionScanInitialized = true;
                 regionScanComplete = true;
                 completed = true;
                 return 0;
             }
             
-            // Filter out already processed chunks and build list for incremental checking
             for (Long packed : regionChunks) {
                 if (!regionProcessedChunks.contains(packed)) {
                     regionChunksToCheck.add(packed);
                 }
             }
             
-            InstantWorldMirror.LOGGER.info("Region scan: {} chunks in files, {} need checking (after filtering processed)",
-                    regionChunks.size(), regionChunksToCheck.size());
-            
             if (regionChunksToCheck.isEmpty()) {
-                InstantWorldMirror.LOGGER.info("Region scan pass {}: no unprocessed chunks found, cleanup complete",
-                        regionScanPass);
                 regionScanInitialized = true;
                 regionScanComplete = true;
                 completed = true;
@@ -752,26 +713,13 @@ public class WorldCopyService {
                 }
             }
             
-            // Check if scan is complete
             if (regionCheckIndex >= regionChunksToCheck.size()) {
                 regionScanInitialized = true;
-                
-                if (!regionScanChunks.isEmpty()) {
-                    InstantWorldMirror.LOGGER.info("Region scan pass {}: found {} untracked chunks with blocks",
-                            regionScanPass, regionScanChunks.size());
-                } else {
-                    InstantWorldMirror.LOGGER.info("Region scan pass {}: no untracked blocks found, cleanup complete",
-                            regionScanPass);
+                if (regionScanChunks.isEmpty()) {
                     regionScanComplete = true;
                     completed = true;
                 }
                 return false;
-            }
-            
-            // Log progress periodically
-            if (regionCheckIndex % 500 == 0) {
-                InstantWorldMirror.LOGGER.info("Region scan progress: {}/{} chunks checked, found {} with blocks",
-                        regionCheckIndex, regionChunksToCheck.size(), regionScanChunks.size());
             }
             
             return true; // Still in progress
@@ -806,20 +754,6 @@ public class WorldCopyService {
         }
         
         public boolean isCompleted() { return completed; }
-        
-        // Tick counter for logging frequency
-        public int getTickCounter() { return tickCounter; }
-        public void incrementTickCounter() { tickCounter++; }
-        
-        // Debug methods
-        public boolean debugAuxStarted() { return auxiliaryCleanupStarted; }
-        public boolean debugBfsScanComplete() { return auxiliaryBfsScanComplete; }
-        public int debugAuxChunksSize() { return auxiliaryChunks.size(); }
-        public int debugAuxIndex() { return auxiliaryIndex; }
-        public int debugRegionCheckIndex() { return regionCheckIndex; }
-        public int debugRegionChunksToCheckSize() { return regionChunksToCheck.size(); }
-        public int debugRetryQueueSize() { return retryQueue.size(); }
-        public int debugSkippedChunks() { return skippedChunks; }
     }
     
     /**
@@ -1791,16 +1725,6 @@ public class WorldCopyService {
             return;
         }
         
-        // DEBUG: Log task state every 5 seconds (approximately 100 ticks)
-        if (task.getTickCounter() % 100 == 0) {
-            InstantWorldMirror.LOGGER.info("DEBUG dim {}: completed={}, mainDone={}, auxDone={}, bfsInProgress={}, regionScanInProgress={}, auxStarted={}, bfsScanComplete={}, auxChunks={}, auxIndex={}, retryQueue={}, skipped={}",
-                    currentDimIndex, task.isCompleted(), task.isMainCleanupDone(), task.isAuxiliaryCleanupDone(),
-                    task.isBfsScanInProgress(), task.isRegionScanInProgress(), 
-                    task.debugAuxStarted(), task.debugBfsScanComplete(), task.debugAuxChunksSize(), task.debugAuxIndex(),
-                    task.debugRetryQueueSize(), task.debugSkippedChunks());
-        }
-        task.incrementTickCounter();
-        
         // If BFS scan is in progress, process it incrementally
         if (task.isBfsScanInProgress()) {
             boolean stillInProgress = task.processBfsIncremental(mirrorWorld);
@@ -1835,28 +1759,14 @@ public class WorldCopyService {
                 // Task completed during getNextChunk or initialization - don't break, let completion check handle it
                 break;
             } else if (task.isMainCleanupDone() && !task.isAuxiliaryCleanupDone()) {
-                // Main cleanup done, start auxiliary cleanup phase (BFS edge scan)
-                InstantWorldMirror.LOGGER.info("DEBUG Starting auxiliary cleanup (BFS)");
                 task.initializeAuxiliaryCleanup(mirrorWorld);
-                // BFS will be processed incrementally in next ticks
                 break;
             } else if (task.isAuxiliaryCleanupDone() && task.needsRegionScan()) {
-                // Auxiliary cleanup done, start region file scan (ultimate fallback)
-                InstantWorldMirror.LOGGER.info("DEBUG Starting region scan");
                 task.initializeRegionScan(mirrorWorld);
-                // Region scan will be processed incrementally in next ticks
                 break;
             } else {
-                InstantWorldMirror.LOGGER.info("DEBUG No action taken, breaking loop");
                 break;
             }
-        }
-        
-        // Log progress every 10 chunks
-        int cleanedChunks = task.getCleanedChunks();
-        if (cleanedChunks % 10 == 0 && cleanedChunks > 0 && processedThisTick > 0) {
-            InstantWorldMirror.LOGGER.debug("Cleanup progress for dim {}: {}/{} chunks",
-                    currentDimIndex, cleanedChunks, task.getTotalChunks());
         }
         
         // Check completion
@@ -1868,13 +1778,6 @@ public class WorldCopyService {
             
             // Final pass: clear ALL remaining entities in the dimension
             clearAllEntitiesInDimension(mirrorWorld);
-            
-            // Final verification scan - check if any blocks remain
-            int remainingBlocks = countRemainingBlocks(mirrorWorld, task);
-            if (remainingBlocks > 0) {
-                InstantWorldMirror.LOGGER.warn("Cleanup finished but {} blocks may still remain in dimension {}. " +
-                        "This could be from very distant structures.", remainingBlocks, currentDimIndex);
-            }
             
             // Clear tracking data for this dimension
             clearModifiedChunkTracking(currentDimIndex);
@@ -2123,7 +2026,7 @@ public class WorldCopyService {
             }
             
             if (removed > 0) {
-                InstantWorldMirror.LOGGER.info("Final cleanup: removed {} remaining entities from mirror dimension", removed);
+                InstantWorldMirror.LOGGER.debug("Final cleanup: removed {} entities", removed);
             }
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
