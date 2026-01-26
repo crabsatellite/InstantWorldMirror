@@ -423,11 +423,11 @@ public class MirrorWorldManager {
             boolean allowWater = session.isSourceInWater();
             BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater);
             if (safePos == null) {
-                // No safe position found - clear a 3x3 area at the base position
+                // No safe position found - clear a 1x2 area at the base position
                 // This only happens in mirror world, so it's safe to modify
                 safePos = baseTargetPos;
                 clearAreaForPlayer(mirrorWorld, safePos);
-                InstantWorldMirror.LOGGER.info("Cleared 3x3 area for player {} at {} in mirror world", 
+                InstantWorldMirror.LOGGER.info("Cleared 1x2 area for player {} at {} in mirror world", 
                         player.getName().getString(), safePos);
                 // Notify player that area was cleared
                 player.displayClientMessage(
@@ -1015,7 +1015,8 @@ public class MirrorWorldManager {
     
     /**
      * Find a safe Y level at the given X/Z coordinates
-     * Scans from max build height down to find solid ground with space above
+     * Scans from the target Y position to find solid ground with space above
+     * Limited search range to avoid teleporting to extreme heights when chunks aren't loaded
      * 
      * @param level The level to search in
      * @param horizontalPos The X/Z position to search at
@@ -1029,16 +1030,23 @@ public class MirrorWorldManager {
         // Start from the target Y or a reasonable height if target is too high/low
         int startY = Math.max(minY + 1, Math.min(horizontalPos.getY(), maxY - 3));
         
-        // Search downward from start position
-        for (int y = startY; y >= minY + 1; y--) {
+        // IMPORTANT: Limit the vertical search range to prevent teleporting to extreme heights
+        // when mirror world chunks haven't been fully copied yet
+        // Only search within 5 blocks up and down from the target Y
+        int maxVerticalSearch = 5;
+        int searchMinY = Math.max(minY + 1, startY - maxVerticalSearch);
+        int searchMaxY = Math.min(maxY - 2, startY + maxVerticalSearch);
+        
+        // Search downward from start position (prioritize downward for safety)
+        for (int y = startY; y >= searchMinY; y--) {
             BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
             if (isPositionSafe(level, checkPos, allowWater)) {
                 return checkPos;
             }
         }
         
-        // Search upward from start position
-        for (int y = startY + 1; y <= maxY - 2; y++) {
+        // Search upward from start position (limited range)
+        for (int y = startY + 1; y <= searchMaxY; y++) {
             BlockPos checkPos = new BlockPos(horizontalPos.getX(), y, horizontalPos.getZ());
             if (isPositionSafe(level, checkPos, allowWater)) {
                 return checkPos;
@@ -1194,24 +1202,19 @@ public class MirrorWorldManager {
     }
     
     /**
-     * Clear a 3x3x2 area for player to safely land
+     * Clear a 1x2 area for player to safely land
      * Clears the player's standing position and above (2 blocks high for player)
      * Also ensures there's solid ground below
      * @param level The level to modify
      * @param pos The center position where player will stand
      */
     private static void clearAreaForPlayer(ServerLevel level, BlockPos pos) {
-        // Clear 3x3 area at player height (2 blocks high for player body)
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                BlockPos clearPos = pos.offset(dx, 0, dz);
-                BlockPos abovePos = clearPos.above();
-                
-                // Clear the two blocks where player body would be
-                level.setBlock(clearPos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-                level.setBlock(abovePos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-            }
-        }
+        // Clear 1x2 area at player height (2 blocks high for player body)
+        BlockPos abovePos = pos.above();
+        
+        // Clear the two blocks where player body would be
+        level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(abovePos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
         
         // Ensure solid ground below the center position
         BlockPos belowPos = pos.below();
