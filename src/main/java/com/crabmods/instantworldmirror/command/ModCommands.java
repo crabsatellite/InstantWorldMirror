@@ -186,6 +186,7 @@ public class ModCommands {
     private static int allowCommand(CommandContext<CommandSourceStack> context) {
         try {
             ServerPlayer target = EntityArgument.getPlayer(context, "player");
+            MirrorWorldManager.setAccessPermission(target.getUUID(), true);
             context.getSource().sendSuccess(
                     () -> Component.translatable("command.instantworldmirror.allow.success", target.getName().getString()),
                     true
@@ -200,6 +201,7 @@ public class ModCommands {
     private static int denyCommand(CommandContext<CommandSourceStack> context) {
         try {
             ServerPlayer target = EntityArgument.getPlayer(context, "player");
+            MirrorWorldManager.setAccessPermission(target.getUUID(), false);
             context.getSource().sendSuccess(
                     () -> Component.translatable("command.instantworldmirror.deny.success", target.getName().getString()),
                     true

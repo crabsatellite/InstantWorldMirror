@@ -188,6 +188,15 @@ public class DimensionMirrorItem extends Item {
         // Server side: handle cooldown
         ServerPlayer serverPlayer = (ServerPlayer) player;
         
+        // Check if player is denied access to mirror world
+        if (!MirrorWorldManager.canAccessMirrorWorld(serverPlayer)) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.access_denied"),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
+        
         if (player.isCreative()) {
             // Creative mode: clear any existing cooldown and sync to client
             clearCooldown(player.getUUID());
