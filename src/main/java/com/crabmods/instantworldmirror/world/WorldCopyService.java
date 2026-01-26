@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 4. Smart air detection - use chunk section emptiness checks
  * 5. Batch block entity processing - collect and process in batch
  * 6. Lazy cleanup - only process sections that have content
+ * 7. Sequential queue processing - only one copy/cleanup task at a time to reduce server load
  * 
  * Performance: ~10x faster than naive implementation
  */
@@ -51,6 +52,12 @@ public class WorldCopyService {
     
     // Track copy tasks per dimension: dimensionIndex -> CopyTask
     private static final Map<Integer, CopyTask> copyTasks = new ConcurrentHashMap<>();
+    
+    // Sequential copy queue - processes one copy task at a time
+    private static final java.util.LinkedList<Integer> copyQueue = new java.util.LinkedList<>();
+    
+    // Sequential cleanup queue - processes one cleanup task at a time  
+    private static final java.util.LinkedList<Integer> cleanupQueue = new java.util.LinkedList<>();
     
     // Track ALL chunks that have been modified in each dimension for thorough cleanup
     // dimensionIndex -> Set of chunk positions (packed as long: x << 32 | z)
@@ -233,6 +240,11 @@ public class WorldCopyService {
                     dimensionIndex, task.getProgressPercent());
         }
         copyTasks.remove(dimensionIndex);
+        
+        // Remove from queue
+        synchronized (copyQueue) {
+            copyQueue.removeFirstOccurrence(dimensionIndex);
+        }
         
         // Clear tracked data for this dimension
         copyCenterPositions.remove(dimensionIndex);
@@ -512,9 +524,12 @@ public class WorldCopyService {
             // Get max search radius from config (acts as a safety limit)
             int maxExpansionRadius = MirrorConfig.EDGE_CLEANUP_RADIUS.get();
             
-            // If edge cleanup is disabled, mark as complete
+            // If edge cleanup is disabled, skip directly to completion
             if (maxExpansionRadius <= 0) {
-                InstantWorldMirror.LOGGER.info("Edge cleanup disabled by config, skipping auxiliary scan");
+                InstantWorldMirror.LOGGER.info("Edge cleanup disabled by config, skipping auxiliary and region scan");
+                auxiliaryCleanupComplete = true;
+                regionScanStarted = true;
+                regionScanComplete = true;
                 completed = true;
                 return 0;
             }
@@ -864,8 +879,9 @@ public class WorldCopyService {
 
     /**
      * Queue world copy for async processing to session's dedicated dimension
+     * Returns the queue position (1 = processing now, 2+ = waiting in queue)
      */
-    public static void queueWorldCopy(MirrorSession session, ServerLevel sourceWorld) {
+    public static int queueWorldCopy(MirrorSession session, ServerLevel sourceWorld) {
         int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
         int dimIndex = session.getDimensionIndex();
         
@@ -888,12 +904,43 @@ public class WorldCopyService {
         
         copyTasks.put(dimIndex, task);
         
+        // Add to sequential queue
+        synchronized (copyQueue) {
+            if (!copyQueue.contains(dimIndex)) {
+                copyQueue.addLast(dimIndex);
+            }
+        }
+        
         // Store the copy center position for cleanup later (both in memory and persistent storage)
         copyCenterPositions.put(dimIndex, session.getSourcePosition());
         DimensionPool.saveCleanupData(dimIndex, session.getSourcePosition(), null, 0);
         
-        InstantWorldMirror.LOGGER.info("Queued world copy for session {} to dimension {} - {} chunks total",
-                session.getSessionId(), dimIndex, task.getTotalChunks());
+        // Calculate queue position
+        int queuePosition = getCopyQueuePosition(dimIndex);
+        
+        InstantWorldMirror.LOGGER.info("Queued world copy for session {} to dimension {} - {} chunks total, queue position: {}",
+                session.getSessionId(), dimIndex, task.getTotalChunks(), queuePosition);
+        
+        return queuePosition;
+    }
+    
+    /**
+     * Get the queue position for a copy task (1 = first/processing, 2+ = waiting)
+     */
+    public static int getCopyQueuePosition(int dimIndex) {
+        synchronized (copyQueue) {
+            int position = copyQueue.indexOf(dimIndex);
+            return position >= 0 ? position + 1 : 0;
+        }
+    }
+    
+    /**
+     * Get total number of tasks waiting in copy queue
+     */
+    public static int getCopyQueueSize() {
+        synchronized (copyQueue) {
+            return copyQueue.size();
+        }
     }
     
     /**
@@ -916,61 +963,77 @@ public class WorldCopyService {
     }
 
     /**
-     * Process all copy queues - call from server tick
+     * Process copy queue - call from server tick
+     * Only processes ONE task at a time (first in queue) to avoid server overload
      */
     public static void processCopyQueues(MinecraftServer server) {
         if (copyTasks.isEmpty()) return; // Early exit if no tasks
         
         int chunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
         
-        // Use iterator for safe removal during iteration
-        var iterator = copyTasks.entrySet().iterator();
-        while (iterator.hasNext()) {
-            var entry = iterator.next();
-            int dimIndex = entry.getKey();
-            CopyTask task = entry.getValue();
-            
-            if (task.isCompleted()) {
-                iterator.remove();
-                // If cancelled, skip completion notification
-                if (task.isCancelled()) {
-                    InstantWorldMirror.LOGGER.info("Copy task for dimension {} was cancelled", dimIndex);
-                }
-                continue;
+        // Get the first task in queue (FIFO processing)
+        Integer currentDimIndex;
+        synchronized (copyQueue) {
+            if (copyQueue.isEmpty()) return;
+            currentDimIndex = copyQueue.peekFirst();
+        }
+        
+        CopyTask task = copyTasks.get(currentDimIndex);
+        if (task == null) {
+            // Task was removed, clean up queue
+            synchronized (copyQueue) {
+                copyQueue.removeFirstOccurrence(currentDimIndex);
             }
-            
-            ServerLevel targetWorld = DimensionPool.getDimensionLevel(server, dimIndex);
-            if (targetWorld == null) continue;
-            
-            ServerLevel sourceWorld = server.getLevel(task.sourceDimension);
-            if (sourceWorld == null) sourceWorld = server.overworld();
-            
-            // Process multiple chunks per tick (configurable)
-            for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
-                int[] chunkCoords = task.getNextChunk();
-                if (chunkCoords != null) {
-                    int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
-                    task.addBlocksCopied(blocksCopied);
-                    
-                    // Track this chunk as modified for cleanup later
-                    if (blocksCopied > 0) {
-                        trackModifiedChunk(dimIndex, chunkCoords[0], chunkCoords[1]);
-                    }
-                }
+            return;
+        }
+        
+        if (task.isCompleted()) {
+            // Remove completed task from both map and queue
+            copyTasks.remove(currentDimIndex);
+            synchronized (copyQueue) {
+                copyQueue.removeFirstOccurrence(currentDimIndex);
             }
-            
-            // Check completion
-            if (task.isCompleted()) {
-                iterator.remove();
+            // If cancelled, skip completion notification
+            if (task.isCancelled()) {
+                InstantWorldMirror.LOGGER.info("Copy task for dimension {} was cancelled", currentDimIndex);
+            }
+            return;
+        }
+        
+        ServerLevel targetWorld = DimensionPool.getDimensionLevel(server, currentDimIndex);
+        if (targetWorld == null) return;
+        
+        ServerLevel sourceWorld = server.getLevel(task.sourceDimension);
+        if (sourceWorld == null) sourceWorld = server.overworld();
+        
+        // Process multiple chunks per tick (configurable)
+        for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
+            int[] chunkCoords = task.getNextChunk();
+            if (chunkCoords != null) {
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
+                task.addBlocksCopied(blocksCopied);
                 
-                // Only notify if not cancelled
-                if (!task.isCancelled()) {
-                    // Notify session that copy is complete
-                    MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
-                    
-                    InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
-                            task.sessionId, dimIndex, task.getTotalBlocksCopied());
+                // Track this chunk as modified for cleanup later
+                if (blocksCopied > 0) {
+                    trackModifiedChunk(currentDimIndex, chunkCoords[0], chunkCoords[1]);
                 }
+            }
+        }
+        
+        // Check completion
+        if (task.isCompleted()) {
+            copyTasks.remove(currentDimIndex);
+            synchronized (copyQueue) {
+                copyQueue.removeFirstOccurrence(currentDimIndex);
+            }
+            
+            // Only notify if not cancelled
+            if (!task.isCancelled()) {
+                // Notify session that copy is complete
+                MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
+                
+                InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
+                        task.sessionId, currentDimIndex, task.getTotalBlocksCopied());
             }
         }
     }
@@ -1550,6 +1613,13 @@ public class WorldCopyService {
         task.initializeChunkList(mirrorWorld);
         cleanupTasks.put(dimensionIndex, task);
         
+        // Add to sequential cleanup queue
+        synchronized (cleanupQueue) {
+            if (!cleanupQueue.contains(dimensionIndex)) {
+                cleanupQueue.addLast(dimensionIndex);
+            }
+        }
+        
         InstantWorldMirror.LOGGER.info("Queued cleanup for dimension {} - {} tracked chunks to process",
                 dimensionIndex, task.getTotalChunks());
     }
@@ -1582,83 +1652,107 @@ public class WorldCopyService {
         
         int chunksPerTick = MirrorConfig.CLEANUP_CHUNKS_PER_TICK.get();
         
-        // Use iterator for safe removal during iteration
-        var iterator = cleanupTasks.entrySet().iterator();
-        while (iterator.hasNext()) {
-            var entry = iterator.next();
-            int dimIndex = entry.getKey();
-            CleanupTask task = entry.getValue();
-            
-            if (task.isCompleted()) {
-                iterator.remove();
-                continue;
+        // Get the first task in queue (FIFO processing - only one at a time)
+        Integer currentDimIndex;
+        synchronized (cleanupQueue) {
+            if (cleanupQueue.isEmpty()) return;
+            currentDimIndex = cleanupQueue.peekFirst();
+        }
+        
+        CleanupTask task = cleanupTasks.get(currentDimIndex);
+        if (task == null) {
+            // Task was removed, clean up queue
+            synchronized (cleanupQueue) {
+                cleanupQueue.removeFirstOccurrence(currentDimIndex);
             }
-            
-            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
-            if (mirrorWorld == null) continue;
-            
-            // Process chunks per tick (configurable)
-            // Use non-blocking chunk access to prevent server hang
-            int processedThisTick = 0;
-            for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
-                long[] chunkCoords = task.getNextChunk();
-                if (chunkCoords != null) {
-                    int result = clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
-                    if (result == -1) {
-                        // Chunk wasn't loaded - add to retry queue for later processing
-                        task.markForRetry((int) chunkCoords[0], (int) chunkCoords[1]);
-                    }
-                    processedThisTick++;
-                } else if (task.isMainCleanupDone() && !task.isAuxiliaryCleanupDone()) {
-                    // Main cleanup done, start auxiliary cleanup phase (BFS edge scan)
-                    int additionalChunks = task.initializeAuxiliaryCleanup(mirrorWorld);
-                    if (additionalChunks > 0) {
-                        InstantWorldMirror.LOGGER.info("Starting auxiliary cleanup for {} edge chunks in dimension {}",
-                                additionalChunks, dimIndex);
-                    }
-                    break; // Wait for next tick to process auxiliary chunks
-                } else if (task.isAuxiliaryCleanupDone() && task.needsRegionScan()) {
-                    // Auxiliary cleanup done, start region file scan (ultimate fallback)
-                    int untrackedChunks = task.initializeRegionScan(mirrorWorld);
-                    if (untrackedChunks > 0) {
-                        InstantWorldMirror.LOGGER.info("Starting region scan cleanup for {} untracked chunks in dimension {}",
-                                untrackedChunks, dimIndex);
-                    }
-                    break; // Wait for next tick to process region scan chunks
+            return;
+        }
+        
+        if (task.isCompleted()) {
+            // Remove completed task from both map and queue
+            cleanupTasks.remove(currentDimIndex);
+            synchronized (cleanupQueue) {
+                cleanupQueue.removeFirstOccurrence(currentDimIndex);
+            }
+            return;
+        }
+        
+        ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, currentDimIndex);
+        if (mirrorWorld == null) return;
+        
+        // Process chunks per tick (configurable)
+        // Use non-blocking chunk access to prevent server hang
+        int processedThisTick = 0;
+        for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
+            long[] chunkCoords = task.getNextChunk();
+            if (chunkCoords != null) {
+                int result = clearChunk(mirrorWorld, (int) chunkCoords[0], (int) chunkCoords[1]);
+                if (result == -1) {
+                    // Chunk wasn't loaded - add to retry queue for later processing
+                    task.markForRetry((int) chunkCoords[0], (int) chunkCoords[1]);
                 }
-            }
-            
-            // Log progress every 10 chunks
-            int cleanedChunks = task.getCleanedChunks();
-            if (cleanedChunks % 10 == 0 && cleanedChunks > 0 && processedThisTick > 0) {
-                InstantWorldMirror.LOGGER.debug("Cleanup progress for dim {}: {}/{} chunks",
-                        dimIndex, cleanedChunks, task.getTotalChunks());
-            }
-            
-            // Check completion
-            if (task.isCompleted()) {
-                iterator.remove();
-                
-                // Final pass: clear ALL remaining entities in the dimension
-                clearAllEntitiesInDimension(mirrorWorld);
-                
-                // Final verification scan - check if any blocks remain
-                int remainingBlocks = countRemainingBlocks(mirrorWorld, task);
-                if (remainingBlocks > 0) {
-                    InstantWorldMirror.LOGGER.warn("Cleanup finished but {} blocks may still remain in dimension {}. " +
-                            "This could be from very distant structures.", remainingBlocks, dimIndex);
+                processedThisTick++;
+            } else if (task.isCompleted()) {
+                // Task completed during getNextChunk or initialization - don't break, let completion check handle it
+                break;
+            } else if (task.isMainCleanupDone() && !task.isAuxiliaryCleanupDone()) {
+                // Main cleanup done, start auxiliary cleanup phase (BFS edge scan)
+                int additionalChunks = task.initializeAuxiliaryCleanup(mirrorWorld);
+                if (additionalChunks > 0) {
+                    InstantWorldMirror.LOGGER.info("Starting auxiliary cleanup for {} edge chunks in dimension {}",
+                            additionalChunks, currentDimIndex);
                 }
-                
-                // Clear tracking data for this dimension
-                clearModifiedChunkTracking(dimIndex);
-                copyCenterPositions.remove(dimIndex);
-                
-                // Mark dimension as available again
-                DimensionPool.markDimensionAvailable(dimIndex);
-                
-                InstantWorldMirror.LOGGER.info("Cleanup completed for dimension {}, now available for new sessions",
-                        dimIndex);
+                // If task completed during initialization (no chunks to clean), don't break
+                if (task.isCompleted()) break;
+                // Wait for next tick to process auxiliary chunks
+                break;
+            } else if (task.isAuxiliaryCleanupDone() && task.needsRegionScan()) {
+                // Auxiliary cleanup done, start region file scan (ultimate fallback)
+                int untrackedChunks = task.initializeRegionScan(mirrorWorld);
+                if (untrackedChunks > 0) {
+                    InstantWorldMirror.LOGGER.info("Starting region scan cleanup for {} untracked chunks in dimension {}",
+                            untrackedChunks, currentDimIndex);
+                }
+                // If task completed during initialization (no chunks to clean), don't break
+                if (task.isCompleted()) break;
+                // Wait for next tick to process region scan chunks
+                break;
             }
+        }
+        
+        // Log progress every 10 chunks
+        int cleanedChunks = task.getCleanedChunks();
+        if (cleanedChunks % 10 == 0 && cleanedChunks > 0 && processedThisTick > 0) {
+            InstantWorldMirror.LOGGER.debug("Cleanup progress for dim {}: {}/{} chunks",
+                    currentDimIndex, cleanedChunks, task.getTotalChunks());
+        }
+        
+        // Check completion
+        if (task.isCompleted()) {
+            cleanupTasks.remove(currentDimIndex);
+            synchronized (cleanupQueue) {
+                cleanupQueue.removeFirstOccurrence(currentDimIndex);
+            }
+            
+            // Final pass: clear ALL remaining entities in the dimension
+            clearAllEntitiesInDimension(mirrorWorld);
+            
+            // Final verification scan - check if any blocks remain
+            int remainingBlocks = countRemainingBlocks(mirrorWorld, task);
+            if (remainingBlocks > 0) {
+                InstantWorldMirror.LOGGER.warn("Cleanup finished but {} blocks may still remain in dimension {}. " +
+                        "This could be from very distant structures.", remainingBlocks, currentDimIndex);
+            }
+            
+            // Clear tracking data for this dimension
+            clearModifiedChunkTracking(currentDimIndex);
+            copyCenterPositions.remove(currentDimIndex);
+            
+            // Mark dimension as available again
+            DimensionPool.markDimensionAvailable(currentDimIndex);
+            
+            InstantWorldMirror.LOGGER.info("Cleanup completed for dimension {}, now available for new sessions",
+                    currentDimIndex);
         }
     }
     
@@ -1931,6 +2025,10 @@ public class WorldCopyService {
         CleanupTask removed = cleanupTasks.remove(dimIndex);
         if (removed != null) {
             InstantWorldMirror.LOGGER.info("Cancelled pending cleanup task for dimension {}", dimIndex);
+        }
+        // Also remove from queue
+        synchronized (cleanupQueue) {
+            cleanupQueue.removeFirstOccurrence(dimIndex);
         }
     }
 

@@ -80,6 +80,15 @@ public class MirrorPortalEntity extends Entity {
 
     // Whether world copy is complete
     private boolean worldCopyComplete = false;
+    
+    // Dimension index for queue tracking (-1 if not assigned)
+    private int dimensionIndex = -1;
+    
+    // Last displayed queue position (to avoid spamming same message)
+    private int lastDisplayedQueuePosition = 0;
+    
+    // Whether copy is actively processing (queue position 1 and actually copying)
+    private boolean copyActivelyProcessing = false;
 
     // Current light block position (for cleanup)
     private BlockPos currentLightPos = null;
@@ -225,9 +234,15 @@ public class MirrorPortalEntity extends Entity {
             // Check if session's world copy is complete (only check every 5 ticks to reduce overhead)
             if (!isReturnPortal && worldCopyStarted && !worldCopyComplete && sessionId != null && this.tickCount % 5 == 0) {
                 Optional<MirrorSession> sessionOpt = MirrorWorldManager.getSession(sessionId);
-                if (sessionOpt.isPresent() && sessionOpt.get().isCopyComplete()) {
-                    worldCopyComplete = true;
-                    InstantWorldMirror.LOGGER.info("World copy detected complete for session {}", sessionId);
+                if (sessionOpt.isPresent()) {
+                    MirrorSession session = sessionOpt.get();
+                    if (session.isCopyComplete()) {
+                        worldCopyComplete = true;
+                        InstantWorldMirror.LOGGER.info("World copy detected complete for session {}", sessionId);
+                    } else {
+                        // Update queue position display for owner
+                        updateQueuePositionDisplay(serverLevel);
+                    }
                 }
             }
             
@@ -407,17 +422,77 @@ public class MirrorPortalEntity extends Entity {
             worldCopyComplete = true;
             return;
         }
+        
+        MirrorSession session = sessionOpt.get();
+        this.dimensionIndex = session.getDimensionIndex();
 
         // Get owner player
         Player owner = serverLevel.getPlayerByUUID(ownerUUID);
         if (owner instanceof ServerPlayer serverPlayer) {
-            // Queue async world copy (non-blocking)
-            MirrorWorldManager.prepareWorldCopy(serverPlayer, sessionOpt.get());
+            // Queue async world copy (non-blocking) - returns queue position
+            int queuePosition = MirrorWorldManager.prepareWorldCopy(serverPlayer, session);
+            this.lastDisplayedQueuePosition = queuePosition;
+            
+            // Notify player of queue position
+            if (queuePosition > 1) {
+                serverPlayer.displayClientMessage(
+                        net.minecraft.network.chat.Component.translatable(
+                                "message.instantworldmirror.queue_position", queuePosition),
+                        true
+                );
+            } else {
+                // Position 1 means we're actively processing
+                this.copyActivelyProcessing = true;
+                serverPlayer.displayClientMessage(
+                        net.minecraft.network.chat.Component.translatable(
+                                "message.instantworldmirror.copy_started"),
+                        true
+                );
+            }
+            
             // Copy is now in progress - check session.isCopyComplete() each tick
-            InstantWorldMirror.LOGGER.info("Started async world copy for session {}", sessionId);
+            InstantWorldMirror.LOGGER.info("Started async world copy for session {}, queue position: {}", 
+                    sessionId, queuePosition);
         } else {
             // Player not found, mark complete
             worldCopyComplete = true;
+        }
+    }
+    
+    /**
+     * Update queue position display for the portal owner
+     */
+    private void updateQueuePositionDisplay(ServerLevel serverLevel) {
+        if (dimensionIndex < 0 || ownerUUID == null) return;
+        
+        Player owner = serverLevel.getPlayerByUUID(ownerUUID);
+        if (!(owner instanceof ServerPlayer serverPlayer)) return;
+        
+        int currentQueuePosition = com.crabmods.instantworldmirror.world.WorldCopyService.getCopyQueuePosition(dimensionIndex);
+        
+        // Queue position 0 means task completed or not in queue anymore
+        if (currentQueuePosition <= 0) return;
+        
+        // Check if copy just started (moved from waiting to position 1)
+        if (currentQueuePosition == 1 && !copyActivelyProcessing) {
+            copyActivelyProcessing = true;
+            serverPlayer.displayClientMessage(
+                    net.minecraft.network.chat.Component.translatable(
+                            "message.instantworldmirror.copy_started"),
+                    true
+            );
+            lastDisplayedQueuePosition = 1;
+            return;
+        }
+        
+        // Update queue position if changed (for waiting in queue)
+        if (currentQueuePosition > 1 && currentQueuePosition != lastDisplayedQueuePosition) {
+            lastDisplayedQueuePosition = currentQueuePosition;
+            serverPlayer.displayClientMessage(
+                    net.minecraft.network.chat.Component.translatable(
+                            "message.instantworldmirror.queue_position", currentQueuePosition),
+                    true
+            );
         }
     }
 

@@ -57,5 +57,7 @@
   "command.instantworldmirror.purge.mode_enabled": "§6Purge mode enabled - Mirror world creation is now disabled.",
   "command.instantworldmirror.purge.portals_removed": "§eRemoved %d mirror portal(s) from all dimensions.",
   "message.instantworldmirror.purge_mode_active": "§cMirror world is currently being purged. Please wait for server restart.",
-  "message.instantworldmirror.portal_activating": "§eActivating return portal: %s"
+  "message.instantworldmirror.portal_activating": "§eActivating return portal: %s",
+  "message.instantworldmirror.queue_position": "§eYou are #%d in the copy queue, please wait...",
+  "message.instantworldmirror.copy_started": "§aWorld copy started! Please wait..."
 }

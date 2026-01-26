@@ -57,5 +57,7 @@
   "command.instantworldmirror.purge.mode_enabled": "§6清除模式已启用 - 镜面世界创建功能已禁用。",
   "command.instantworldmirror.purge.portals_removed": "§e已从所有维度移除 %d 个镜面传送门。",
   "message.instantworldmirror.purge_mode_active": "§c镜面世界正在被清除中，请等待服务器重启。",
-  "message.instantworldmirror.portal_activating": "§e正在触发返回传送门: %s"
+  "message.instantworldmirror.portal_activating": "§e正在触发返回传送门: %s",
+  "message.instantworldmirror.queue_position": "§e你在复制队列中排第 %d 位，请稍候...",
+  "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候..."
 }

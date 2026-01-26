@@ -312,22 +312,23 @@ public class MirrorWorldManager {
     /**
      * Queue async world copy for a session
      * This is non-blocking - copy happens over multiple ticks
+     * Returns the queue position (1 = processing now, 2+ = waiting)
      */
-    public static void prepareWorldCopy(ServerPlayer player, MirrorSession session) {
+    public static int prepareWorldCopy(ServerPlayer player, MirrorSession session) {
         if (player.level().isClientSide) {
-            return;
+            return 0;
         }
 
         MinecraftServer server = player.getServer();
         if (server == null) {
-            return;
+            return 0;
         }
 
         // Get the mirror world dimension for this session
         ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, session.getDimensionIndex());
         if (mirrorWorld == null) {
             InstantWorldMirror.LOGGER.error("Mirror world dimension {} not found!", session.getDimensionIndex());
-            return;
+            return 0;
         }
 
         // Get source world reference
@@ -337,10 +338,12 @@ public class MirrorWorldManager {
         }
 
         // Queue async world copy (now uses session's dedicated dimension)
-        WorldCopyService.queueWorldCopy(session, sourceWorld);
+        int queuePosition = WorldCopyService.queueWorldCopy(session, sourceWorld);
 
-        InstantWorldMirror.LOGGER.info("Queued async world copy for session {} to dimension {}",
-                session.getSessionId(), session.getDimensionIndex());
+        InstantWorldMirror.LOGGER.info("Queued async world copy for session {} to dimension {}, queue position: {}",
+                session.getSessionId(), session.getDimensionIndex(), queuePosition);
+        
+        return queuePosition;
     }
 
     // ==================== Teleportation ====================
