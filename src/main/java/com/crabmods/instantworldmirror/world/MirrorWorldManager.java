@@ -1115,7 +1115,35 @@ public class MirrorWorldManager {
             return false;
         }
         
+        // Check if there's a portal entity nearby (avoid teleport loops)
+        if (hasNearbyPortal(level, pos)) {
+            return false;
+        }
+        
         return true;
+    }
+    
+    /**
+     * Check if there's a MirrorPortalEntity within range of the given position
+     * This prevents teleport loops where a player lands on another portal
+     * 
+     * @param level The level to check
+     * @param pos The position to check
+     * @return true if there's a portal entity nearby
+     */
+    private static boolean hasNearbyPortal(ServerLevel level, BlockPos pos) {
+        // Check in a 2 block radius around the position (portal entity size is 0.8x1.5)
+        double checkRadius = 2.5;
+        net.minecraft.world.phys.AABB searchArea = new net.minecraft.world.phys.AABB(
+                pos.getX() - checkRadius, pos.getY() - 1, pos.getZ() - checkRadius,
+                pos.getX() + checkRadius, pos.getY() + 3, pos.getZ() + checkRadius
+        );
+        
+        java.util.List<MirrorPortalEntity> nearbyPortals = level.getEntitiesOfClass(
+                MirrorPortalEntity.class, searchArea
+        );
+        
+        return !nearbyPortals.isEmpty();
     }
     
     /**
