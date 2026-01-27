@@ -204,11 +204,19 @@ public class MirrorWorldManager {
             // Allocate a dimension from the pool using actual session ID and source dimension
             int dimIndex = DimensionPool.allocateDimension(session.getSessionId(), session.getSourceDimension());
             if (dimIndex < 0) {
-                InstantWorldMirror.LOGGER.warn("No available dimensions for player {}",
-                        player.getName().getString());
+                // Provide detailed information about why allocation failed
+                int poolSize = ModDimensions.getPoolSize();
+                int inUse = DimensionPool.getInUseCount();
+                int cleaning = DimensionPool.getCleaningCount();
+                
+                InstantWorldMirror.LOGGER.warn("No available dimensions for player {} (pool: {}, in use: {}, cleaning: {})",
+                        player.getName().getString(), poolSize, inUse, cleaning);
+                
+                // Show detailed message to player
                 player.displayClientMessage(
-                        Component.translatable("message.instantworldmirror.no_dimensions_available"),
-                        true
+                        Component.translatable("message.instantworldmirror.no_dimensions_available_detail",
+                                poolSize, inUse, cleaning),
+                        false  // Show in chat, not action bar, so player can see the full message
                 );
                 return Optional.empty();
             }

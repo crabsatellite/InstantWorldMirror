@@ -15,6 +15,7 @@
   "message.instantworldmirror.already_in_session": "§cYou are already in a mirror world session!",
   "message.instantworldmirror.session_expired": "§eThis mirror portal has expired. The session no longer exists.",
   "message.instantworldmirror.no_dimensions_available": "§cNo mirror dimensions available. Please wait and try again.",
+  "message.instantworldmirror.no_dimensions_available_detail": "§cNo mirror dimensions available! §7(Total slots: §e%d§7, In use: §c%d§7, Cleaning up: §e%d§7)\n§7Please wait for other players to finish or for cleanup to complete.",
   "message.instantworldmirror.external_exit": "§eYou left the Mirror World. Your session has been cleaned up.",
   "message.instantworldmirror.force_returned": "§cYou have been forcefully returned to spawn by an administrator.",
   "message.instantworldmirror.return_failed": "§cFailed to return to the original world. Please try again or use /iwm return.",
