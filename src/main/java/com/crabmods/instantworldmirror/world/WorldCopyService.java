@@ -1143,34 +1143,58 @@ public class WorldCopyService {
                 }
                 
                 // Process this 16x16x16 section
-                for (int localX = 0; localX < 16; localX++) {
+                // Optimization: Use Y-Z-X iteration order for better cache locality
+                // Also batch collect block entities to copy after block placement
+                LevelChunkSection targetSection = targetChunk.getSection(relativeSectionIndex);
+                java.util.List<int[]> blockEntitiesToCopy = null; // Lazy init for common case of no BEs
+                
+                for (int localY = 0; localY < 16; localY++) {
+                    int y = baseY + localY;
+                    if (y < minY) continue;
+                    
                     for (int localZ = 0; localZ < 16; localZ++) {
-                        int worldX = chunkX * 16 + localX;
                         int worldZ = chunkZ * 16 + localZ;
                         
-                        // Optimization 5: Use heightmap to skip air columns
-                        int columnHeight = sourceChunk.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
-                        
-                        for (int localY = 0; localY < 16; localY++) {
-                            int y = baseY + localY;
-                            if (y > columnHeight && y > 0) continue; // Skip air above surface (except underground)
-                            if (y < minY) continue;
+                        for (int localX = 0; localX < 16; localX++) {
+                            int worldX = chunkX * 16 + localX;
                             
-                            sourcePos.set(worldX, y, worldZ);
+                            // Optimization: Use heightmap to skip air columns
+                            int columnHeight = sourceChunk.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
+                            if (y > columnHeight && y > 0) continue; // Skip air above surface (except underground)
 
-                            // Optimization 6: Get state directly from section (faster than world.getBlockState)
+                            // Get state directly from section (faster than world.getBlockState)
                             BlockState state = sourceSection.getBlockState(localX, localY, localZ);
 
                             // Null check for corrupted/uninitialized section data
                             if (state != null && !state.isAir() && !isPortalBlock(state)) {
-                                targetPos.set(worldX, y, worldZ);
-                                mirrorWorld.setBlock(targetPos, state, 2 | 16); // 16 = no neighbor updates
-                                
-                                // Copy block entity if present
-                                copyBlockEntity(sourceWorld, mirrorWorld, sourcePos, targetPos);
+                                // Direct section setBlockState is faster than mirrorWorld.setBlock
+                                // because it skips neighbor updates and lighting calculations
+                                if (targetSection != null) {
+                                    targetSection.setBlockState(localX, localY, localZ, state, false);
+                                } else {
+                                    targetPos.set(worldX, y, worldZ);
+                                    mirrorWorld.setBlock(targetPos, state, 2 | 16);
+                                }
                                 blocksCopied++;
+                                
+                                // Check if source has block entity - lazy collect for batch processing
+                                if (state.hasBlockEntity()) {
+                                    if (blockEntitiesToCopy == null) {
+                                        blockEntitiesToCopy = new java.util.ArrayList<>();
+                                    }
+                                    blockEntitiesToCopy.add(new int[]{worldX, y, worldZ, localX, localY, localZ});
+                                }
                             }
                         }
+                    }
+                }
+                
+                // Batch copy block entities after all blocks are placed
+                if (blockEntitiesToCopy != null) {
+                    for (int[] coords : blockEntitiesToCopy) {
+                        sourcePos.set(coords[0], coords[1], coords[2]);
+                        targetPos.set(coords[0], coords[1], coords[2]);
+                        copyBlockEntity(sourceWorld, mirrorWorld, sourcePos, targetPos);
                     }
                 }
             }
@@ -1273,31 +1297,41 @@ public class WorldCopyService {
             );
             
             // Get all entities in the chunk (excluding players)
+            // Optimization: Pre-filter with combined predicate to reduce list size early
             java.util.List<net.minecraft.world.entity.Entity> entities = sourceWorld.getEntities(
                     (net.minecraft.world.entity.Entity) null, 
                     chunkBounds,
-                    entity -> !(entity instanceof net.minecraft.world.entity.player.Player)
+                    entity -> {
+                        if (entity instanceof net.minecraft.world.entity.player.Player) {
+                            return false;
+                        }
+                        // Pre-filter based on copy settings to avoid processing unwanted entities
+                        if (copyAll) {
+                            return true;
+                        }
+                        return copyDecorations && isDecorationEntity(entity);
+                    }
             );
+            
+            if (entities.isEmpty()) {
+                return; // Early exit for common case of no entities
+            }
+            
+            // Reusable CompoundTag to reduce object allocation
+            net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
+            
+            // Batch collect entities to add (reduces per-entity overhead)
+            java.util.List<net.minecraft.world.entity.Entity> entitiesToAdd = new java.util.ArrayList<>(entities.size());
             
             for (net.minecraft.world.entity.Entity sourceEntity : entities) {
                 try {
-                    // Check if we should copy this entity
-                    boolean shouldCopy = copyAll;
-                    if (!shouldCopy && copyDecorations) {
-                        shouldCopy = isDecorationEntity(sourceEntity);
-                    }
-                    
-                    if (!shouldCopy) {
-                        continue;
-                    }
-                    
                     // Create a new entity of the same type
                     net.minecraft.world.entity.EntityType<?> entityType = sourceEntity.getType();
                     net.minecraft.world.entity.Entity newEntity = entityType.create(mirrorWorld);
                     
                     if (newEntity != null) {
-                        // Copy entity data
-                        net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
+                        // Clear and reuse the tag
+                        entityData.getAllKeys().clear();
                         sourceEntity.save(entityData);
                         
                         // Remove UUID to generate new one
@@ -1306,11 +1340,16 @@ public class WorldCopyService {
                         newEntity.load(entityData);
                         newEntity.setPos(sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());
                         
-                        mirrorWorld.addFreshEntity(newEntity);
+                        entitiesToAdd.add(newEntity);
                     }
                 } catch (Exception e) {
                     // Ignore individual entity copy errors
                 }
+            }
+            
+            // Batch add all entities
+            for (net.minecraft.world.entity.Entity entity : entitiesToAdd) {
+                mirrorWorld.addFreshEntity(entity);
             }
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -1935,30 +1974,61 @@ public class WorldCopyService {
         return 1024;
     }
     
+    // Cached field for states reflection (set once, used many times)
+    private static Field statesField = null;
+    private static boolean statesFieldInitialized = false;
+    private static boolean statesFieldError = false;
+    
     /**
-     * OPTIMIZED: Clear all block states in a section using reflection to directly
-     * replace the PalettedContainer with a new empty one.
-     * This is ~100x faster than calling setBlock for each of 4096 blocks.
+     * OPTIMIZED: Clear all block states in a section by directly replacing
+     * the PalettedContainer with a new empty one via reflection.
+     * This is ~100x faster than calling setBlockState 4096 times.
+     * 
+     * Falls back to iterative clearing if reflection fails.
      */
     private static void clearSectionBlockStates(LevelChunkSection section) {
-        try {
-            // Create a new PalettedContainer filled with air
-            BlockState airState = Blocks.AIR.defaultBlockState();
-            
-            // Method 1: Try to use the section's setBlockState in a batch-optimized way
-            // Fill section with air using direct state manipulation
-            for (int x = 0; x < 16; x++) {
-                for (int z = 0; z < 16; z++) {
-                    for (int y = 0; y < 16; y++) {
-                        // setBlockState is faster than world.setBlock because it doesn't
-                        // trigger neighbor updates, lighting recalculations, etc.
-                        section.setBlockState(x, y, z, airState, false);
+        // Try fast path: direct PalettedContainer replacement via reflection
+        if (!statesFieldError) {
+            try {
+                // Initialize the states field once via reflection
+                if (!statesFieldInitialized) {
+                    statesFieldInitialized = true;
+                    try {
+                        statesField = ObfuscationReflectionHelper.findField(LevelChunkSection.class, "states");
+                        statesField.setAccessible(true);
+                    } catch (Exception e) {
+                        InstantWorldMirror.LOGGER.debug("Could not find states field, using fallback: {}", e.getMessage());
+                        statesFieldError = true;
                     }
                 }
+                
+                if (statesField != null) {
+                    // Get the current PalettedContainer to use its registry for creating new one
+                    @SuppressWarnings("unchecked")
+                    PalettedContainer<BlockState> currentStates = (PalettedContainer<BlockState>) statesField.get(section);
+                    if (currentStates != null) {
+                        // Create a new empty PalettedContainer filled with air
+                        // Using recreate() which creates a new container with the same configuration
+                        PalettedContainer<BlockState> emptyStates = currentStates.recreate();
+                        // Fill with air (the recreate creates an empty container with default value)
+                        // No need to fill - recreate() already creates with default (air)
+                        statesField.set(section, emptyStates);
+                        return; // Fast path success
+                    }
+                }
+            } catch (Exception e) {
+                InstantWorldMirror.LOGGER.debug("Fast section clear failed, using fallback: {}", e.getMessage());
             }
-        } catch (Exception e) {
-            // Fallback: section should still work, just log warning
-            InstantWorldMirror.LOGGER.debug("Failed to clear section via fast path: {}", e.getMessage());
+        }
+        
+        // Fallback: iterative clearing (still faster than world.setBlock)
+        BlockState airState = Blocks.AIR.defaultBlockState();
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 0; y < 16; y++) {
+                    section.setBlockState(x, y, z, airState, false);
+                }
+            }
         }
     }
     

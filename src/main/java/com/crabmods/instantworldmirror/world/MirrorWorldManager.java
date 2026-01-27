@@ -372,6 +372,11 @@ public class MirrorWorldManager {
             return false;
         }
 
+        // Phase 1: Data validation and session updates (requires lock)
+        ServerLevel mirrorWorld;
+        BlockPos baseTargetPos;
+        boolean allowWater;
+        
         sessionLock.writeLock().lock();
         try {
             // Check if session is still valid
@@ -395,16 +400,9 @@ public class MirrorWorldManager {
                 return false;
             }
 
-            // Save player's current position
+            // Save player's current position (thread-safe maps, but do inside lock for consistency)
             playerOriginalPositions.put(player.getUUID(), player.blockPosition());
             playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
-
-            // Save session ID to player's persistent data (for server restart recovery)
-            CompoundTag persistentData = player.getPersistentData();
-            persistentData.putUUID(SESSION_ID_KEY, session.getSessionId());
-
-            // Save player inventory
-            savePlayerInventory(player);
 
             // Get the session's dedicated mirror world dimension
             ResourceKey<Level> mirrorDimKey = session.getMirrorDimension();
@@ -413,7 +411,7 @@ public class MirrorWorldManager {
                 return false;
             }
             
-            ServerLevel mirrorWorld = server.getLevel(mirrorDimKey);
+            mirrorWorld = server.getLevel(mirrorDimKey);
             if (mirrorWorld == null) {
                 InstantWorldMirror.LOGGER.error("Mirror world dimension {} not found!", mirrorDimKey);
                 return false;
@@ -425,57 +423,65 @@ public class MirrorWorldManager {
 
             // If this player owned this session (creator entering), remove from owned
             playerOwnedSession.remove(player.getUUID());
-
-            // Calculate target position (source position + 1 block up)
-            BlockPos baseTargetPos = session.getSourcePosition().above();
             
-            // Find a safe position to teleport to (avoid being stuck in walls)
-            // If source was in water, allow water positions (player is doing underwater exploration)
-            boolean allowWater = session.isSourceInWater();
-            BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater);
-            if (safePos == null) {
-                // No safe position found - clear a 1x2 area at the base position
-                // This only happens in mirror world, so it's safe to modify
-                safePos = baseTargetPos;
-                clearAreaForPlayer(mirrorWorld, safePos);
-                InstantWorldMirror.LOGGER.info("Cleared 1x2 area for player {} at {} in mirror world", 
-                        player.getName().getString(), safePos);
-                // Notify player that area was cleared
-                player.displayClientMessage(
-                        Component.translatable("message.instantworldmirror.area_cleared"),
-                        true
-                );
-            }
-
-            // Execute teleportation to safe position
-            player.teleportTo(
-                    mirrorWorld,
-                    safePos.getX() + 0.5,
-                    safePos.getY(),
-                    safePos.getZ() + 0.5,
-                    player.getYRot(),
-                    player.getXRot()
-            );
-            
-            // Record the time when player entered mirror world (for return portal protection)
-            CompoundTag playerData = player.getPersistentData();
-            playerData.putLong("MirrorWorldEnterTime", mirrorWorld.getGameTime());
-
-            // Sync dimension effects to client
-            syncDimensionEffectsToPlayer(player, session);
-
-            // Auto-spawn return portal ONLY for the host (prevents duplicates)
-            if (session.isHost(player.getUUID())) {
-                spawnReturnPortal(mirrorWorld, player, safePos, session.getSessionId());
-            }
-
-            InstantWorldMirror.LOGGER.info("Player {} teleported to Mirror World dimension {} (session: {}, players: {})",
-                    player.getName().getString(), session.getDimensionIndex(), session.getSessionId(), session.getPlayerCount());
-
-            return true;
+            // Cache values needed outside lock
+            baseTargetPos = session.getSourcePosition().above();
+            allowWater = session.isSourceInWater();
         } finally {
             sessionLock.writeLock().unlock();
         }
+        
+        // Phase 2: Player data operations and teleportation (no lock needed)
+        // Save session ID to player's persistent data (for server restart recovery)
+        CompoundTag persistentData = player.getPersistentData();
+        persistentData.putUUID(SESSION_ID_KEY, session.getSessionId());
+
+        // Save player inventory
+        savePlayerInventory(player);
+
+        // Find a safe position to teleport to (avoid being stuck in walls)
+        // If source was in water, allow water positions (player is doing underwater exploration)
+        BlockPos safePos = findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater);
+        if (safePos == null) {
+            // No safe position found - clear a 1x2 area at the base position
+            // This only happens in mirror world, so it's safe to modify
+            safePos = baseTargetPos;
+            clearAreaForPlayer(mirrorWorld, safePos);
+            InstantWorldMirror.LOGGER.info("Cleared 1x2 area for player {} at {} in mirror world", 
+                    player.getName().getString(), safePos);
+            // Notify player that area was cleared
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.area_cleared"),
+                    true
+            );
+        }
+
+        // Execute teleportation to safe position
+        player.teleportTo(
+                mirrorWorld,
+                safePos.getX() + 0.5,
+                safePos.getY(),
+                safePos.getZ() + 0.5,
+                player.getYRot(),
+                player.getXRot()
+        );
+        
+        // Record the time when player entered mirror world (for return portal protection)
+        CompoundTag playerData = player.getPersistentData();
+        playerData.putLong("MirrorWorldEnterTime", mirrorWorld.getGameTime());
+
+        // Sync dimension effects to client
+        syncDimensionEffectsToPlayer(player, session);
+
+        // Auto-spawn return portal ONLY for the host (prevents duplicates)
+        if (session.isHost(player.getUUID())) {
+            spawnReturnPortal(mirrorWorld, player, safePos, session.getSessionId());
+        }
+
+        InstantWorldMirror.LOGGER.info("Player {} teleported to Mirror World dimension {} (session: {}, players: {})",
+                player.getName().getString(), session.getDimensionIndex(), session.getSessionId(), session.getPlayerCount());
+
+        return true;
     }
 
     /**
@@ -498,96 +504,101 @@ public class MirrorWorldManager {
             return false;
         }
 
+        // Phase 1: Get session data (short lock scope)
+        UUID sessionId;
+        MirrorSession session;
+        sessionLock.readLock().lock();
+        try {
+            sessionId = playerToSession.get(player.getUUID());
+            session = sessionId != null ? activeSessions.get(sessionId) : null;
+        } finally {
+            sessionLock.readLock().unlock();
+        }
+
+        // Phase 2: Get original position (from memory or persistent data, no lock needed)
+        BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
+        ResourceKey<Level> originalDimension = playerOriginalDimensions.get(player.getUUID());
+        
+        if (originalPos == null || originalDimension == null) {
+            CompoundTag persistentData = player.getPersistentData();
+            
+            if (persistentData.contains(ORIGINAL_POS_KEY + "_x")) {
+                originalPos = new BlockPos(
+                        persistentData.getInt(ORIGINAL_POS_KEY + "_x"),
+                        persistentData.getInt(ORIGINAL_POS_KEY + "_y"),
+                        persistentData.getInt(ORIGINAL_POS_KEY + "_z")
+                );
+            }
+            
+            if (persistentData.contains(ORIGINAL_DIM_KEY)) {
+                ResourceLocation dimLoc = ResourceLocation.tryParse(persistentData.getString(ORIGINAL_DIM_KEY));
+                if (dimLoc != null) {
+                    originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
+                }
+            }
+            
+            if (originalPos != null && originalDimension != null) {
+                InstantWorldMirror.LOGGER.info("Restored return position from persistent data for {}", 
+                        player.getName().getString());
+            }
+        }
+
+        // Determine target location (fallback to spawn if no saved position)
+        ServerLevel targetLevel;
+        BlockPos targetPos;
+
+        if (originalPos != null && originalDimension != null) {
+            targetLevel = server.getLevel(originalDimension);
+            targetPos = originalPos;
+        } else {
+            targetLevel = server.overworld();
+            targetPos = targetLevel.getSharedSpawnPos();
+            InstantWorldMirror.LOGGER.warn("No saved position for {}, using spawn", player.getName().getString());
+        }
+
+        if (targetLevel == null) {
+            targetLevel = server.overworld();
+            targetPos = targetLevel.getSharedSpawnPos();
+        }
+
+        // Phase 3: Handle inventory (no lock needed, operates on player data)
+        boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+        if (allowItemTransfer) {
+            clearSavedData(player);
+        } else {
+            restorePlayerInventory(player);
+        }
+
+        // Phase 4: Execute teleportation (no lock needed)
+        playersBeingTeleported.add(player.getUUID());
+        
+        try {
+            player.teleportTo(
+                    targetLevel,
+                    targetPos.getX() + 0.5,
+                    targetPos.getY(),
+                    targetPos.getZ() + 0.5,
+                    player.getYRot(),
+                    player.getXRot()
+            );
+        } finally {
+            playersBeingTeleported.remove(player.getUUID());
+        }
+        
+        // Verify teleport success
+        if (isInMirrorWorld(player)) {
+            InstantWorldMirror.LOGGER.error("Teleport FAILED - {} still in mirror world!", player.getName().getString());
+            return false;
+        }
+
+        // Clear dimension effects on client
+        if (session != null) {
+            clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
+        }
+
+        // Phase 5: Cleanup player tracking data and session (requires write lock)
         sessionLock.writeLock().lock();
         try {
-            // Get player's session (may be null after server restart)
-            UUID sessionId = playerToSession.get(player.getUUID());
-            MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
-
-            // Get original position - first try memory, then persistent data (for server restart recovery)
-            BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
-            ResourceKey<Level> originalDimension = playerOriginalDimensions.get(player.getUUID());
-            
-            if (originalPos == null || originalDimension == null) {
-                CompoundTag persistentData = player.getPersistentData();
-                
-                if (persistentData.contains(ORIGINAL_POS_KEY + "_x")) {
-                    originalPos = new BlockPos(
-                            persistentData.getInt(ORIGINAL_POS_KEY + "_x"),
-                            persistentData.getInt(ORIGINAL_POS_KEY + "_y"),
-                            persistentData.getInt(ORIGINAL_POS_KEY + "_z")
-                    );
-                }
-                
-                if (persistentData.contains(ORIGINAL_DIM_KEY)) {
-                    ResourceLocation dimLoc = ResourceLocation.tryParse(persistentData.getString(ORIGINAL_DIM_KEY));
-                    if (dimLoc != null) {
-                        originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
-                    }
-                }
-                
-                if (originalPos != null && originalDimension != null) {
-                    InstantWorldMirror.LOGGER.info("Restored return position from persistent data for {}", 
-                            player.getName().getString());
-                }
-            }
-
-            // Determine target location (fallback to spawn if no saved position)
-            ServerLevel targetLevel;
-            BlockPos targetPos;
-
-            if (originalPos != null && originalDimension != null) {
-                targetLevel = server.getLevel(originalDimension);
-                targetPos = originalPos;
-            } else {
-                targetLevel = server.overworld();
-                targetPos = targetLevel.getSharedSpawnPos();
-                InstantWorldMirror.LOGGER.warn("No saved position for {}, using spawn", player.getName().getString());
-            }
-
-            if (targetLevel == null) {
-                targetLevel = server.overworld();
-                targetPos = targetLevel.getSharedSpawnPos();
-            }
-
-            // Handle inventory
-            boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
-            if (allowItemTransfer) {
-                clearSavedData(player);
-            } else {
-                restorePlayerInventory(player);
-            }
-
-            // Mark player as being teleported by the mod (to bypass dimension travel block)
-            playersBeingTeleported.add(player.getUUID());
-            
-            try {
-                // Execute teleportation
-                player.teleportTo(
-                        targetLevel,
-                        targetPos.getX() + 0.5,
-                        targetPos.getY(),
-                        targetPos.getZ() + 0.5,
-                        player.getYRot(),
-                        player.getXRot()
-                );
-            } finally {
-                // Always remove from teleport whitelist
-                playersBeingTeleported.remove(player.getUUID());
-            }
-            
-            // Verify teleport success
-            if (isInMirrorWorld(player)) {
-                InstantWorldMirror.LOGGER.error("Teleport FAILED - {} still in mirror world!", player.getName().getString());
-                return false;
-            }
-
-            // Clear dimension effects on client
-            if (session != null) {
-                clearDimensionEffectsForPlayer(player, session.getDimensionIndex());
-            }
-
-            // Cleanup player tracking data
             cleanupPlayerTrackingData(player.getUUID());
 
             // Handle session cleanup
@@ -608,14 +619,14 @@ public class MirrorWorldManager {
                     }
                 }
             }
-
-            player.displayClientMessage(Component.translatable("message.instantworldmirror.returned"), true);
-            InstantWorldMirror.LOGGER.debug("Player {} returned from mirror world", player.getName().getString());
-
-            return true;
         } finally {
             sessionLock.writeLock().unlock();
         }
+
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.returned"), true);
+        InstantWorldMirror.LOGGER.debug("Player {} returned from mirror world", player.getName().getString());
+
+        return true;
     }
 
     /**

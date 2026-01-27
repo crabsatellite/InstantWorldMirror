@@ -1,15 +1,16 @@
 package com.crabmods.instantworldmirror.mixin;
 
 import com.crabmods.instantworldmirror.world.ModDimensions;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import javax.annotation.Nullable;
 
 /**
  * Mixin to suppress "Invalid block entity" errors in mirror dimensions.
@@ -20,33 +21,36 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * The vanilla BlockEntity.validateBlockState throws IllegalStateException when
  * the block doesn't match, which crashes the chunk loading process.
  * 
- * This mixin intercepts the validation and silently skips invalid block entities
- * in mirror dimensions instead of throwing an exception.
+ * This mixin intercepts the isValidBlockState check and returns true for mirror
+ * dimensions to prevent the exception from being thrown.
  */
 @Mixin(BlockEntity.class)
 public abstract class BlockEntityMixin {
 
+    @Shadow @Nullable public abstract Level getLevel();
+
     /**
-     * Intercept the validateBlockState call and suppress the exception for mirror dimensions.
+     * Intercept the isValidBlockState check and return true for mirror dimensions.
      * 
-     * We check if the current level is a mirror dimension, and if so, we catch the
-     * validation failure and cancel the exception throw by returning early.
+     * Since validateBlockState is called from the constructor before level is set,
+     * we can't directly check the dimension there. Instead, we override isValidBlockState
+     * which is also called from setBlockState (after level is set).
+     * 
+     * For the constructor call, level will be null, so we let the normal check happen.
+     * For setBlockState calls in mirror dimensions, we return true to skip validation.
      */
     @Inject(
-        method = "validateBlockState",
+        method = "isValidBlockState",
         at = @At("HEAD"),
         cancellable = true
     )
-    private static void onValidateBlockState(BlockEntityType<?> type, Level level, BlockPos pos, BlockState state, CallbackInfo ci) {
-        // Only apply this fix in mirror dimensions (use isAnyMirrorWorld to catch all mirror dimensions)
+    private void onIsValidBlockState(BlockState state, CallbackInfoReturnable<Boolean> cir) {
+        Level level = this.getLevel();
+        // Only apply this fix in mirror dimensions when level is already set
         if (level != null && ModDimensions.isAnyMirrorWorld(level.dimension())) {
-            // Check if the block state is valid for this block entity type
-            if (!type.isValid(state)) {
-                // In mirror dimensions, silently skip invalid block entities instead of throwing
-                // This prevents the IllegalStateException during chunk loading
-                // The block entity simply won't be created, which is fine since the block is air anyway
-                ci.cancel();
-            }
+            // Return true to skip validation in mirror dimensions
+            // This prevents IllegalStateException during chunk loading/block entity updates
+            cir.setReturnValue(true);
         }
     }
 }
