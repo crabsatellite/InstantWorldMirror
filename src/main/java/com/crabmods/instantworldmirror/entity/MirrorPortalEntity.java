@@ -251,8 +251,10 @@ public class MirrorPortalEntity extends Entity {
         if (!isClient) {
             ServerLevel serverLevel = (ServerLevel) this.level();
             
-            // Update light block position (first tick immediately, then every 5 ticks)
-            if (this.tickCount == 1 || this.tickCount % 5 == 0) {
+            // Update light block position (delay first placement to tick 20 for return portals to allow chunk lighting to initialize)
+            // Entry portals can place immediately since overworld chunks are already loaded
+            int firstLightTick = isReturnPortal ? 20 : 1;
+            if (this.tickCount == firstLightTick || (this.tickCount > firstLightTick && this.tickCount % 5 == 0)) {
                 updateLightBlock();
             }
             
@@ -409,8 +411,8 @@ public class MirrorPortalEntity extends Entity {
         // Place new portal light block if position is air or replaceable
         BlockState currentState = serverLevel.getBlockState(newLightPos);
         if (currentState.isAir() || currentState.canBeReplaced()) {
-            // Place our custom portal light block
-            serverLevel.setBlockAndUpdate(newLightPos, ModBlocks.PORTAL_LIGHT_BLOCK.get().defaultBlockState());
+            // Place our custom portal light block using flag 3 (NOTIFY_CLIENTS | BLOCK_UPDATE)
+            serverLevel.setBlock(newLightPos, ModBlocks.PORTAL_LIGHT_BLOCK.get().defaultBlockState(), 3);
             
             // Set the block entity's portal reference
             BlockEntity be = serverLevel.getBlockEntity(newLightPos);
@@ -419,6 +421,18 @@ public class MirrorPortalEntity extends Entity {
             }
             
             currentLightPos = newLightPos;
+            
+            // Force comprehensive light update for mirror world
+            // 1. Check the block itself
+            serverLevel.getLightEngine().checkBlock(newLightPos);
+            
+            // 2. Also update surrounding blocks to propagate light
+            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                serverLevel.getLightEngine().checkBlock(newLightPos.relative(dir));
+            }
+            
+            // 3. Mark chunk for resync to client
+            serverLevel.getChunkSource().blockChanged(newLightPos);
         }
     }
 
