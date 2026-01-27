@@ -6,6 +6,7 @@ import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.network.ClearMirrorEffectsPacket;
 import com.crabmods.instantworldmirror.network.SyncMirrorEffectsPacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
@@ -1539,32 +1540,50 @@ public class MirrorWorldManager {
      * 
      * @param mirrorWorld the mirror world level
      * @param player the player (host) who entered
-     * @param targetPos the position to spawn the portal
+     * @param targetPos the position to spawn the portal (player's feet position, air block above ground)
      * @param sessionId the session ID this portal belongs to
      */
     private static void spawnReturnPortal(ServerLevel mirrorWorld, ServerPlayer player, BlockPos targetPos, UUID sessionId) {
-        BlockPos portalBase = targetPos.below();
+        // targetPos is safePos (player's feet position, air block above ground)
+        // groundBlockPos is the solid block below player's feet
+        // Use same logic as DimensionMirrorItem.createReturnPortal for consistency
+        BlockPos groundBlockPos = targetPos.below();
         
-        mirrorWorld.playSound(null, targetPos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.5F);
+        // Play portal spawn sound (same pitch as manual placement: 1.2F)
+        mirrorWorld.playSound(null, groundBlockPos, SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.5F, 1.2F);
         
-        // Create auto-generated return portal (permanent until session ends)
-        MirrorPortalEntity returnPortal = new MirrorPortalEntity(
-                mirrorWorld,
-                portalBase.getX() + 0.5,
-                portalBase.getY() + 1.5,
-                portalBase.getZ() + 0.5,
-                player.getUUID(),
-                true,      // is return portal
-                true,      // is auto-generated
-                sessionId  // session ID for tracking
-        );
+        // Spawn portal particles (same as manual placement)
+        spawnPortalParticles(mirrorWorld, groundBlockPos);
         
-        mirrorWorld.addFreshEntity(returnPortal);
+        // Use the unified factory method to create the portal
+        // groundBlockPos is the solid block, factory method handles pos.above() internally
+        MirrorPortalEntity.spawnReturnPortal(mirrorWorld, groundBlockPos, player.getUUID(), true, sessionId);
         
         // Track chunk for cleanup
         int dimIndex = ModDimensions.getMirrorWorldIndex(mirrorWorld.dimension());
         if (dimIndex >= 0) {
-            WorldCopyService.trackModifiedChunk(dimIndex, targetPos.getX() >> 4, targetPos.getZ() >> 4);
+            WorldCopyService.trackModifiedChunk(dimIndex, groundBlockPos.getX() >> 4, groundBlockPos.getZ() >> 4);
+        }
+    }
+    
+    /**
+     * Spawn portal particle effects (same as DimensionMirrorItem)
+     */
+    private static void spawnPortalParticles(ServerLevel level, BlockPos pos) {
+        double x = pos.getX() + 0.5;
+        double y = pos.getY() + 1.0;
+        double z = pos.getZ() + 0.5;
+
+        for (int i = 0; i < 20; i++) {
+            double offsetX = (level.random.nextDouble() - 0.5) * 2;
+            double offsetY = level.random.nextDouble() * 2;
+            double offsetZ = (level.random.nextDouble() - 0.5) * 2;
+
+            level.sendParticles(
+                    ParticleTypes.PORTAL,
+                    x + offsetX, y + offsetY, z + offsetZ,
+                    1, 0, 0, 0, 0
+            );
         }
     }
 

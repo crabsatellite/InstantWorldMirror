@@ -375,18 +375,9 @@ public class DimensionMirrorItem extends Item {
         // Spawn particle effects
         spawnPortalParticles(level, pos);
 
-        // Spawn return portal (only owner can use)
-        BlockPos spawnPos = pos.above();
-        MirrorPortalEntity portal = new MirrorPortalEntity(
-                level,
-                spawnPos.getX() + 0.5,
-                spawnPos.getY() + 0.5,
-                spawnPos.getZ() + 0.5,
-                player.getUUID(),
-                true // is return portal
-        );
-
-        level.addFreshEntity(portal);
+        // Spawn return portal using the unified factory method
+        // pos is the clicked solid block, factory method handles pos.above() internally
+        MirrorPortalEntity.spawnReturnPortal(level, pos, player.getUUID(), false, null);
 
         player.displayClientMessage(
                 Component.translatable("message.instantworldmirror.return_portal_created"),
