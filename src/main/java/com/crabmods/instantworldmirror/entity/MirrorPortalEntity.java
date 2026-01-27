@@ -238,7 +238,7 @@ public class MirrorPortalEntity extends Entity {
                     MirrorSession session = sessionOpt.get();
                     if (session.isCopyComplete()) {
                         worldCopyComplete = true;
-                        InstantWorldMirror.LOGGER.info("World copy detected complete for session {}", sessionId);
+                        InstantWorldMirror.LOGGER.debug("World copy complete for session {}", sessionId);
                     } else {
                         // Update queue position display for owner
                         updateQueuePositionDisplay(serverLevel);
@@ -451,7 +451,7 @@ public class MirrorPortalEntity extends Entity {
             }
             
             // Copy is now in progress - check session.isCopyComplete() each tick
-            InstantWorldMirror.LOGGER.info("Started async world copy for session {}, queue position: {}", 
+            InstantWorldMirror.LOGGER.debug("Started world copy for session {}, queue position: {}", 
                     sessionId, queuePosition);
         } else {
             // Player not found, mark complete

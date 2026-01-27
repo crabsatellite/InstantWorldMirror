@@ -60,7 +60,7 @@ public class DimensionPool {
                 dimensionStates.put(i, DimensionState.AVAILABLE);
             }
             initialized = true;
-            InstantWorldMirror.LOGGER.info("Dimension pool initialized with {} dimensions", poolSize);
+            InstantWorldMirror.LOGGER.debug("Dimension pool initialized with {} dimensions", poolSize);
         }
     }
     
@@ -84,13 +84,13 @@ public class DimensionPool {
         for (int i = 0; i < poolSize; i++) {
             if (data.isMarkedForCleanup(i)) {
                 dimensionStates.put(i, DimensionState.CLEANING);
-                InstantWorldMirror.LOGGER.info("Restored dimension {} to CLEANING state from saved data", i);
+                InstantWorldMirror.LOGGER.debug("Restored dimension {} to CLEANING state", i);
                 
                 // Queue cleanup task for this dimension
                 ServerLevel mirrorWorld = server.getLevel(ModDimensions.getMirrorWorld(i));
                 if (mirrorWorld != null) {
                     WorldCopyService.cleanupMirrorWorld(mirrorWorld, i);
-                    InstantWorldMirror.LOGGER.info("Re-queued cleanup task for dimension {}", i);
+                    InstantWorldMirror.LOGGER.debug("Re-queued cleanup task for dimension {}", i);
                 }
             }
         }
@@ -143,8 +143,7 @@ public class DimensionPool {
             // Save cleanup state to persistent storage
             markCleanupInProgress(dimIndex, true);
             
-            InstantWorldMirror.LOGGER.info("Released dimension {} from session {}, starting cleanup", 
-                    dimIndex, sessionId);
+            InstantWorldMirror.LOGGER.debug("Released dimension {} from session {}", dimIndex, sessionId);
         }
     }
     
@@ -181,7 +180,7 @@ public class DimensionPool {
             // Clear cleanup state from persistent storage
             markCleanupInProgress(dimIndex, false);
             
-            InstantWorldMirror.LOGGER.info("Dimension {} cleanup complete, now available", dimIndex);
+            InstantWorldMirror.LOGGER.debug("Dimension {} now available", dimIndex);
         }
     }
 
@@ -235,7 +234,7 @@ public class DimensionPool {
             // Save cleanup state to persistent storage
             markCleanupInProgress(dimIndex, true);
             
-            InstantWorldMirror.LOGGER.info("Force released orphaned dimension {}", dimIndex);
+            InstantWorldMirror.LOGGER.debug("Force released orphaned dimension {}", dimIndex);
         }
     }
 
@@ -259,7 +258,7 @@ public class DimensionPool {
             // Save cleanup state to persistent storage
             markCleanupInProgress(dimIndex, true);
             
-            InstantWorldMirror.LOGGER.info("Dimension {} force marked as CLEANING", dimIndex);
+            InstantWorldMirror.LOGGER.debug("Dimension {} force marked as CLEANING", dimIndex);
         }
     }
 
@@ -322,7 +321,7 @@ public class DimensionPool {
         // Don't reset states here - let initializeWithServer handle it on next startup
         serverRef = null;
         initialized = false;
-        InstantWorldMirror.LOGGER.info("Dimension pool cleared (cleanup states preserved in save data)");
+        InstantWorldMirror.LOGGER.debug("Dimension pool cleared");
     }
     
     /**

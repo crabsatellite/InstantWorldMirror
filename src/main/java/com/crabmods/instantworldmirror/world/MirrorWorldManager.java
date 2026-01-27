@@ -219,7 +219,7 @@ public class MirrorWorldManager {
             activeSessions.put(session.getSessionId(), session);
             playerOwnedSession.put(player.getUUID(), session.getSessionId());
 
-            InstantWorldMirror.LOGGER.info("Created session {} for player {} using dimension {}",
+            InstantWorldMirror.LOGGER.debug("Created session {} for player {} using dimension {}",
                     session.getSessionId(), player.getName().getString(), dimIndex);
 
             return Optional.of(session);
@@ -340,8 +340,8 @@ public class MirrorWorldManager {
         // Queue async world copy (now uses session's dedicated dimension)
         int queuePosition = WorldCopyService.queueWorldCopy(session, sourceWorld);
 
-        InstantWorldMirror.LOGGER.info("Queued async world copy for session {} to dimension {}, queue position: {}",
-                session.getSessionId(), session.getDimensionIndex(), queuePosition);
+        InstantWorldMirror.LOGGER.debug("Queued world copy for session {} to dimension {}",
+                session.getSessionId(), session.getDimensionIndex());
         
         return queuePosition;
     }
@@ -602,7 +602,7 @@ public class MirrorWorldManager {
             }
 
             player.displayClientMessage(Component.translatable("message.instantworldmirror.returned"), true);
-            InstantWorldMirror.LOGGER.info("Player {} returned from mirror world", player.getName().getString());
+            InstantWorldMirror.LOGGER.debug("Player {} returned from mirror world", player.getName().getString());
 
             return true;
         } finally {
@@ -1357,7 +1357,7 @@ public class MirrorWorldManager {
             }
         }
 
-        InstantWorldMirror.LOGGER.info("Session {} destroyed, dimension {} queued for cleanup", 
+        InstantWorldMirror.LOGGER.debug("Session {} destroyed, dimension {} queued for cleanup", 
                 sessionId, dimIndex);
     }
 

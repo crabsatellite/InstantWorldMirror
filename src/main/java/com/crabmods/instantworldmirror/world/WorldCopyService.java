@@ -236,8 +236,7 @@ public class WorldCopyService {
         CopyTask task = copyTasks.get(dimensionIndex);
         if (task != null && !task.isCompleted()) {
             task.cancel();
-            InstantWorldMirror.LOGGER.info("Cancelled copy task for dimension {} at {}% progress", 
-                    dimensionIndex, task.getProgressPercent());
+            InstantWorldMirror.LOGGER.debug("Cancelled copy task for dimension {}", dimensionIndex);
         }
         copyTasks.remove(dimensionIndex);
         
@@ -365,7 +364,7 @@ public class WorldCopyService {
                 this.currentIndex = savedProgress;
             }
             
-            InstantWorldMirror.LOGGER.info("Cleanup initialized for dimension {}: {} chunks", dimensionIndex, chunksToClean.size());
+            InstantWorldMirror.LOGGER.debug("Cleanup initialized for dimension {}: {} chunks", dimensionIndex, chunksToClean.size());
         }
         
         public int getTotalChunks() {
@@ -949,8 +948,8 @@ public class WorldCopyService {
         // Calculate queue position
         int queuePosition = getCopyQueuePosition(dimIndex);
         
-        InstantWorldMirror.LOGGER.info("Queued world copy for session {} to dimension {} - {} chunks total, queue position: {}",
-                session.getSessionId(), dimIndex, task.getTotalChunks(), queuePosition);
+        InstantWorldMirror.LOGGER.debug("Queued world copy for session {} to dimension {}",
+                session.getSessionId(), dimIndex);
         
         return queuePosition;
     }
@@ -1024,9 +1023,8 @@ public class WorldCopyService {
             synchronized (copyQueue) {
                 copyQueue.removeFirstOccurrence(currentDimIndex);
             }
-            // If cancelled, skip completion notification
             if (task.isCancelled()) {
-                InstantWorldMirror.LOGGER.info("Copy task for dimension {} was cancelled", currentDimIndex);
+                InstantWorldMirror.LOGGER.debug("Copy task for dimension {} was cancelled", currentDimIndex);
             }
             return;
         }
@@ -1063,8 +1061,8 @@ public class WorldCopyService {
                 // Notify session that copy is complete
                 MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
                 
-                InstantWorldMirror.LOGGER.info("World copy completed for session {} in dimension {} - {} blocks copied",
-                        task.sessionId, currentDimIndex, task.getTotalBlocksCopied());
+                InstantWorldMirror.LOGGER.debug("World copy completed for session {} in dimension {}",
+                        task.sessionId, currentDimIndex);
             }
         }
     }
@@ -1651,8 +1649,7 @@ public class WorldCopyService {
             }
         }
         
-        InstantWorldMirror.LOGGER.info("Queued cleanup for dimension {} - {} tracked chunks to process",
-                dimensionIndex, task.getTotalChunks());
+        InstantWorldMirror.LOGGER.debug("Queued cleanup for dimension {}", dimensionIndex);
     }
     
     /**
@@ -1720,8 +1717,7 @@ public class WorldCopyService {
             // Mark dimension as available again
             DimensionPool.markDimensionAvailable(currentDimIndex);
             
-            InstantWorldMirror.LOGGER.info("Cleanup completed for dimension {}, now available for new sessions",
-                    currentDimIndex);
+            InstantWorldMirror.LOGGER.debug("Cleanup completed for dimension {}", currentDimIndex);
             return;
         }
         
@@ -1786,8 +1782,7 @@ public class WorldCopyService {
             // Mark dimension as available again
             DimensionPool.markDimensionAvailable(currentDimIndex);
             
-            InstantWorldMirror.LOGGER.info("Cleanup completed for dimension {}, now available for new sessions",
-                    currentDimIndex);
+            InstantWorldMirror.LOGGER.debug("Cleanup completed for dimension {}", currentDimIndex);
         }
     }
     
@@ -2087,7 +2082,7 @@ public class WorldCopyService {
     public static void cancelCleanupTask(int dimIndex) {
         CleanupTask removed = cleanupTasks.remove(dimIndex);
         if (removed != null) {
-            InstantWorldMirror.LOGGER.info("Cancelled pending cleanup task for dimension {}", dimIndex);
+            InstantWorldMirror.LOGGER.debug("Cancelled cleanup task for dimension {}", dimIndex);
         }
         // Also remove from queue
         synchronized (cleanupQueue) {
@@ -2105,8 +2100,7 @@ public class WorldCopyService {
             CleanupTask task = entry.getValue();
             if (!task.isCompleted()) {
                 task.saveProgress();
-                InstantWorldMirror.LOGGER.info("Saved cleanup progress for dimension {} ({}/{})",
-                        task.dimensionIndex, task.getCleanedChunks(), task.getTotalChunks());
+                InstantWorldMirror.LOGGER.debug("Saved cleanup progress for dimension {}", task.dimensionIndex);
             }
         }
         
@@ -2120,6 +2114,6 @@ public class WorldCopyService {
         pendingSave.clear();
         saveTickCounter = 0;
         
-        InstantWorldMirror.LOGGER.info("All tasks cleared, progress saved to persistent storage");
+        InstantWorldMirror.LOGGER.debug("All tasks cleared");
     }
 }
