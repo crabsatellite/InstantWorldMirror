@@ -134,6 +134,9 @@ public class ModEvents {
             // Handle disconnect - remove from session and cleanup if needed
             MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
             
+            // Clean up lazy tracking cache for this player
+            lastTrackedChunkPos.remove(player.getUUID());
+            
             if (MirrorWorldManager.isInMirrorWorld(player)) {
                 InstantWorldMirror.LOGGER.info("Player {} logged out from Mirror World", 
                         player.getName().getString());
@@ -304,6 +307,11 @@ public class ModEvents {
     // Tick counter for periodic tasks (avoids expensive gameTime checks)
     private static int tickCounter = 0;
     
+    // Lazy tracking: cache player chunk positions to avoid redundant tracking
+    // playerUUID -> last tracked chunk position (packed as long)
+    private static final java.util.Map<java.util.UUID, Long> lastTrackedChunkPos = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int CHUNK_TRACK_DISTANCE_THRESHOLD = 2; // Only retrack if moved 2+ chunks
+    
     /**
      * World tick event - process async copy and cleanup queues
      * Optimized: Uses tick counter instead of gameTime modulo for better performance
@@ -348,14 +356,34 @@ public class ModEvents {
         
         long gameTime = serverLevel.getGameTime();
         
-        // Track all player positions every 10 ticks (for cleanup purposes)
-        // Only if there are players in this dimension
+        // OPTIMIZED: Lazy track player positions - only when moved significantly
+        // Check every 10 ticks but only actually track if player moved 2+ chunks
         if (gameTime % 10 == 0 && !serverLevel.players().isEmpty()) {
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             for (ServerPlayer player : serverLevel.players()) {
                 int chunkX = player.getBlockX() >> 4;
                 int chunkZ = player.getBlockZ() >> 4;
-                WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
+                long currentChunkPacked = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+                
+                // Check if we need to retrack (first time or moved enough)
+                Long lastPos = lastTrackedChunkPos.get(player.getUUID());
+                if (lastPos == null) {
+                    // First time tracking this player
+                    WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
+                    lastTrackedChunkPos.put(player.getUUID(), currentChunkPacked);
+                } else {
+                    // Check distance moved
+                    int lastChunkX = (int) (lastPos >> 32);
+                    int lastChunkZ = lastPos.intValue();
+                    int distX = Math.abs(chunkX - lastChunkX);
+                    int distZ = Math.abs(chunkZ - lastChunkZ);
+                    
+                    // Only retrack if moved beyond threshold
+                    if (distX >= CHUNK_TRACK_DISTANCE_THRESHOLD || distZ >= CHUNK_TRACK_DISTANCE_THRESHOLD) {
+                        WorldCopyService.trackChunksInRadius(dimIndex, chunkX, chunkZ, viewDistance);
+                        lastTrackedChunkPos.put(player.getUUID(), currentChunkPacked);
+                    }
+                }
             }
         }
         

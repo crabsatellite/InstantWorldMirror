@@ -4,7 +4,7 @@
   "package": "com.crabmods.instantworldmirror.mixin",
   "compatibilityLevel": "JAVA_21",
   "refmap": "instantworldmirror.refmap.json",
-  "mixins": ["BlockEntityMixin"],
+  "mixins": ["BlockEntityMixin", "LevelChunkSectionAccessor"],
   "client": ["client.ClientLevelMixin"],
   "injectors": {
     "defaultRequire": 1
