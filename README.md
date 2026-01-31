@@ -1,102 +1,176 @@
-# InstantWorldMirror - 瞬时世界之镜
+﻿# InstantWorldMirror - Instant World Mirror
 
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21-green.svg)](https://minecraft.net/)
 [![NeoForge](https://img.shields.io/badge/NeoForge-21.0+-orange.svg)](https://neoforged.net/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-一个Minecraft模组，允许玩家使用"次元镜像镜"创建当前世界的镜像副本并探索其中。
+**English** | **[中文](https://github.com/crabsatellite/InstantWorldMirror/blob/1.21.1/docs/readme/chn/README.md)**
 
-## ✨ 特性
+## Instant Sandbox - Explore Without Consequences
 
-### 🪞 次元镜像镜
+InstantWorldMirror provides Minecraft players with an instant sandbox testing ground. Using the Dimension Mirror, you can create a complete mirror copy of the current world at any location, freely explore, test, and experiment without worrying about any impact on the original world.
 
-- 使用EPIC稀有度的特殊物品
-- 右键固体方块创建传送门
-- 自带附魔光效
+### Core Use Cases
 
-### 🌍 镜面世界
+- **Mod Testing**: Test new mod functionality and compatibility in the mirror world without risking your main save
+- **Redstone Debugging**: Copy your redstone contraptions for repeated testing and debugging without teardown costs
+- **Adventure Scouting**: Explore dangerous areas in the mirror first to plan safe routes before venturing in
+- **Building Design**: Preview building plans in the mirror, then build in the main world once satisfied
+- **Server Events**: Provide safe activity spaces for players, with automatic cleanup after events
 
-- 实时复制主世界地形（默认10区块半径）
-- 完全独立的维度，不影响主世界
-- 同步主世界天气和时间
-- 禁止生成任何生物
+## Features
 
-### 🚪 传送门系统
+### Dimension Mirror
 
-- 临时传送门实体（持续5秒）
-- 仅限创建者进入
-- 浮动动画和粒子效果
-- 自动音效提示
+The Dimension Mirror is your key to the mirror world:
 
-### 🎲 盗梦空间彩蛋
+- Right-click any solid block to create an entry portal
+- Supports Efficiency enchantment to reduce cooldown (20% reduction per level)
+- No cooldown in Creative mode
+- Supports creating mirrors from Overworld, Nether, End, and mod-added custom dimensions
 
-- 1/100概率触发
-- 玩家出生在基岩层上方
-- 上方是完全倒置的世界
-- 致敬电影《盗梦空间》
+### Mirror World Mechanics
 
-## 📦 安装
+- Copies terrain within a configurable radius centered on the portal (default 10 chunks, configurable 1-32 chunks)
+- Complete copying of blocks, block entities, biome data, and structure information
+- Optional entity copying (mobs, decorations, etc.)
+- Automatic synchronization of source world weather and time
+- Natural mob spawning disabled by default, can be enabled via commands or config
 
-1. 安装 [NeoForge](https://neoforged.net/) 1.21+
-2. 下载本模组 JAR 文件
-3. 放入 `.minecraft/mods` 文件夹
-4. 启动游戏
+### Multiplayer Support
 
-## 🔧 合成配方
+- Supports up to 8 parallel mirror dimensions, allowing multiple players to use their own mirror worlds simultaneously
+- Multiple players can enter the same mirror session through the same portal
+- Comprehensive permission system for server admins to control player access and item transfer rules
+- Mirror world automatically enters cleanup when all players leave
+
+### Portal System
+
+- Entry portal opens after world copy completes, lasts 5 minutes by default (configurable)
+- Return portal in mirror world is permanent by default
+- Use Dimension Mirror in mirror world to create return portal
+- Automatic return to source world upon death
+
+### Performance Optimization
+
+- Heightmap scanning technology skips air columns, significantly reducing unnecessary copying
+- Section-level operations instead of block-by-block processing
+- Sequential queue processing to avoid server overload
+- Smart cleanup mechanism only processes modified chunks
+
+## Installation
+
+1. Install [NeoForge](https://neoforged.net/) 1.21+
+2. Download this mod JAR file
+3. Place in `.minecraft/mods` folder
+4. Launch the game
+
+## Crafting Recipe
 
 ```
-[玻璃] [黑曜石] [玻璃]
-[黑曜石] [末影珍珠] [黑曜石]
-[玻璃] [黑曜石] [玻璃]
+[Glass]    [Obsidian] [Glass]
+[Obsidian] [Ender Pearl] [Obsidian]
+[Glass]    [Obsidian] [Glass]
 ```
 
-## 📋 命令
+## Commands
 
-| 命令                                       | 描述                 | 权限     |
-| ------------------------------------------ | -------------------- | -------- |
-| `/mirror return`                           | 强制返回主世界       | 所有玩家 |
-| `/mirror mob on/off`                       | 开关镜面世界生物生成 | OP       |
-| `/mirror admin <玩家>`                     | 赋予管理员权限       | OP       |
-| `/mirror allow <玩家>`                     | 允许玩家进入镜面世界 | OP       |
-| `/mirror deny <玩家>`                      | 禁止玩家进入镜面世界 | OP       |
-| `/mirror itemtransfer <玩家> <true/false>` | 控制物品带回权限     | OP       |
+All commands start with `/iwm`:
 
-## ⚙️ 配置
+| Command                                   | Description                                                 | Permission   |
+| ----------------------------------------- | ----------------------------------------------------------- | ------------ |
+| `/iwm return`                             | Force return to source world                                | All players  |
+| `/iwm mob on/off/status`                  | Control mirror world mob spawning                           | OP           |
+| `/iwm allow <player>`                     | Allow player to use mirror feature                          | OP           |
+| `/iwm deny <player>`                      | Deny player from using mirror feature                       | OP           |
+| `/iwm itemtransfer <player> <true/false>` | Control player item transfer permission                     | OP           |
+| `/iwm status`                             | View dimension pool status and player info                  | OP           |
+| `/iwm forceclear <dimension>`             | Force clear specified mirror dimension                      | OP (Level 3) |
+| `/iwm purge`                              | Completely delete all mirror world saves (requires restart) | OP (Level 3) |
 
-配置文件位于 `config/instantworldmirror-common.toml`
+## Configuration
 
-| 配置项            | 默认值 | 描述                    |
-| ----------------- | ------ | ----------------------- |
-| copyChunkRadius   | 10     | 世界复制半径（区块）    |
-| mirrorEnabled     | true   | 镜像功能开关            |
-| portalDuration    | 5      | 传送门持续时间（秒）    |
-| allowItemTransfer | false  | 默认是否允许带回物品    |
-| enableMobSpawning | false  | 镜面世界生物生成        |
-| inceptionMode     | false  | 强制开启盗梦空间模式    |
-| inceptionChance   | 100    | 盗梦空间触发概率（1/N） |
+Config file located at `config/instantworldmirror-common.toml`
 
-## 🎮 游戏玩法
+### Dimension Pool Settings
 
-1. **合成次元镜像镜**
-2. **找到你想复制的区域**
-3. **右键固体方块**创建传送门
-4. **进入传送门**进入镜面世界
-5. 在镜面世界中自由探索、建造、破坏
-6. **再次使用镜像镜**或使用 `/mirror return` 返回
-7. 死亡会自动返回主世界（物品留在镜面世界）
+| Config            | Default | Description                                                                 |
+| ----------------- | ------- | --------------------------------------------------------------------------- |
+| dimensionPoolSize | 4       | Mirror dimension pool size (1-8), determines max concurrent mirror sessions |
 
-## ⚠️ 注意事项
+### World Copy Settings
 
-- 默认情况下，从镜面世界返回时**不会保留物品**
-- 镜面世界中**无法建造下界/末地传送门**
-- 每次进入都会**重新复制世界**
-- 服务器管理员可以控制玩家访问权限
+| Config               | Default | Description                                               |
+| -------------------- | ------- | --------------------------------------------------------- |
+| copyChunkRadius      | 10      | Copy radius (chunks), total chunks = (radius\*2+1)^2      |
+| copyChunksPerTick    | 2       | Chunks copied per tick, higher = faster but may cause lag |
+| cleanupChunksPerTick | 4       | Chunks cleaned per tick                                   |
+| edgeCleanupRadius    | 3       | Extra radius for BFS edge cleanup scan                    |
 
-## 🔗 相关链接
+### Portal Settings
 
-- [NeoForge 文档](https://docs.neoforged.net/)
-- [NeoForge Discord](https://discord.neoforged.net/)
+| Config               | Default | Description                                        |
+| -------------------- | ------- | -------------------------------------------------- |
+| entryPortalLifetime  | 300     | Entry portal duration (seconds), -1 for permanent  |
+| returnPortalLifetime | -1      | Return portal duration (seconds), -1 for permanent |
+| maxPortalLoadingTime | 600     | Maximum portal loading wait time (seconds)         |
 
-## 📄 许可证
+### Item and Mob Settings
 
-MIT License
+| Config                 | Default | Description                                                        |
+| ---------------------- | ------- | ------------------------------------------------------------------ |
+| allowItemTransfer      | false   | Whether to allow players to bring items back by default            |
+| mirrorCooldown         | 300     | Dimension Mirror cooldown (seconds), reduced by Efficiency         |
+| copyEntities           | false   | Whether to copy mob entities                                       |
+| copyDecorationEntities | true    | Whether to copy decoration entities (paintings, item frames, etc.) |
+| enableMobSpawning      | false   | Whether to allow natural mob spawning in mirror world              |
+
+### Environment Settings
+
+| Config         | Default | Description                    |
+| -------------- | ------- | ------------------------------ |
+| copyBiomes     | true    | Whether to copy biome data     |
+| copyStructures | true    | Whether to copy structure data |
+| copyHeightmaps | true    | Whether to copy heightmap data |
+
+### Server Limits
+
+| Config                      | Default | Description                                    |
+| --------------------------- | ------- | ---------------------------------------------- |
+| maxMirrorWorldsPerPlayer    | 1       | Maximum concurrent mirror sessions per player  |
+| staleSessionCleanupInterval | 300     | Stale session cleanup check interval (seconds) |
+
+### Client Settings
+
+Client config located at `config/instantworldmirror-client.toml`
+
+| Config          | Default | Description                                |
+| --------------- | ------- | ------------------------------------------ |
+| showCooldownHud | false   | Show cooldown timer HUD in top-left corner |
+
+## Gameplay
+
+1. Craft a Dimension Mirror
+2. Go to the area you want to copy
+3. Right-click a solid block to create an entry portal
+4. Wait for world copy to complete (portal shows loading progress)
+5. Enter the portal to start exploring and experimenting in the mirror world
+6. Use Dimension Mirror to create a return portal, or use `/iwm return` command
+7. Mirror world automatically cleans up after you leave, ready for next use
+
+## Important Notes
+
+- By default, items obtained in the mirror world are NOT kept when returning
+- Cannot build Nether or End portals in the mirror world
+- Each new mirror session copies the world fresh
+- Changes in mirror world do NOT affect the source world
+- Server admins have full control over player access permissions
+
+## Downloads
+
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/instantworldmirror) - Mod download
+- [GitHub](https://github.com/crabsatellite/InstantWorldMirror) - Source code
+
+## License
+
+Apache License 2.0
