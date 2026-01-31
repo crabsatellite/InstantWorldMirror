@@ -77,16 +77,16 @@ InstantWorldMirror 为 Minecraft 玩家提供了一个即时可用的沙盒试�
 
 所有命令以 `/iwm` 开头：
 
-| 命令                                    | 描述                               | 权限           |
-| --------------------------------------- | ---------------------------------- | -------------- |
-| `/iwm return`                           | 强制返回源世界                     | 所有玩家       |
-| `/iwm mob on/off/status`                | 控制镜像世界生物生成               | OP (Level 2)   |
-| `/iwm allow <玩家>`                     | 允许玩家使用镜像功能               | OP (Level 2)   |
-| `/iwm deny <玩家>`                      | 禁止玩家使用镜像功能               | OP (Level 2)   |
-| `/iwm itemtransfer <玩家> <true/false>` | 控制玩家物品携带权限               | OP (Level 2)   |
-| `/iwm status`                           | 查看维度池状态和玩家信息           | OP (Level 2)   |
-| `/iwm forceclear <维度>`                | 强制清理指定镜像维度               | OP (Level 3)   |
-| `/iwm purge`                            | 完全删除所有镜像世界存档（需重启） | OP (Level 3)   |
+| 命令                                    | 描述                               | 权限         |
+| --------------------------------------- | ---------------------------------- | ------------ |
+| `/iwm return`                           | 强制返回源世界                     | 所有玩家     |
+| `/iwm mob on/off/status`                | 控制镜像世界生物生成               | OP (Level 2) |
+| `/iwm allow <玩家>`                     | 允许玩家使用镜像功能               | OP (Level 2) |
+| `/iwm deny <玩家>`                      | 禁止玩家使用镜像功能               | OP (Level 2) |
+| `/iwm itemtransfer <玩家> <true/false>` | 控制玩家物品携带权限               | OP (Level 2) |
+| `/iwm status`                           | 查看维度池状态和玩家信息           | OP (Level 2) |
+| `/iwm forceclear <维度>`                | 强制清理指定镜像维度               | OP (Level 3) |
+| `/iwm purge`                            | 完全删除所有镜像世界存档（需重启） | OP (Level 3) |
 
 ## 配置
 

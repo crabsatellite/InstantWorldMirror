@@ -77,16 +77,16 @@ The Dimension Mirror is your key to the mirror world:
 
 All commands start with `/iwm`:
 
-| Command                                   | Description                                                 | Permission     |
-| ----------------------------------------- | ----------------------------------------------------------- | -------------- |
-| `/iwm return`                             | Force return to source world                                | All players    |
-| `/iwm mob on/off/status`                  | Control mirror world mob spawning                           | OP (Level 2)   |
-| `/iwm allow <player>`                     | Allow player to use mirror feature                          | OP (Level 2)   |
-| `/iwm deny <player>`                      | Deny player from using mirror feature                       | OP (Level 2)   |
-| `/iwm itemtransfer <player> <true/false>` | Control player item transfer permission                     | OP (Level 2)   |
-| `/iwm status`                             | View dimension pool status and player info                  | OP (Level 2)   |
-| `/iwm forceclear <dimension>`             | Force clear specified mirror dimension                      | OP (Level 3)   |
-| `/iwm purge`                              | Completely delete all mirror world saves (requires restart) | OP (Level 3)   |
+| Command                                   | Description                                                 | Permission   |
+| ----------------------------------------- | ----------------------------------------------------------- | ------------ |
+| `/iwm return`                             | Force return to source world                                | All players  |
+| `/iwm mob on/off/status`                  | Control mirror world mob spawning                           | OP (Level 2) |
+| `/iwm allow <player>`                     | Allow player to use mirror feature                          | OP (Level 2) |
+| `/iwm deny <player>`                      | Deny player from using mirror feature                       | OP (Level 2) |
+| `/iwm itemtransfer <player> <true/false>` | Control player item transfer permission                     | OP (Level 2) |
+| `/iwm status`                             | View dimension pool status and player info                  | OP (Level 2) |
+| `/iwm forceclear <dimension>`             | Force clear specified mirror dimension                      | OP (Level 3) |
+| `/iwm purge`                              | Completely delete all mirror world saves (requires restart) | OP (Level 3) |
 
 ## Configuration
 
