@@ -8,7 +8,7 @@
 
 ## Instant Sandbox - Explore Without Consequences
 
-InstantWorldMirror provides Minecraft players with an instant sandbox testing ground. Using the Dimension Mirror, you can create a complete mirror copy of the current world at any location, freely explore, test, and experiment without worrying about any impact on the original world.
+InstantWorldMirror provides Minecraft players with an instant sandbox testing ground. Using the Dimension Mirror, you can create a mirror copy of the surrounding area at any location, freely explore, test, and experiment without worrying about any impact on the original world.
 
 ### Core Use Cases
 
@@ -77,16 +77,16 @@ The Dimension Mirror is your key to the mirror world:
 
 All commands start with `/iwm`:
 
-| Command                                   | Description                                                 | Permission   |
-| ----------------------------------------- | ----------------------------------------------------------- | ------------ |
-| `/iwm return`                             | Force return to source world                                | All players  |
-| `/iwm mob on/off/status`                  | Control mirror world mob spawning                           | OP           |
-| `/iwm allow <player>`                     | Allow player to use mirror feature                          | OP           |
-| `/iwm deny <player>`                      | Deny player from using mirror feature                       | OP           |
-| `/iwm itemtransfer <player> <true/false>` | Control player item transfer permission                     | OP           |
-| `/iwm status`                             | View dimension pool status and player info                  | OP           |
-| `/iwm forceclear <dimension>`             | Force clear specified mirror dimension                      | OP (Level 3) |
-| `/iwm purge`                              | Completely delete all mirror world saves (requires restart) | OP (Level 3) |
+| Command                                   | Description                                                 | Permission     |
+| ----------------------------------------- | ----------------------------------------------------------- | -------------- |
+| `/iwm return`                             | Force return to source world                                | All players    |
+| `/iwm mob on/off/status`                  | Control mirror world mob spawning                           | OP (Level 2)   |
+| `/iwm allow <player>`                     | Allow player to use mirror feature                          | OP (Level 2)   |
+| `/iwm deny <player>`                      | Deny player from using mirror feature                       | OP (Level 2)   |
+| `/iwm itemtransfer <player> <true/false>` | Control player item transfer permission                     | OP (Level 2)   |
+| `/iwm status`                             | View dimension pool status and player info                  | OP (Level 2)   |
+| `/iwm forceclear <dimension>`             | Force clear specified mirror dimension                      | OP (Level 3)   |
+| `/iwm purge`                              | Completely delete all mirror world saves (requires restart) | OP (Level 3)   |
 
 ## Configuration
 
@@ -153,7 +153,7 @@ Client config located at `config/instantworldmirror-client.toml`
 1. Craft a Dimension Mirror
 2. Go to the area you want to copy
 3. Right-click a solid block to create an entry portal
-4. Wait for world copy to complete (portal shows loading progress)
+4. Wait for world copy to complete (portal animation indicates loading state)
 5. Enter the portal to start exploring and experimenting in the mirror world
 6. Use Dimension Mirror to create a return portal, or use `/iwm return` command
 7. Mirror world automatically cleans up after you leave, ready for next use
