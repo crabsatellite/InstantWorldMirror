@@ -1182,6 +1182,11 @@ public class WorldCopyService {
             int sectionCount = sourceChunk.getSectionsCount();
             int chunkMinSectionY = sourceChunk.getMinSection();
             
+            // Get target chunk's min section for correct section mapping
+            // This is critical for cross-dimension copying (e.g., Nether to mirror world)
+            // Nether has minSection=0 (Y starts at 0), but mirror world has minSection=-4 (Y starts at -64)
+            int targetMinSectionY = targetChunk.getMinSection();
+            
             for (int relativeSectionIndex = 0; relativeSectionIndex < sectionCount; relativeSectionIndex++) {
                 LevelChunkSection sourceSection = sourceChunk.getSection(relativeSectionIndex);
                 
@@ -1198,10 +1203,19 @@ public class WorldCopyService {
                     continue;
                 }
                 
+                // Calculate the correct target section index based on world Y coordinate
+                // This ensures blocks are placed at the same world Y position regardless of dimension height differences
+                int targetRelativeSectionIndex = sectionY - targetMinSectionY;
+                
+                // Skip if target section index is out of bounds (block outside target dimension's height range)
+                if (targetRelativeSectionIndex < 0 || targetRelativeSectionIndex >= targetChunk.getSectionsCount()) {
+                    continue;
+                }
+                
                 // Process this 16x16x16 section
                 // Optimization: Use Y-Z-X iteration order for better cache locality
                 // Also batch collect block entities to copy after block placement
-                LevelChunkSection targetSection = targetChunk.getSection(relativeSectionIndex);
+                LevelChunkSection targetSection = targetChunk.getSection(targetRelativeSectionIndex);
                 java.util.List<int[]> blockEntitiesToCopy = null; // Lazy init for common case of no BEs
                 
                 for (int localY = 0; localY < 16; localY++) {
@@ -1477,10 +1491,23 @@ public class WorldCopyService {
         
         try {
             int sectionCount = sourceChunk.getSectionsCount();
+            int sourceMinSectionY = sourceChunk.getMinSection();
+            int targetMinSectionY = targetChunk.getMinSection();
+            int targetSectionCount = targetChunk.getSectionsCount();
             
-            for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
-                LevelChunkSection sourceSection = sourceChunk.getSection(sectionIndex);
-                LevelChunkSection targetSection = targetChunk.getSection(sectionIndex);
+            for (int sourceSectionIndex = 0; sourceSectionIndex < sectionCount; sourceSectionIndex++) {
+                // Calculate the correct target section index based on world Y coordinate
+                // This handles cross-dimension copying (e.g., Nether to mirror world)
+                int sectionY = sourceMinSectionY + sourceSectionIndex;
+                int targetSectionIndex = sectionY - targetMinSectionY;
+                
+                // Skip if target section index is out of bounds
+                if (targetSectionIndex < 0 || targetSectionIndex >= targetSectionCount) {
+                    continue;
+                }
+                
+                LevelChunkSection sourceSection = sourceChunk.getSection(sourceSectionIndex);
+                LevelChunkSection targetSection = targetChunk.getSection(targetSectionIndex);
                 
                 if (sourceSection == null || targetSection == null) {
                     continue;
