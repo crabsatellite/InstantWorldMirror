@@ -4,17 +4,18 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * Item Registry Class
  */
 public class ModItems {
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(InstantWorldMirror.MODID);
+    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, InstantWorldMirror.MODID);
 
     // Dimension Mirror
-    public static final DeferredItem<DimensionMirrorItem> DIMENSION_MIRROR = ITEMS.register(
+    public static final RegistryObject<DimensionMirrorItem> DIMENSION_MIRROR = ITEMS.register(
             "dimension_mirror",
             () -> new DimensionMirrorItem(new Item.Properties()
                     .stacksTo(1)

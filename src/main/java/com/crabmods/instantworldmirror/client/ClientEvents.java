@@ -5,20 +5,20 @@ import com.crabmods.instantworldmirror.client.model.MirrorPortalModel;
 import com.crabmods.instantworldmirror.client.renderer.MirrorPortalRenderer;
 import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.registry.ModItems;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
-import net.neoforged.neoforge.client.event.EntityRenderersEvent;
-import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
-import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
-import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.RegisterItemDecorationsEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
  * Client-side MOD bus event handling.
  * Handles renderer registration, HUD overlays, and item decorators.
  */
-@EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientEvents {
 
     /**
@@ -43,11 +43,11 @@ public class ClientEvents {
      * Register HUD overlays
      */
     @SubscribeEvent
-    public static void registerGuiLayers(RegisterGuiLayersEvent event) {
+    public static void registerGuiOverlays(RegisterGuiOverlaysEvent event) {
         // Register cooldown HUD above the hotbar
         event.registerAbove(
-                VanillaGuiLayers.HOTBAR, 
-                CooldownHudOverlay.OVERLAY_ID, 
+                VanillaGuiOverlay.HOTBAR.id(), 
+                "cooldown_hud", 
                 new CooldownHudOverlay()
         );
         InstantWorldMirror.LOGGER.info("Cooldown HUD overlay registered");
@@ -65,16 +65,16 @@ public class ClientEvents {
 }
 
 /**
- * Client-side event handling (GAME bus) for network events
+ * Client-side event handling (FORGE bus) for player events
  */
-@EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 class ClientGameEvents {
     
     /**
      * Clear cached dimension effects and cooldown tracker when disconnecting from server
      */
     @SubscribeEvent
-    public static void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
+    public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         MirrorDimensionEffectsManager.clearAll();
         ClientCooldownTracker.clear();
         InstantWorldMirror.LOGGER.debug("Client disconnected, cleared mirror dimension effects cache and cooldown tracker");

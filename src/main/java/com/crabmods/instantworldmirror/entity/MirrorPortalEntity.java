@@ -205,11 +205,11 @@ public class MirrorPortalEntity extends Entity {
     }
 
     @Override
-    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+    protected void defineSynchedData() {
         // Default to entry portal lifetime, will be updated when copy completes
-        builder.define(DATA_LIFETIME, MirrorConfig.getEntryPortalLifetimeTicks());
-        builder.define(DATA_LOADING, true); // Default to loading state
-        builder.define(DATA_IS_RETURN, false); // Default to entry portal
+        this.entityData.define(DATA_LIFETIME, MirrorConfig.getEntryPortalLifetimeTicks());
+        this.entityData.define(DATA_LOADING, true); // Default to loading state
+        this.entityData.define(DATA_IS_RETURN, false); // Default to entry portal
     }
     
     /**

@@ -78,13 +78,13 @@ public class MirrorDimensionEffectsManager {
     
     /**
      * Get or create DimensionSpecialEffects for a given effects key
-     * Uses NeoForge's DimensionSpecialEffectsManager which supports all registered effects
+     * Uses Forge's DimensionSpecialEffectsManager which supports all registered effects
      */
     private static DimensionSpecialEffects getOrCreateEffects(ResourceLocation effectsKey) {
         return effectsCache.computeIfAbsent(effectsKey, key -> {
-            // Use NeoForge's effects manager for lookup
+            // Use Forge 1.20.1's DimensionSpecialEffectsManager for effects lookup
             // This works for vanilla (overworld, the_nether, the_end) and any mod-registered effects
-            return net.neoforged.neoforge.client.DimensionSpecialEffectsManager.getForType(key);
+            return net.minecraftforge.client.DimensionSpecialEffectsManager.getForType(key);
         });
     }
 }

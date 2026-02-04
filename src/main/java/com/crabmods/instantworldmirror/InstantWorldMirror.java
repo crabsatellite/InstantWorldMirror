@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror;
 
 import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.registry.ModBlocks;
 import com.crabmods.instantworldmirror.registry.ModChunkGenerators;
 import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
@@ -8,16 +9,17 @@ import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.mojang.logging.LogUtils;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.event.server.ServerStartingEvent;
 import org.slf4j.Logger;
 
 /**
@@ -29,7 +31,9 @@ public class InstantWorldMirror {
     public static final String MODID = "instantworldmirror";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public InstantWorldMirror(IEventBus modEventBus, ModContainer modContainer) {
+    public InstantWorldMirror() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        
         // Register common setup event
         modEventBus.addListener(this::commonSetup);
 
@@ -50,19 +54,22 @@ public class InstantWorldMirror {
         ModEntities.ENTITY_TYPES.register(modEventBus);
 
         // Register server events
-        NeoForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(this);
 
         // Register configuration
-        modContainer.registerConfig(ModConfig.Type.COMMON, MirrorConfig.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, MirrorConfig.SPEC);
         
         // Only register client config on client side
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            modContainer.registerConfig(ModConfig.Type.CLIENT, com.crabmods.instantworldmirror.client.ClientConfig.SPEC);
+            ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, com.crabmods.instantworldmirror.client.ClientConfig.SPEC);
         }
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("InstantWorldMirror - Common Setup");
+        
+        // Register network packets
+        ModNetworking.register();
         
         // Initialize dimension pool size from config
         event.enqueueWork(() -> {

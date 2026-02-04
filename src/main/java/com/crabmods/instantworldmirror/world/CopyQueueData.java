@@ -2,7 +2,6 @@ package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceKey;
@@ -156,7 +155,7 @@ public class CopyQueueData extends SavedData {
             );
             int radius = tag.getInt("radius");
             String dimStr = tag.getString("sourceDim");
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(dimStr));
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dimStr));
             
             CopyTask task = new CopyTask(sessionId, pos, radius, dim);
             
@@ -177,7 +176,7 @@ public class CopyQueueData extends SavedData {
     /**
      * Load from NBT
      */
-    public static CopyQueueData load(CompoundTag tag, HolderLookup.Provider provider) {
+    public static CopyQueueData load(CompoundTag tag) {
         CopyQueueData data = new CopyQueueData();
         
         if (tag.contains("tasks")) {
@@ -194,7 +193,7 @@ public class CopyQueueData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag tag) {
         ListTag taskList = new ListTag();
         for (CopyTask task : pendingTasks) {
             taskList.add(task.save());
@@ -270,10 +269,8 @@ public class CopyQueueData extends SavedData {
      */
     public static CopyQueueData get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(
-                new Factory<>(
-                        CopyQueueData::new,
-                        CopyQueueData::load
-                ),
+                CopyQueueData::load,
+                CopyQueueData::new,
                 DATA_NAME
         );
     }

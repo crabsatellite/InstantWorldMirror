@@ -3,14 +3,13 @@ package com.crabmods.instantworldmirror.item;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.SyncCooldownPacket;
 import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -30,7 +29,6 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Map;
 import java.util.Optional;
@@ -298,17 +296,14 @@ public class DimensionMirrorItem extends Item {
         Long totalDuration = COOLDOWN_DURATIONS.get(playerId);
         long timestamp = (cooldownEnd != null) ? cooldownEnd : 0;
         long duration = (totalDuration != null) ? totalDuration : 0;
-        PacketDistributor.sendToPlayer(player, new SyncCooldownPacket(timestamp, duration));
+        ModNetworking.sendToPlayer(new SyncCooldownPacket(timestamp, duration), player);
     }
     
     /**
      * Get the Efficiency enchantment level on the item
      */
     private int getEfficiencyLevel(Level level, ItemStack stack) {
-        var registryAccess = level.registryAccess();
-        var enchantmentRegistry = registryAccess.lookupOrThrow(Registries.ENCHANTMENT);
-        var efficiencyHolder = enchantmentRegistry.getOrThrow(Enchantments.EFFICIENCY);
-        return stack.getEnchantmentLevel(efficiencyHolder);
+        return stack.getEnchantmentLevel(Enchantments.BLOCK_EFFICIENCY);
     }
 
     /**
@@ -427,9 +422,9 @@ public class DimensionMirrorItem extends Item {
     }
     
     @Override
-    public boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment) {
+    public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
         // Only allow Efficiency enchantment
-        return enchantment.is(Enchantments.EFFICIENCY);
+        return enchantment == Enchantments.BLOCK_EFFICIENCY;
     }
     
     // ==================== Hold to Teleport to Spawn (Mirror World Only) ====================
@@ -461,11 +456,10 @@ public class DimensionMirrorItem extends Item {
      * Only applies in mirror world for teleport to spawn.
      */
     @Override
-    public int getUseDuration(ItemStack stack, LivingEntity entity) {
-        if (entity instanceof Player player && ModDimensions.isMirrorWorld(player.level().dimension())) {
-            return HOLD_DURATION_TICKS;
-        }
-        return 0; // No duration in other dimensions
+    public int getUseDuration(ItemStack stack) {
+        // In 1.20.1, we can't check the entity here, so return the duration always
+        // The actual check happens in use() and finishUsingItem()
+        return HOLD_DURATION_TICKS;
     }
     
     /**
@@ -485,7 +479,7 @@ public class DimensionMirrorItem extends Item {
         if (entity instanceof Player player && ModDimensions.isMirrorWorld(level.dimension())) {
             // Send teleport request to server from client side
             if (level.isClientSide) {
-                PacketDistributor.sendToServer(new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket());
+                ModNetworking.sendToServer(new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket());
             }
         }
         return stack;

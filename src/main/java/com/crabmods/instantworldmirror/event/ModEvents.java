@@ -21,22 +21,22 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.portal.PortalShape;
-import net.neoforged.bus.api.Event;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
-import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.LevelTickEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityTravelToDimensionEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.living.MobSpawnEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
  * Game Event Handler Class
  */
-@EventBusSubscriber(modid = InstantWorldMirror.MODID)
+@Mod.EventBusSubscriber(modid = InstantWorldMirror.MODID)
 public class ModEvents {
 
     /**
@@ -218,7 +218,7 @@ public class ModEvents {
      * BUT allows player-triggered spawns (spawn eggs, built structures like wither/iron golem, etc.)
      */
     @SubscribeEvent
-    public static void onMobSpawn(FinalizeSpawnEvent event) {
+    public static void onMobSpawn(MobSpawnEvent.FinalizeSpawn event) {
         Level level = event.getLevel().getLevel();
         
         if (ModDimensions.isMirrorWorld(level.dimension())) {
@@ -317,8 +317,13 @@ public class ModEvents {
      * Optimized: Uses tick counter instead of gameTime modulo for better performance
      */
     @SubscribeEvent
-    public static void onWorldTick(LevelTickEvent.Post event) {
-        if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
+    public static void onWorldTick(TickEvent.LevelTickEvent event) {
+        // Only process at END phase for consistent tick behavior
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        
+        if (!(event.level instanceof ServerLevel serverLevel)) {
             return; // Early exit for client levels
         }
         
@@ -397,7 +402,7 @@ public class ModEvents {
                 sourceLevel = serverLevel.getServer().overworld();
             }
             
-            // Sync time - includes NeoForge extended time properties
+            // Sync time - includes extended time properties
             syncLevelTime(sourceLevel, serverLevel);
             
             // Sync weather - only update if different

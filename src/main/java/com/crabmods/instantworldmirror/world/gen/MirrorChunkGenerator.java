@@ -1,6 +1,6 @@
 package com.crabmods.instantworldmirror.world.gen;
 
-import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -21,6 +21,7 @@ import net.minecraft.world.level.levelgen.blending.Blender;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * Mirror World Chunk Generator
@@ -28,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public class MirrorChunkGenerator extends ChunkGenerator {
 
-    public static final MapCodec<MirrorChunkGenerator> CODEC = RecordCodecBuilder.mapCodec(instance ->
+    public static final Codec<MirrorChunkGenerator> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     Biome.CODEC.fieldOf("biome").forGetter(gen -> gen.biome)
             ).apply(instance, MirrorChunkGenerator::new)
@@ -42,7 +43,7 @@ public class MirrorChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    protected MapCodec<? extends ChunkGenerator> codec() {
+    protected Codec<? extends ChunkGenerator> codec() {
         return CODEC;
     }
 
@@ -67,7 +68,7 @@ public class MirrorChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    public CompletableFuture<ChunkAccess> fillFromNoise(Blender blender, RandomState random, StructureManager structureManager, ChunkAccess chunk) {
+    public CompletableFuture<ChunkAccess> fillFromNoise(Executor executor, Blender blender, RandomState random, StructureManager structureManager, ChunkAccess chunk) {
         // Generate completely empty world - all blocks are air
         // Actual blocks will be copied via WorldCopyService when player teleports
         return CompletableFuture.completedFuture(chunk);

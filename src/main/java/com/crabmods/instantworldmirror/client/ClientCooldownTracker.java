@@ -1,7 +1,7 @@
 package com.crabmods.instantworldmirror.client;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 /**
  * Client-side cooldown tracker for the Dimension Mirror

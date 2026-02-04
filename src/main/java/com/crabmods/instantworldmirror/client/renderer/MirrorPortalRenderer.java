@@ -20,7 +20,7 @@ import net.minecraft.resources.ResourceLocation;
  */
 public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
 
-    private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(
+    private static final ResourceLocation TEXTURE = new ResourceLocation(
             InstantWorldMirror.MODID, "textures/entity/mirror_portal.png"
     );
     
@@ -76,10 +76,12 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         // Get render type and render model
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityTranslucent(TEXTURE));
         
-        // Pack color with alpha
-        int color = ((int)(alpha * 255) << 24) | 0xFFFFFF;
+        // Extract RGBA components for 1.20.1 API
+        float red = 1.0F;
+        float green = 1.0F;
+        float blue = 1.0F;
         
-        model.renderToBuffer(poseStack, vertexConsumer, fullBright, OverlayTexture.NO_OVERLAY, color);
+        model.renderToBuffer(poseStack, vertexConsumer, fullBright, OverlayTexture.NO_OVERLAY, red, green, blue, alpha);
 
         poseStack.popPose();
 

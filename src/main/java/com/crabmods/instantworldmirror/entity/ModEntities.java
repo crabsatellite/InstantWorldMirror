@@ -1,21 +1,21 @@
 package com.crabmods.instantworldmirror.entity;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * Entity Registry Class
  */
 public class ModEntities {
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES = 
-            DeferredRegister.create(Registries.ENTITY_TYPE, InstantWorldMirror.MODID);
+            DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, InstantWorldMirror.MODID);
 
     // Mirror Portal Entity
-    public static final DeferredHolder<EntityType<?>, EntityType<MirrorPortalEntity>> MIRROR_PORTAL =
+    public static final RegistryObject<EntityType<MirrorPortalEntity>> MIRROR_PORTAL =
             ENTITY_TYPES.register("mirror_portal",
                     () -> EntityType.Builder.<MirrorPortalEntity>of(MirrorPortalEntity::new, MobCategory.MISC)
                             .sized(0.8F, 1.5F) // Mirror size

@@ -3,11 +3,11 @@ package com.crabmods.instantworldmirror.network;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.ClientCooldownTracker;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.network.NetworkEvent;
+
+import java.util.function.Supplier;
 
 /**
  * Packet sent from server to client to sync the dimension mirror cooldown
@@ -15,34 +15,45 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * and the total cooldown duration for progress bar calculation
  * The client uses this to display the remaining cooldown time
  */
-public record SyncCooldownPacket(long cooldownEndTimestamp, long totalCooldownMillis) implements CustomPacketPayload {
+public class SyncCooldownPacket {
     
-    public static final Type<SyncCooldownPacket> TYPE = new Type<>(
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "sync_cooldown")
-    );
+    private final long cooldownEndTimestamp;
+    private final long totalCooldownMillis;
     
-    public static final StreamCodec<FriendlyByteBuf, SyncCooldownPacket> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.VAR_LONG,
-            SyncCooldownPacket::cooldownEndTimestamp,
-            ByteBufCodecs.VAR_LONG,
-            SyncCooldownPacket::totalCooldownMillis,
-            SyncCooldownPacket::new
-    );
-    
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public SyncCooldownPacket(long cooldownEndTimestamp, long totalCooldownMillis) {
+        this.cooldownEndTimestamp = cooldownEndTimestamp;
+        this.totalCooldownMillis = totalCooldownMillis;
     }
     
-    /**
-     * Handle the packet on the client side
-     */
-    public static void handle(SyncCooldownPacket packet, IPayloadContext context) {
-        // Execute on client thread
+    public static void encode(SyncCooldownPacket packet, FriendlyByteBuf buf) {
+        buf.writeVarLong(packet.cooldownEndTimestamp);
+        buf.writeVarLong(packet.totalCooldownMillis);
+    }
+    
+    public static SyncCooldownPacket decode(FriendlyByteBuf buf) {
+        long cooldownEndTimestamp = buf.readVarLong();
+        long totalCooldownMillis = buf.readVarLong();
+        return new SyncCooldownPacket(cooldownEndTimestamp, totalCooldownMillis);
+    }
+    
+    public static void handle(SyncCooldownPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+        NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            ClientCooldownTracker.setCooldown(packet.cooldownEndTimestamp, packet.totalCooldownMillis);
-            InstantWorldMirror.LOGGER.debug("Received cooldown sync: end timestamp = {}, total = {} ms", 
-                    packet.cooldownEndTimestamp, packet.totalCooldownMillis);
+            // Handle on client side
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                ClientCooldownTracker.setCooldown(packet.cooldownEndTimestamp, packet.totalCooldownMillis);
+                InstantWorldMirror.LOGGER.debug("Received cooldown sync: end timestamp = {}, total = {} ms", 
+                        packet.cooldownEndTimestamp, packet.totalCooldownMillis);
+            });
         });
+        context.setPacketHandled(true);
+    }
+    
+    public long cooldownEndTimestamp() {
+        return cooldownEndTimestamp;
+    }
+    
+    public long totalCooldownMillis() {
+        return totalCooldownMillis;
     }
 }

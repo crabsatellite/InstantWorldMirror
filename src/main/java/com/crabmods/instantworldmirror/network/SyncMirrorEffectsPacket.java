@@ -3,45 +3,57 @@ package com.crabmods.instantworldmirror.network;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.MirrorDimensionEffectsManager;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.network.NetworkEvent;
+
+import java.util.function.Supplier;
 
 /**
  * Packet sent from server to client to sync mirror dimension effects
  * Tells the client which visual effects a mirror dimension should use
  */
-public record SyncMirrorEffectsPacket(int mirrorDimIndex, String sourceEffects) implements CustomPacketPayload {
+public class SyncMirrorEffectsPacket {
     
-    public static final Type<SyncMirrorEffectsPacket> TYPE = new Type<>(
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "sync_mirror_effects")
-    );
+    private final int mirrorDimIndex;
+    private final String sourceEffects;
     
-    public static final StreamCodec<FriendlyByteBuf, SyncMirrorEffectsPacket> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.VAR_INT,
-            SyncMirrorEffectsPacket::mirrorDimIndex,
-            ByteBufCodecs.STRING_UTF8,
-            SyncMirrorEffectsPacket::sourceEffects,
-            SyncMirrorEffectsPacket::new
-    );
-    
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public SyncMirrorEffectsPacket(int mirrorDimIndex, String sourceEffects) {
+        this.mirrorDimIndex = mirrorDimIndex;
+        this.sourceEffects = sourceEffects;
     }
     
-    /**
-     * Handle the packet on the client side
-     */
-    public static void handle(SyncMirrorEffectsPacket packet, IPayloadContext context) {
-        // Execute on client thread
+    public static void encode(SyncMirrorEffectsPacket packet, FriendlyByteBuf buf) {
+        buf.writeVarInt(packet.mirrorDimIndex);
+        buf.writeUtf(packet.sourceEffects);
+    }
+    
+    public static SyncMirrorEffectsPacket decode(FriendlyByteBuf buf) {
+        int mirrorDimIndex = buf.readVarInt();
+        String sourceEffects = buf.readUtf();
+        return new SyncMirrorEffectsPacket(mirrorDimIndex, sourceEffects);
+    }
+    
+    public static void handle(SyncMirrorEffectsPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+        NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            ResourceLocation effectsLoc = ResourceLocation.parse(packet.sourceEffects);
-            MirrorDimensionEffectsManager.setSourceEffects(packet.mirrorDimIndex, effectsLoc);
-            InstantWorldMirror.LOGGER.debug("Received mirror effects sync: dim {} -> {}", 
-                    packet.mirrorDimIndex, packet.sourceEffects);
+            // Handle on client side
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                ResourceLocation effectsLoc = new ResourceLocation(packet.sourceEffects);
+                MirrorDimensionEffectsManager.setSourceEffects(packet.mirrorDimIndex, effectsLoc);
+                InstantWorldMirror.LOGGER.debug("Received mirror effects sync: dim {} -> {}", 
+                        packet.mirrorDimIndex, packet.sourceEffects);
+            });
         });
+        context.setPacketHandled(true);
+    }
+    
+    public int mirrorDimIndex() {
+        return mirrorDimIndex;
+    }
+    
+    public String sourceEffects() {
+        return sourceEffects;
     }
 }

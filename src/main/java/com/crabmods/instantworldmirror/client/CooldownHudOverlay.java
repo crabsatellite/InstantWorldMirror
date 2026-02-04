@@ -2,16 +2,16 @@ package com.crabmods.instantworldmirror.client;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.registry.ModItems;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.LayeredDraw;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.gui.overlay.ForgeGui;
+import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 
 /**
  * HUD overlay that displays the Dimension Mirror cooldown timer
@@ -23,9 +23,9 @@ import net.neoforged.api.distmarker.OnlyIn;
  * - Shadow effect for better readability
  */
 @OnlyIn(Dist.CLIENT)
-public class CooldownHudOverlay implements LayeredDraw.Layer {
+public class CooldownHudOverlay implements IGuiOverlay {
     
-    public static final ResourceLocation OVERLAY_ID = ResourceLocation.fromNamespaceAndPath(
+    public static final ResourceLocation OVERLAY_ID = new ResourceLocation(
             InstantWorldMirror.MODID, "cooldown_hud");
     
     // Color scheme - using cyan/blue tones to differentiate from Waystones
@@ -37,7 +37,7 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
     private static final int OFFSET_Y = 10;
     
     @Override
-    public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {
+    public void render(ForgeGui gui, GuiGraphics guiGraphics, float partialTick, int screenWidth, int screenHeight) {
         // Check if HUD display is enabled in client config
         if (!ClientConfig.shouldShowCooldownHud()) {
             return;

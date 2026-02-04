@@ -2,7 +2,6 @@ package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.server.level.ServerLevel;
@@ -147,7 +146,7 @@ public class CleanupQueueData extends SavedData {
     /**
      * Load from NBT
      */
-    public static CleanupQueueData load(CompoundTag tag, HolderLookup.Provider provider) {
+    public static CleanupQueueData load(CompoundTag tag) {
         CleanupQueueData data = new CleanupQueueData();
         
         if (tag.contains("tasks")) {
@@ -164,7 +163,7 @@ public class CleanupQueueData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag tag) {
         ListTag taskList = new ListTag();
         for (CleanupTask task : pendingTasks) {
             taskList.add(task.save());
@@ -244,10 +243,8 @@ public class CleanupQueueData extends SavedData {
      */
     public static CleanupQueueData get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(
-                new Factory<>(
-                        CleanupQueueData::new,
-                        CleanupQueueData::load
-                ),
+                CleanupQueueData::load,
+                CleanupQueueData::new,
                 DATA_NAME
         );
     }

@@ -20,7 +20,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -1159,7 +1159,7 @@ public class WorldCopyService {
             if (sourceChunk == null) {
                 // Source chunk not loaded - this is unusual, request async load and retry later
                 sourceWorld.getChunkSource().getChunk(chunkX, chunkZ, 
-                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+                        ChunkStatus.FULL, false);
                 return 0;
             }
             
@@ -1273,6 +1273,13 @@ public class WorldCopyService {
                 regenerateHeightmaps(targetChunk);
             }
             
+            // Initialize sky light sources for proper lighting
+            // This is critical because we use section.setBlockState which skips light updates
+            targetChunk.initializeLightSources();
+            
+            // Request light engine to relight the chunk
+            relightChunk(mirrorWorld, targetChunk);
+            
             // Copy entities in this chunk based on config
             // Always copy decoration entities if that config is enabled
             // Copy all entities only if copyEntities is enabled
@@ -1324,10 +1331,13 @@ public class WorldCopyService {
         if (entity instanceof net.minecraft.world.entity.Display) {
             return true;
         }
-        // VehicleEntity includes all minecarts and boats
+        // Check for minecarts and boats (VehicleEntity doesn't exist in 1.20.1)
         // AbstractMinecart: Minecart, MinecartChest, MinecartCommandBlock, MinecartFurnace, MinecartHopper, MinecartSpawner, MinecartTNT
         // Boat, ChestBoat
-        if (entity instanceof net.minecraft.world.entity.vehicle.VehicleEntity) {
+        if (entity instanceof net.minecraft.world.entity.vehicle.AbstractMinecart) {
+            return true;
+        }
+        if (entity instanceof net.minecraft.world.entity.vehicle.Boat) {
             return true;
         }
         return false;
@@ -1614,6 +1624,58 @@ public class WorldCopyService {
                     targetChunk.getPos().x, targetChunk.getPos().z, e.getMessage());
         }
     }
+    
+    // ==================== Light Engine Update ====================
+    
+    /**
+     * Request the light engine to relight a chunk after block copy.
+     * This is necessary because section.setBlockState() skips light updates.
+     * Without this, the mirror world will appear dark (no sky light propagation).
+     */
+    private static void relightChunk(ServerLevel world, LevelChunk chunk) {
+        try {
+            var lightEngine = world.getChunkSource().getLightEngine();
+            ChunkPos chunkPos = chunk.getPos();
+            
+            // Get the section range for this chunk
+            int minSection = chunk.getMinSection();
+            int maxSection = chunk.getMaxSection();
+            
+            // Request light update for each section in the chunk
+            for (int sectionY = minSection; sectionY < maxSection; sectionY++) {
+                var sectionPos = net.minecraft.core.SectionPos.of(chunkPos, sectionY);
+                
+                // Enable light for this section (in case it was disabled)
+                lightEngine.updateSectionStatus(sectionPos, false);
+            }
+            
+            // Also check blocks at chunk boundaries to propagate light properly
+            int minX = chunkPos.getMinBlockX();
+            int maxX = chunkPos.getMaxBlockX();
+            int minZ = chunkPos.getMinBlockZ();
+            int maxZ = chunkPos.getMaxBlockZ();
+            int minY = world.getMinBuildHeight();
+            int maxY = world.getMaxBuildHeight();
+            
+            // Check a sample of blocks to trigger light propagation
+            // Focus on surface blocks where sky light is most important
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            for (int x = minX; x <= maxX; x += 4) {
+                for (int z = minZ; z <= maxZ; z += 4) {
+                    int surfaceY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15);
+                    for (int y = surfaceY; y >= Math.max(minY, surfaceY - 16); y -= 4) {
+                        pos.set(x, y, z);
+                        lightEngine.checkBlock(pos);
+                    }
+                }
+            }
+            
+            chunk.setUnsaved(true);
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.debug("Failed to relight chunk ({}, {}): {}",
+                    chunk.getPos().x, chunk.getPos().z, e.getMessage());
+        }
+    }
 
     // ==================== Block Entity Copy ====================
 
@@ -1633,10 +1695,7 @@ public class WorldCopyService {
                 
                 BlockEntity targetBE = mirrorWorld.getBlockEntity(targetPos);
                 if (targetBE != null && targetBE.getType() == sourceBE.getType()) {
-                    targetBE.loadWithComponents(
-                            sourceBE.saveWithoutMetadata(sourceWorld.registryAccess()),
-                            sourceWorld.registryAccess()
-                    );
+                    targetBE.load(sourceBE.saveWithoutMetadata());
                     targetBE.setChanged();
                 }
             } catch (Exception e) {

@@ -5,38 +5,34 @@ import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
+
+import java.util.function.Supplier;
 
 /**
  * Packet sent from client to server to request teleportation to mirror world spawn.
  * This is used when a player in the mirror world wants to return to the spawn point
  * (where they originally entered the mirror world) without leaving the mirror world.
  */
-public record TeleportToSpawnPacket() implements CustomPacketPayload {
+public class TeleportToSpawnPacket {
     
-    public static final Type<TeleportToSpawnPacket> TYPE = new Type<>(
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "teleport_to_spawn")
-    );
-    
-    public static final StreamCodec<FriendlyByteBuf, TeleportToSpawnPacket> STREAM_CODEC = StreamCodec.unit(
-            new TeleportToSpawnPacket()
-    );
-    
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public TeleportToSpawnPacket() {
     }
     
-    /**
-     * Handle the packet on the server side
-     */
-    public static void handle(TeleportToSpawnPacket packet, IPayloadContext context) {
+    public static void encode(TeleportToSpawnPacket packet, FriendlyByteBuf buf) {
+        // No data to encode - this is a simple trigger packet
+    }
+    
+    public static TeleportToSpawnPacket decode(FriendlyByteBuf buf) {
+        return new TeleportToSpawnPacket();
+    }
+    
+    public static void handle(TeleportToSpawnPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+        NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer serverPlayer) {
+            ServerPlayer serverPlayer = context.getSender();
+            if (serverPlayer != null) {
                 // Creative mode: clear any existing cooldown and sync to client
                 if (serverPlayer.isCreative()) {
                     DimensionMirrorItem.clearCooldown(serverPlayer.getUUID());
@@ -57,5 +53,6 @@ public record TeleportToSpawnPacket() implements CustomPacketPayload {
                 MirrorWorldManager.teleportToMirrorSpawn(serverPlayer);
             }
         });
+        context.setPacketHandled(true);
     }
 }

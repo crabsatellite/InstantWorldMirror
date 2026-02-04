@@ -3,7 +3,6 @@ package com.crabmods.instantworldmirror.block;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -116,8 +115,8 @@ public class PortalLightBlockEntity extends BlockEntity {
     }
     
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
         if (portalEntityId != null) {
             tag.putUUID("PortalEntityId", portalEntityId);
         }
@@ -125,8 +124,8 @@ public class PortalLightBlockEntity extends BlockEntity {
     }
     
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
+    public void load(CompoundTag tag) {
+        super.load(tag);
         if (tag.hasUUID("PortalEntityId")) {
             portalEntityId = tag.getUUID("PortalEntityId");
         }

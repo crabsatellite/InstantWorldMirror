@@ -1,7 +1,6 @@
 package com.crabmods.instantworldmirror.block;
 
 import com.crabmods.instantworldmirror.registry.ModBlocks;
-import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -22,15 +21,8 @@ import org.jetbrains.annotations.Nullable;
  */
 public class PortalLightBlock extends BaseEntityBlock {
     
-    public static final MapCodec<PortalLightBlock> CODEC = simpleCodec(PortalLightBlock::new);
-    
     public PortalLightBlock(Properties properties) {
         super(properties);
-    }
-    
-    @Override
-    protected MapCodec<? extends BaseEntityBlock> codec() {
-        return CODEC;
     }
 
     @Override

@@ -13,12 +13,12 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * Mirror Portal Entity Model
- * Made with Blockbench - Converted for NeoForge 1.21
+ * Made with Blockbench - Converted for Forge 1.20.1
  */
 public class MirrorPortalModel extends EntityModel<MirrorPortalEntity> {
     
     public static final ModelLayerLocation LAYER_LOCATION = new ModelLayerLocation(
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "mirror_portal"), "main"
+            new ResourceLocation(InstantWorldMirror.MODID, "mirror_portal"), "main"
     );
     
     private final ModelPart frame;
@@ -67,7 +67,7 @@ public class MirrorPortalModel extends EntityModel<MirrorPortalEntity> {
 
     @Override
     public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight, 
-                               int packedOverlay, int color) {
-        frame.render(poseStack, vertexConsumer, packedLight, packedOverlay, color);
+                               int packedOverlay, float red, float green, float blue, float alpha) {
+        frame.render(poseStack, vertexConsumer, packedLight, packedOverlay, red, green, blue, alpha);
     }
 }

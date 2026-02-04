@@ -1,0 +1,36 @@
+# This is a mods.toml file for Forge 1.20.1
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+issueTrackerURL=""
+
+[[mods]]
+modId="instantworldmirror"
+version="${file.jarVersion}"
+displayName="Instant World Mirror"
+updateJSONURL=""
+displayURL=""
+logoFile="logo.png"
+credits=""
+authors="CrabMods"
+description='''
+Instant World Mirror - A mod by CrabMods
+Allows players to enter a mirrored copy of the world.
+'''
+
+[[mixins]]
+config="instantworldmirror.mixins.json"
+
+[[dependencies.instantworldmirror]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.instantworldmirror]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"

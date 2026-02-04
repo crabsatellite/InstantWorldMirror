@@ -1,7 +1,6 @@
 package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -75,7 +74,8 @@ public class DimensionPool {
         // Load saved states from overworld's data storage
         ServerLevel overworld = server.overworld();
         DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                DimensionPoolData.factory(),
+                DimensionPoolData::load,
+                DimensionPoolData::new,
                 DimensionPoolData.DATA_NAME
         );
         
@@ -331,7 +331,8 @@ public class DimensionPool {
         if (serverRef != null) {
             ServerLevel overworld = serverRef.overworld();
             DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                    DimensionPoolData.factory(),
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
                     DimensionPoolData.DATA_NAME
             );
             data.setCleanupState(dimIndex, cleaning);
@@ -347,7 +348,8 @@ public class DimensionPool {
         if (serverRef != null) {
             ServerLevel overworld = serverRef.overworld();
             DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                    DimensionPoolData.factory(),
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
                     DimensionPoolData.DATA_NAME
             );
             data.setCopyCenter(dimIndex, copyCenter);
@@ -363,7 +365,8 @@ public class DimensionPool {
         if (serverRef != null) {
             ServerLevel overworld = serverRef.overworld();
             DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                    DimensionPoolData.factory(),
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
                     DimensionPoolData.DATA_NAME
             );
             return data.getCopyCenter(dimIndex);
@@ -378,7 +381,8 @@ public class DimensionPool {
         if (serverRef != null) {
             ServerLevel overworld = serverRef.overworld();
             DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                    DimensionPoolData.factory(),
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
                     DimensionPoolData.DATA_NAME
             );
             return data.getModifiedChunks(dimIndex);
@@ -393,7 +397,8 @@ public class DimensionPool {
         if (serverRef != null) {
             ServerLevel overworld = serverRef.overworld();
             DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
-                    DimensionPoolData.factory(),
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
                     DimensionPoolData.DATA_NAME
             );
             return data.getCleanupProgress(dimIndex);
@@ -442,7 +447,7 @@ public class DimensionPool {
         public DimensionPoolData() {
         }
         
-        public static DimensionPoolData load(CompoundTag tag, HolderLookup.Provider provider) {
+        public static DimensionPoolData load(CompoundTag tag) {
             DimensionPoolData data = new DimensionPoolData();
             
             // Load cleanup states
@@ -497,7 +502,7 @@ public class DimensionPool {
         }
         
         @Override
-        public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+        public CompoundTag save(CompoundTag tag) {
             // Save cleanup states
             CompoundTag states = new CompoundTag();
             for (Map.Entry<Integer, Boolean> entry : cleanupStates.entrySet()) {
@@ -588,10 +593,6 @@ public class DimensionPool {
                 cleanupProgress.remove(dimIndex);
             }
             setDirty();
-        }
-        
-        public static Factory<DimensionPoolData> factory() {
-            return new Factory<>(DimensionPoolData::new, DimensionPoolData::load);
         }
     }
 }

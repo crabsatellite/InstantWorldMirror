@@ -4,6 +4,7 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.network.ClearMirrorEffectsPacket;
+import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.SyncMirrorEffectsPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -19,7 +20,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -715,6 +715,13 @@ public class MirrorWorldManager {
 
             // Find safe landing position at the corresponding overworld coordinates
             BlockPos safePos = findSafeLandingPosition(targetLevel, targetMirrorPos, allowWater);
+            
+            if (safePos == null) {
+                // No safe position found - use base target position
+                safePos = targetMirrorPos;
+                InstantWorldMirror.LOGGER.warn("No safe landing position found for player {}, using base position {}",
+                        player.getName().getString(), safePos);
+            }
             
             InstantWorldMirror.LOGGER.info("Found safe landing position {} for player {} (original target: {})",
                     safePos, player.getName().getString(), targetMirrorPos);
@@ -1651,12 +1658,12 @@ public class MirrorWorldManager {
             effectsLoc = sourceLevel.dimensionType().effectsLocation();
         } else {
             // Fallback to overworld effects if source level not found
-            effectsLoc = ResourceLocation.withDefaultNamespace("overworld");
+            effectsLoc = new ResourceLocation("minecraft", "overworld");
         }
         
         // Send packet to the player
         SyncMirrorEffectsPacket packet = new SyncMirrorEffectsPacket(dimIndex, effectsLoc.toString());
-        PacketDistributor.sendToPlayer(player, packet);
+        ModNetworking.sendToPlayer(packet, player);
         
         InstantWorldMirror.LOGGER.debug("Synced mirror effects to {}: dim {} -> {}", 
                 player.getName().getString(), dimIndex, effectsLoc);
@@ -1667,7 +1674,7 @@ public class MirrorWorldManager {
      */
     private static void clearDimensionEffectsForPlayer(ServerPlayer player, int dimIndex) {
         ClearMirrorEffectsPacket packet = new ClearMirrorEffectsPacket(dimIndex);
-        PacketDistributor.sendToPlayer(player, packet);
+        ModNetworking.sendToPlayer(packet, player);
         
         InstantWorldMirror.LOGGER.debug("Cleared mirror effects for {}: dim {}", 
                 player.getName().getString(), dimIndex);
@@ -1695,7 +1702,7 @@ public class MirrorWorldManager {
         persistentData.put(SAVED_INVENTORY_KEY, inventoryTag);
         
         // Save ender chest contents (uses createTag instead of save)
-        ListTag enderChestTag = player.getEnderChestInventory().createTag(player.registryAccess());
+        ListTag enderChestTag = player.getEnderChestInventory().createTag();
         persistentData.put(SAVED_ENDERCHEST_KEY, enderChestTag);
 
         // Save position
@@ -1735,7 +1742,7 @@ public class MirrorWorldManager {
             if (persistentData.contains(SAVED_ENDERCHEST_KEY)) {
                 ListTag savedEnderChest = persistentData.getList(SAVED_ENDERCHEST_KEY, 10);
                 player.getEnderChestInventory().clearContent(); // Clear before restoring
-                player.getEnderChestInventory().fromTag(savedEnderChest, player.registryAccess());
+                player.getEnderChestInventory().fromTag(savedEnderChest);
                 InstantWorldMirror.LOGGER.info("Restored inventory and ender chest from persistent data for player {}",
                         player.getName().getString());
             } else {

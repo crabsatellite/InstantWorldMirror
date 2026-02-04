@@ -29,7 +29,7 @@ public class ModDimensions {
     // Mirror World Dimension Type (shared by all instances)
     public static final ResourceKey<DimensionType> MIRROR_WORLD_TYPE = ResourceKey.create(
             Registries.DIMENSION_TYPE,
-            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "mirror_world")
+            new ResourceLocation(InstantWorldMirror.MODID, "mirror_world")
     );
     
     // Pool of all possible mirror world dimensions (pre-defined)
@@ -40,7 +40,7 @@ public class ModDimensions {
         for (int i = 0; i < MAX_MIRROR_WORLD_POOL_SIZE; i++) {
             ResourceKey<Level> dimension = ResourceKey.create(
                     Registries.DIMENSION,
-                    ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "mirror_world_" + i)
+                    new ResourceLocation(InstantWorldMirror.MODID, "mirror_world_" + i)
             );
             MIRROR_WORLD_POOL.add(dimension);
         }
