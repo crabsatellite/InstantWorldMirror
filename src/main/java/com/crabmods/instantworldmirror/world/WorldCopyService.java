@@ -1217,6 +1217,7 @@ public class WorldCopyService {
                 // Also batch collect block entities to copy after block placement
                 LevelChunkSection targetSection = targetChunk.getSection(targetRelativeSectionIndex);
                 java.util.List<int[]> blockEntitiesToCopy = null; // Lazy init for common case of no BEs
+                java.util.List<BlockPos> fireBlockPositions = null; // Lazy init for fire tick scheduling
                 
                 for (int localY = 0; localY < 16; localY++) {
                     int y = baseY + localY;
@@ -1254,6 +1255,15 @@ public class WorldCopyService {
                                     }
                                     blockEntitiesToCopy.add(new int[]{worldX, y, worldZ, localX, localY, localZ});
                                 }
+                                
+                                // Collect fire blocks for tick scheduling
+                                // section.setBlockState() skips FireBlock.onPlace() which normally calls scheduleTick()
+                                if (state.getBlock() instanceof net.minecraft.world.level.block.FireBlock) {
+                                    if (fireBlockPositions == null) {
+                                        fireBlockPositions = new java.util.ArrayList<>();
+                                    }
+                                    fireBlockPositions.add(new BlockPos(worldX, y, worldZ));
+                                }
                             }
                         }
                     }
@@ -1267,32 +1277,22 @@ public class WorldCopyService {
                         copyBlockEntity(sourceWorld, mirrorWorld, sourcePos, targetPos);
                     }
                 }
+                
+                // Schedule ticks for fire blocks so they spread and burn properly
+                // Without scheduled ticks, fire appears visually but never spreads or consumes blocks
+                if (fireBlockPositions != null) {
+                    for (BlockPos pos : fireBlockPositions) {
+                        BlockState fireState = mirrorWorld.getBlockState(pos);
+                        mirrorWorld.scheduleTick(pos, fireState.getBlock(),
+                                30 + mirrorWorld.random.nextInt(10));
+                    }
+                }
             }
             
             // Mark chunk for saving
             targetChunk.setUnsaved(true);
 
-            // Re-set fire blocks to enable ticking
-            // Fire blocks need to be set through Level.setBlock() to register for random ticks
-            // section.setBlockState() skips tick scheduling, so fire won't spread without this
-            BlockPos.MutableBlockPos firePos = new BlockPos.MutableBlockPos();
-            for (int sectionIndex = 0; sectionIndex < targetChunk.getSectionsCount(); sectionIndex++) {
-                LevelChunkSection section = targetChunk.getSection(sectionIndex);
-                if (section == null || section.hasOnlyAir()) continue;
-                int baseY = targetChunk.getMinBuildHeight() + sectionIndex * 16;
-                for (int x = 0; x < 16; x++) {
-                    for (int y = 0; y < 16; y++) {
-                        for (int z = 0; z < 16; z++) {
-                            BlockState state = section.getBlockState(x, y, z);
-                            if (state.getBlock() instanceof net.minecraft.world.level.block.FireBlock) {
-                                firePos.set(chunkX * 16 + x, baseY + y, chunkZ * 16 + z);
-                                // Re-set through level API to enable random tick scheduling
-                                mirrorWorld.setBlock(firePos, state, 18); // 18 = UPDATE_CLIENTS | NO_NEIGHBOR_DROPS
-                            }
-                        }
-                    }
-                }
-            }
+
 
             // Copy biome data if enabled
             if (MirrorConfig.COPY_BIOMES.get()) {
