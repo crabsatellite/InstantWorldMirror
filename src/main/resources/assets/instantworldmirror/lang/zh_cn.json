@@ -60,5 +60,7 @@
   "message.instantworldmirror.purge_mode_active": "§c镜面世界正在被清除中，请等待服务器重启。",
   "message.instantworldmirror.portal_activating": "§e正在触发返回传送门: %s",
   "message.instantworldmirror.queue_position": "§e你在复制队列中排第 %d 位，请稍候...",
-  "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候..."
+  "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候...",
+  "message.instantworldmirror.too_high": "§e无法在这么高的位置放置镜子——上方空间不足",
+  "message.instantworldmirror.leaving_mirror_via_portal": "§e你正在通过传送门离开镜面世界，会话将被清理。"
 }

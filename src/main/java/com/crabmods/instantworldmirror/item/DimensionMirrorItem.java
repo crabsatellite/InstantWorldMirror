@@ -236,6 +236,15 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.FAIL;
         }
 
+        // Check if position is too high (need space for portal entity + light block)
+        if (pos.getY() >= level.getMaxBuildHeight() - 2) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.too_high"),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
+
         // Check if player is in any mirror world dimension using the proper check
         boolean isInMirrorWorld = ModDimensions.isMirrorWorld(level.dimension());
 

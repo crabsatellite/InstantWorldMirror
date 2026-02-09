@@ -1271,7 +1271,29 @@ public class WorldCopyService {
             
             // Mark chunk for saving
             targetChunk.setUnsaved(true);
-            
+
+            // Re-set fire blocks to enable ticking
+            // Fire blocks need to be set through Level.setBlock() to register for random ticks
+            // section.setBlockState() skips tick scheduling, so fire won't spread without this
+            BlockPos.MutableBlockPos firePos = new BlockPos.MutableBlockPos();
+            for (int sectionIndex = 0; sectionIndex < targetChunk.getSectionsCount(); sectionIndex++) {
+                LevelChunkSection section = targetChunk.getSection(sectionIndex);
+                if (section == null || section.hasOnlyAir()) continue;
+                int baseY = targetChunk.getMinBuildHeight() + sectionIndex * 16;
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            BlockState state = section.getBlockState(x, y, z);
+                            if (state.getBlock() instanceof net.minecraft.world.level.block.FireBlock) {
+                                firePos.set(chunkX * 16 + x, baseY + y, chunkZ * 16 + z);
+                                // Re-set through level API to enable random tick scheduling
+                                mirrorWorld.setBlock(firePos, state, 18); // 18 = UPDATE_CLIENTS | NO_NEIGHBOR_DROPS
+                            }
+                        }
+                    }
+                }
+            }
+
             // Copy biome data if enabled
             if (MirrorConfig.COPY_BIOMES.get()) {
                 copyChunkBiomes(sourceChunk, targetChunk);
@@ -1327,10 +1349,13 @@ public class WorldCopyService {
     }
 
     /**
-     * Check if an entity is a decoration or static entity that should be copied.
+     * Check if an entity is a decoration, static, or functional entity that should be copied.
      * This includes:
      * - Decoration entities: paintings, item frames, armor stands, display entities
-     * - Vehicle entities: minecarts, boats
+     * - Vehicle entities: minecarts, boats (vanilla and modded)
+     * - Container entities: any entity with inventory (modded ships, etc.)
+     * - Block-like entities: falling blocks, TNT, etc.
+     * - Modded functional entities: machines, devices placed as entities
      */
     private static boolean isDecorationEntity(net.minecraft.world.entity.Entity entity) {
         // HangingEntity includes Painting, ItemFrame, GlowItemFrame, LeashFenceKnotEntity
@@ -1346,12 +1371,25 @@ public class WorldCopyService {
             return true;
         }
         // Check for minecarts and boats (VehicleEntity doesn't exist in 1.20.1)
-        // AbstractMinecart: Minecart, MinecartChest, MinecartCommandBlock, MinecartFurnace, MinecartHopper, MinecartSpawner, MinecartTNT
-        // Boat, ChestBoat
         if (entity instanceof net.minecraft.world.entity.vehicle.AbstractMinecart) {
             return true;
         }
         if (entity instanceof net.minecraft.world.entity.vehicle.Boat) {
+            return true;
+        }
+        // Container entities - any entity with inventory (catches modded ships, cargo vehicles, etc.)
+        if (entity instanceof net.minecraft.world.Container) {
+            return true;
+        }
+        // Broad catch for modded entities: include any non-living, non-projectile, non-XP entity
+        // This catches modded machines, submarines, vehicles, etc. that don't extend vanilla base classes
+        // Explicitly exclude our own MirrorPortalEntity to prevent copying portals into mirror world
+        if (!(entity instanceof net.minecraft.world.entity.LivingEntity)
+                && !(entity instanceof net.minecraft.world.entity.projectile.Projectile)
+                && !(entity instanceof net.minecraft.world.entity.ExperienceOrb)
+                && !(entity instanceof net.minecraft.world.entity.item.ItemEntity)
+                && !(entity instanceof net.minecraft.world.entity.LightningBolt)
+                && !(entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity)) {
             return true;
         }
         return false;
@@ -1696,7 +1734,27 @@ public class WorldCopyService {
                     }
                 }
             }
-            
+
+            // Comprehensive block light source scan - check ALL blocks that emit light
+            // This catches campfires, lanterns, soul lanterns, etc. that the surface sampling misses
+            for (int sectionY = minSection; sectionY < maxSection; sectionY++) {
+                LevelChunkSection section = chunk.getSection(chunk.getSectionIndexFromSectionY(sectionY));
+                if (section == null || section.hasOnlyAir()) continue;
+
+                int baseY = sectionY * 16;
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            BlockState state = section.getBlockState(x, y, z);
+                            if (state.getLightEmission() > 0) {
+                                pos.set(minX + x, baseY + y, minZ + z);
+                                lightEngine.checkBlock(pos);
+                            }
+                        }
+                    }
+                }
+            }
+
             chunk.setUnsaved(true);
         } catch (Exception e) {
             InstantWorldMirror.LOGGER.debug("Failed to relight chunk ({}, {}): {}",

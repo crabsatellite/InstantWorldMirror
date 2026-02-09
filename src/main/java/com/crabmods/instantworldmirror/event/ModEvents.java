@@ -56,14 +56,24 @@ public class ModEvents {
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             if (MirrorWorldManager.isInMirrorWorld(player)) {
-                InstantWorldMirror.LOGGER.info("Player {} died in Mirror World, cleaning up session", 
+                InstantWorldMirror.LOGGER.info("Player {} died in Mirror World, deferring cleanup to next tick",
                         player.getName().getString());
-                
-                // Immediately cleanup session - this handles:
-                // 1. Removing player from session
-                // 2. Destroying session if last player
-                // 3. Restoring inventory data
-                MirrorWorldManager.handleMirrorWorldDeath(player, player.getServer());
+
+                // Defer cleanup to next server tick to avoid modifying player state during death processing
+                // Immediate modification during LivingDeathEvent can cause server crashes in singleplayer
+                final net.minecraft.server.MinecraftServer server = player.getServer();
+                final java.util.UUID playerId = player.getUUID();
+                if (server != null) {
+                    server.execute(() -> {
+                        ServerPlayer respawnedPlayer = server.getPlayerList().getPlayer(playerId);
+                        if (respawnedPlayer != null) {
+                            MirrorWorldManager.handleMirrorWorldDeath(respawnedPlayer, server);
+                        } else {
+                            // Player might have disconnected, use original reference
+                            MirrorWorldManager.handleMirrorWorldDeath(player, server);
+                        }
+                    });
+                }
             }
         }
     }
@@ -204,7 +214,7 @@ public class ModEvents {
     @SubscribeEvent
     public static void onPortalSpawn(BlockEvent.PortalSpawnEvent event) {
         Level level = (Level) event.getLevel();
-        
+
         if (ModDimensions.isMirrorWorld(level.dimension())) {
             // Prevent nether portal spawn in mirror world
             event.setCanceled(true);
@@ -278,11 +288,11 @@ public class ModEvents {
                     // Allow this teleport - it's our own return teleportation
                     return;
                 }
-                
+
                 // Only restrict survival and adventure players
                 GameType gameType = player.gameMode.getGameModeForPlayer();
                 if (gameType != GameType.SURVIVAL && gameType != GameType.ADVENTURE) {
-                    // Creative/Spectator players can use portals freely
+                    // Creative/Spectator - allow dimension travel
                     return;
                 }
             }

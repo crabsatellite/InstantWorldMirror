@@ -108,7 +108,14 @@ public class PortalLightBlockEntity extends BlockEntity {
      * Remove this block from the world
      */
     private static void removeSelf(Level level, BlockPos pos) {
-        level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+        // If waterlogged, restore water instead of air
+        BlockState currentState = level.getBlockState(pos);
+        boolean wasWaterlogged = currentState.hasProperty(PortalLightBlock.WATERLOGGED)
+                && currentState.getValue(PortalLightBlock.WATERLOGGED);
+        BlockState replacement = wasWaterlogged
+                ? Blocks.WATER.defaultBlockState()
+                : Blocks.AIR.defaultBlockState();
+        level.setBlockAndUpdate(pos, replacement);
         if (level instanceof ServerLevel serverLevel) {
             serverLevel.getChunkSource().blockChanged(pos);
         }
