@@ -1287,6 +1287,13 @@ public class WorldCopyService {
                 regenerateHeightmaps(targetChunk);
             }
             
+            // Initialize sky light sources for proper lighting
+            // This is critical because we use section.setBlockState which skips light updates
+            targetChunk.initializeLightSources();
+            
+            // Request light engine to relight the chunk
+            relightChunk(mirrorWorld, targetChunk);
+            
             // Copy entities in this chunk based on config
             // Always copy decoration entities if that config is enabled
             // Copy all entities only if copyEntities is enabled
@@ -2224,6 +2231,81 @@ public class WorldCopyService {
     }
     
 
+
+    // ==================== Lighting ====================
+
+    /**
+     * Relight a chunk after blocks have been copied into it.
+     * Since we use section.setBlockState() which bypasses lighting calculations,
+     * we need to manually trigger light updates for the chunk.
+     * 
+     * This handles both sky light (from the sun) and block light (from torches, etc.).
+     */
+    private static void relightChunk(ServerLevel world, LevelChunk chunk) {
+        try {
+            var lightEngine = world.getChunkSource().getLightEngine();
+            ChunkPos chunkPos = chunk.getPos();
+            
+            // Get the section range for this chunk
+            int minSection = chunk.getMinSection();
+            int maxSection = chunk.getMaxSection();
+            
+            // Request light update for each section in the chunk
+            for (int sectionY = minSection; sectionY < maxSection; sectionY++) {
+                var sectionPos = net.minecraft.core.SectionPos.of(chunkPos, sectionY);
+                
+                // Enable light for this section (in case it was disabled)
+                lightEngine.updateSectionStatus(sectionPos, false);
+            }
+            
+            // Propagate sky light sources for the chunk
+            lightEngine.propagateLightSources(chunkPos);
+            
+            // Also check blocks at chunk boundaries to propagate light properly
+            int minX = chunkPos.getMinBlockX();
+            int maxX = chunkPos.getMaxBlockX();
+            int minZ = chunkPos.getMinBlockZ();
+            int maxZ = chunkPos.getMaxBlockZ();
+            int minY = world.getMinBuildHeight();
+            
+            // Check a sample of surface blocks to trigger sky light propagation
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            for (int x = minX; x <= maxX; x += 4) {
+                for (int z = minZ; z <= maxZ; z += 4) {
+                    int surfaceY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15);
+                    for (int y = surfaceY; y >= Math.max(minY, surfaceY - 16); y -= 4) {
+                        pos.set(x, y, z);
+                        lightEngine.checkBlock(pos);
+                    }
+                }
+            }
+
+            // Comprehensive block light source scan - check ALL blocks that emit light
+            // This catches torches, lanterns, campfires, glowstone, etc.
+            for (int sectionY = minSection; sectionY < maxSection; sectionY++) {
+                LevelChunkSection section = chunk.getSection(chunk.getSectionIndexFromSectionY(sectionY));
+                if (section == null || section.hasOnlyAir()) continue;
+
+                int baseY = sectionY * 16;
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            BlockState state = section.getBlockState(x, y, z);
+                            if (state.getLightEmission() > 0) {
+                                pos.set(minX + x, baseY + y, minZ + z);
+                                lightEngine.checkBlock(pos);
+                            }
+                        }
+                    }
+                }
+            }
+
+            chunk.setUnsaved(true);
+        } catch (Exception e) {
+            InstantWorldMirror.LOGGER.debug("Failed to relight chunk ({}, {}): {}",
+                    chunk.getPos().x, chunk.getPos().z, e.getMessage());
+        }
+    }
 
     // ==================== Query Methods ====================
 
