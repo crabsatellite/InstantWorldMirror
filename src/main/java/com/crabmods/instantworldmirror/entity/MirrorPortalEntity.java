@@ -393,45 +393,61 @@ public class MirrorPortalEntity extends Entity {
     /**
      * Update the light block at the entity's position.
      * Uses PortalLightBlock which automatically tracks this entity and removes itself when entity is gone.
+     * Supports waterlogging so the light block can coexist with water.
      */
     private void updateLightBlock() {
         if (this.level().isClientSide) return;
-        
+
         ServerLevel serverLevel = (ServerLevel) this.level();
         BlockPos newLightPos = BlockPos.containing(this.getX(), this.getY() + 1.0, this.getZ());
-        
-        // If position hasn't changed and light exists, do nothing
+
+        // If position hasn't changed, verify the block still exists
         if (newLightPos.equals(currentLightPos)) {
-            return;
+            BlockState existingState = serverLevel.getBlockState(currentLightPos);
+            if (existingState.is(ModBlocks.PORTAL_LIGHT_BLOCK.get())) {
+                return; // Light block is still in place, nothing to do
+            }
+            // Light block was removed by something external, reset and re-place
+            currentLightPos = null;
         }
-        
+
         // Remove old light block (only if it was our block)
         removeLightBlock();
-        
-        // Place new portal light block if position is air or replaceable
+
+        // Check if position is suitable for placing the light block
         BlockState currentState = serverLevel.getBlockState(newLightPos);
-        if (currentState.isAir() || currentState.canBeReplaced()) {
-            // Place our custom portal light block using flag 3 (NOTIFY_CLIENTS | BLOCK_UPDATE)
-            serverLevel.setBlock(newLightPos, ModBlocks.PORTAL_LIGHT_BLOCK.get().defaultBlockState(), 3);
-            
+        boolean isWater = currentState.getFluidState().isSource()
+                && currentState.getFluidState().getType() == net.minecraft.world.level.material.Fluids.WATER;
+
+        if (currentState.isAir() || currentState.canBeReplaced() || isWater) {
+            // Create block state with waterlogged property if placing in water
+            BlockState lightState = ModBlocks.PORTAL_LIGHT_BLOCK.get().defaultBlockState()
+                    .setValue(com.crabmods.instantworldmirror.block.PortalLightBlock.WATERLOGGED, isWater);
+
+            // Place our custom portal light block
+            if (!serverLevel.setBlock(newLightPos, lightState, 3)) {
+                return;
+            }
+
+            // Schedule water tick if waterlogged, so surrounding water stays consistent
+            if (isWater) {
+                serverLevel.scheduleTick(newLightPos, net.minecraft.world.level.material.Fluids.WATER,
+                        net.minecraft.world.level.material.Fluids.WATER.getTickDelay(serverLevel));
+            }
+
             // Set the block entity's portal reference
             BlockEntity be = serverLevel.getBlockEntity(newLightPos);
             if (be instanceof PortalLightBlockEntity lightBE) {
                 lightBE.setPortalEntityId(this.getUUID());
             }
-            
+
             currentLightPos = newLightPos;
-            
-            // Force comprehensive light update for mirror world
-            // 1. Check the block itself
+
+            // Force comprehensive light update
             serverLevel.getLightEngine().checkBlock(newLightPos);
-            
-            // 2. Also update surrounding blocks to propagate light
             for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
                 serverLevel.getLightEngine().checkBlock(newLightPos.relative(dir));
             }
-            
-            // 3. Mark chunk for resync to client
             serverLevel.getChunkSource().blockChanged(newLightPos);
         }
     }
@@ -442,14 +458,17 @@ public class MirrorPortalEntity extends Entity {
      */
     private void removeLightBlock() {
         if (this.level() == null || this.level().isClientSide) return;
-        
+
         ServerLevel serverLevel = (ServerLevel) this.level();
-        
+
         // Remove the tracked light block position
         if (currentLightPos != null) {
             BlockState state = serverLevel.getBlockState(currentLightPos);
             if (state.is(ModBlocks.PORTAL_LIGHT_BLOCK.get())) {
-                serverLevel.setBlockAndUpdate(currentLightPos, Blocks.AIR.defaultBlockState());
+                // Restore water if the light block was waterlogged, otherwise place air
+                boolean wasWaterlogged = state.getValue(com.crabmods.instantworldmirror.block.PortalLightBlock.WATERLOGGED);
+                BlockState replacement = wasWaterlogged ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState();
+                serverLevel.setBlockAndUpdate(currentLightPos, replacement);
                 serverLevel.getChunkSource().blockChanged(currentLightPos);
             }
             currentLightPos = null;

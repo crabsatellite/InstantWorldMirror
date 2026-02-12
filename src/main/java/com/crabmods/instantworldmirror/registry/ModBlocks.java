@@ -28,7 +28,6 @@ public class ModBlocks {
             () -> new PortalLightBlock(BlockBehaviour.Properties.of()
                     .noCollission()
                     .noOcclusion()
-                    .air()
                     .lightLevel(state -> 15) // Max light level
                     .noLootTable()
             )
