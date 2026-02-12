@@ -30,7 +30,7 @@ public class PortalLightBlockEntity extends BlockEntity {
     // Orphan detection - tracks how long the block has been without a valid portal
     private int orphanTickCounter = 0;
     private static final int ORPHAN_GRACE_PERIOD = 100; // 5 seconds grace period for initial setup
-    private static final int MAX_ORPHAN_TICKS = 600; // 30 seconds max without valid portal before auto-removal
+    private static final int MAX_ORPHAN_TICKS = 60; // 3 seconds max without valid portal before auto-removal
     
     public PortalLightBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.PORTAL_LIGHT_BLOCK_ENTITY.get(), pos, state);
@@ -117,6 +117,11 @@ public class PortalLightBlockEntity extends BlockEntity {
                 : Blocks.AIR.defaultBlockState();
         level.setBlockAndUpdate(pos, replacement);
         if (level instanceof ServerLevel serverLevel) {
+            // Force comprehensive light update to prevent ambient light residue
+            serverLevel.getLightEngine().checkBlock(pos);
+            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                serverLevel.getLightEngine().checkBlock(pos.relative(dir));
+            }
             serverLevel.getChunkSource().blockChanged(pos);
         }
     }

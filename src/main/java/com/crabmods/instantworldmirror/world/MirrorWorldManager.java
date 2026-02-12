@@ -49,6 +49,7 @@ public class MirrorWorldManager {
     private static final String ORIGINAL_POS_KEY = InstantWorldMirror.MODID + "_original_pos";
     private static final String ORIGINAL_DIM_KEY = InstantWorldMirror.MODID + "_original_dim";
     private static final String SESSION_ID_KEY = InstantWorldMirror.MODID + "_session_id";
+    private static final String DIED_IN_MIRROR_KEY = InstantWorldMirror.MODID + "_died_in_mirror";
 
     // Lock for thread-safe session operations
     private static final ReadWriteLock sessionLock = new ReentrantReadWriteLock();
@@ -1452,8 +1453,10 @@ public class MirrorWorldManager {
     }
     
     /**
-     * Handle player death in mirror world - immediately cleanup session
-     * This is called from the death event to ensure clean state before respawn
+     * Handle player death in mirror world - set flag for deferred inventory restore.
+     * IMPORTANT: Do NOT modify the player's inventory here. The player is mid-death processing
+     * and inventory mutations will corrupt vanilla death logic (item drops, death message, etc.).
+     * Inventory restoration is deferred to PlayerRespawnEvent via a persistent data flag.
      */
     public static void handleMirrorWorldDeath(ServerPlayer player, MinecraftServer server) {
         sessionLock.writeLock().lock();
@@ -1464,8 +1467,9 @@ public class MirrorWorldManager {
             UUID sessionId = playerToSession.get(playerId);
             MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
             
-            // Restore player's original inventory (they died, so items stay in mirror world)
-            restorePlayerInventory(player);
+            // Mark player as needing inventory restore on respawn.
+            // Do NOT call restorePlayerInventory() here - it corrupts the death pipeline.
+            player.getPersistentData().putBoolean(DIED_IN_MIRROR_KEY, true);
             
             // Clear dimension effects on client
             if (session != null) {
@@ -1483,14 +1487,56 @@ public class MirrorWorldManager {
                 }
             }
             
-            // Cleanup all player data
-            cleanupPlayerTrackingData(playerId);
+            // Clean up session tracking data, but preserve saved inventory and position data
+            // in persistent NBT - those are needed by the respawn handler.
+            playerToSession.remove(playerId);
+            playerItemTransferPermission.remove(playerId);
+            playerOwnedSession.remove(playerId);
+            // Deliberately NOT removing playerOriginalPositions and playerOriginalDimensions -
+            // they will be cleaned up after respawn in handleMirrorDeathRespawn().
             
-            InstantWorldMirror.LOGGER.info("Cleaned up mirror world session data for {} after death",
+            InstantWorldMirror.LOGGER.info(
+                    "Cleaned up mirror session data for {} after death (inventory restore deferred to respawn)",
                     player.getName().getString());
         } finally {
             sessionLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Check if player died in mirror world and needs inventory restore on respawn.
+     */
+    public static boolean diedInMirrorWorld(ServerPlayer player) {
+        return player.getPersistentData().getBoolean(DIED_IN_MIRROR_KEY);
+    }
+
+    /**
+     * Clear the died-in-mirror flag and restore inventory. Call from respawn handler only.
+     * Safe to call here because the player entity has been fully recreated after respawn.
+     */
+    public static void handleMirrorDeathRespawn(ServerPlayer player) {
+        player.getPersistentData().remove(DIED_IN_MIRROR_KEY);
+        restorePlayerInventory(player);
+
+        // Now clean up the remaining position tracking data
+        playerOriginalPositions.remove(player.getUUID());
+        playerOriginalDimensions.remove(player.getUUID());
+    }
+
+    /**
+     * Restore inventory on login when player has saved mirror data.
+     * Unlike forceReturn() which requires the player to be in a mirror world,
+     * this method works regardless of the player's current dimension.
+     */
+    public static void restorePlayerInventoryOnLogin(ServerPlayer player) {
+        restorePlayerInventory(player);
+
+        // Clean up position tracking data (may exist in memory if server didn't restart)
+        playerOriginalPositions.remove(player.getUUID());
+        playerOriginalDimensions.remove(player.getUUID());
+
+        // Also clean up session tracking in case of stale entries
+        cleanupPlayerTrackingData(player.getUUID());
     }
     
     /**
@@ -1778,6 +1824,7 @@ public class MirrorWorldManager {
         persistentData.remove(ORIGINAL_POS_KEY + "_z");
         persistentData.remove(ORIGINAL_DIM_KEY);
         persistentData.remove(SESSION_ID_KEY);
+        persistentData.remove(DIED_IN_MIRROR_KEY);
         InstantWorldMirror.LOGGER.info("Cleared saved data for player {}", player.getName().getString());
     }
     

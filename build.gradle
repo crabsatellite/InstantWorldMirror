@@ -68,12 +68,23 @@ repositories {
         name = 'Sponge / Mixin'
         url = 'https://repo.spongepowered.org/repository/maven-public/'
     }
+    maven {
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // Alex's Caves - for testing
+    implementation fg.deobf("curse.maven:alexs-caves-924854:5848216")
+    // Citadel (required by Alex's Caves)
+    implementation fg.deobf("curse.maven:citadel-331936:6702068")
 }
 
 jar {

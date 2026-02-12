@@ -219,6 +219,12 @@ public class MirrorPortalEntity extends Entity {
      */
     @Override
     public void remove(RemovalReason reason) {
+        // Actively clean up the light block FIRST, before session cancel
+        // Must be server-side only to avoid client-side block modification
+        if (!this.level().isClientSide) {
+            removeLightBlock();
+        }
+
         // If this is an entry portal with a session, cancel it
         if (!isReturnPortal && sessionId != null && this.level() instanceof ServerLevel serverLevel) {
             // Cancel the world copy task if still running
@@ -236,9 +242,6 @@ public class MirrorPortalEntity extends Entity {
             MirrorWorldManager.cancelSession(sessionId, serverLevel.getServer());
             InstantWorldMirror.LOGGER.info("Portal removed (reason: {}), session {} cancelled", reason, sessionId);
         }
-
-        // Clean up the light block immediately
-        removeLightBlock();
 
         super.remove(reason);
     }
@@ -469,6 +472,12 @@ public class MirrorPortalEntity extends Entity {
                         ? Blocks.WATER.defaultBlockState()
                         : Blocks.AIR.defaultBlockState();
                 serverLevel.setBlockAndUpdate(currentLightPos, replacement);
+
+                // Force comprehensive light update to prevent ambient light residue
+                serverLevel.getLightEngine().checkBlock(currentLightPos);
+                for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                    serverLevel.getLightEngine().checkBlock(currentLightPos.relative(dir));
+                }
                 serverLevel.getChunkSource().blockChanged(currentLightPos);
             }
             currentLightPos = null;
