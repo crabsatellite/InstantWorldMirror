@@ -31,7 +31,7 @@ public class PortalLightBlockEntity extends BlockEntity {
     // Orphan detection - tracks how long the block has been without a valid portal
     private int orphanTickCounter = 0;
     private static final int ORPHAN_GRACE_PERIOD = 100; // 5 seconds grace period for initial setup
-    private static final int MAX_ORPHAN_TICKS = 600; // 30 seconds max without valid portal before auto-removal
+    private static final int MAX_ORPHAN_TICKS = 60; // 3 seconds safety fallback (primary cleanup is in MirrorPortalEntity.remove())
     
     public PortalLightBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.PORTAL_LIGHT_BLOCK_ENTITY.get(), pos, state);
@@ -106,11 +106,29 @@ public class PortalLightBlockEntity extends BlockEntity {
     }
     
     /**
-     * Remove this block from the world
+     * Remove this block from the world, restoring water if surrounded by water.
+     * This is a safety fallback - primary cleanup happens in MirrorPortalEntity.remove().
      */
     private static void removeSelf(Level level, BlockPos pos) {
-        level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+        // Check if surrounding blocks are water to restore water instead of air
+        BlockState restoreState = Blocks.AIR.defaultBlockState();
+        for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+            BlockState neighbor = level.getBlockState(pos.relative(dir));
+            if (neighbor.getFluidState().isSource()
+                    && neighbor.getFluidState().getType() == net.minecraft.world.level.material.Fluids.WATER) {
+                restoreState = Blocks.WATER.defaultBlockState();
+                break;
+            }
+        }
+        level.setBlockAndUpdate(pos, restoreState);
         if (level instanceof ServerLevel serverLevel) {
+            // Force comprehensive light update to prevent ambient light residue.
+            // Without explicit checkBlock() calls, the light engine retains stale
+            // cached light data from the removed light level 15 block.
+            serverLevel.getLightEngine().checkBlock(pos);
+            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                serverLevel.getLightEngine().checkBlock(pos.relative(dir));
+            }
             serverLevel.getChunkSource().blockChanged(pos);
         }
     }
