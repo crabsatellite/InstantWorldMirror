@@ -1327,10 +1327,13 @@ public class WorldCopyService {
     }
 
     /**
-     * Check if an entity is a decoration or static entity that should be copied.
+     * Check if an entity is a decoration, static, or functional entity that should be copied.
      * This includes:
      * - Decoration entities: paintings, item frames, armor stands, display entities
-     * - Vehicle entities: minecarts, boats
+     * - Vehicle entities: minecarts, boats (vanilla and modded)
+     * - Container entities: any entity with inventory (modded ships, etc.)
+     * - Block-like entities: falling blocks, TNT, etc.
+     * - Modded functional entities: machines, devices placed as entities
      */
     private static boolean isDecorationEntity(net.minecraft.world.entity.Entity entity) {
         // HangingEntity includes Painting, ItemFrame, GlowItemFrame, LeashFenceKnotEntity
@@ -1349,6 +1352,22 @@ public class WorldCopyService {
         // AbstractMinecart: Minecart, MinecartChest, MinecartCommandBlock, MinecartFurnace, MinecartHopper, MinecartSpawner, MinecartTNT
         // Boat, ChestBoat
         if (entity instanceof net.minecraft.world.entity.vehicle.VehicleEntity) {
+            return true;
+        }
+        // Container entities - any entity with inventory (catches modded ships, cargo vehicles, etc.)
+        if (entity instanceof net.minecraft.world.Container) {
+            return true;
+        }
+        // Broad catch for modded entities: include any non-living, non-projectile, non-XP entity
+        // This catches modded machines (e.g. Alex's Caves QuarrySmasherEntity), submarines,
+        // vehicles, etc. that don't extend vanilla base classes
+        // Explicitly exclude our own MirrorPortalEntity to prevent copying portals into mirror world
+        if (!(entity instanceof net.minecraft.world.entity.LivingEntity)
+                && !(entity instanceof net.minecraft.world.entity.projectile.Projectile)
+                && !(entity instanceof net.minecraft.world.entity.ExperienceOrb)
+                && !(entity instanceof net.minecraft.world.entity.item.ItemEntity)
+                && !(entity instanceof net.minecraft.world.entity.LightningBolt)
+                && !(entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity)) {
             return true;
         }
         return false;
@@ -1373,13 +1392,20 @@ public class WorldCopyService {
                     minX, minY, minZ, maxX, maxY, maxZ
             );
             
-            // Get all entities in the chunk (excluding players)
+            // Get all entities in the chunk (excluding players and multipart sub-parts)
             // Optimization: Pre-filter with combined predicate to reduce list size early
             java.util.List<net.minecraft.world.entity.Entity> entities = sourceWorld.getEntities(
                     (net.minecraft.world.entity.Entity) null, 
                     chunkBounds,
                     entity -> {
                         if (entity instanceof net.minecraft.world.entity.player.Player) {
+                            return false;
+                        }
+                        // Filter out PartEntity instances (sub-parts of multipart entities like
+                        // Alex's Caves QuarrySmasherHeadEntity). PartEntity.getType() returns the
+                        // parent's entity type, so copying one would create a duplicate full parent
+                        // entity. Part entities are reconstructed by their parent's constructor.
+                        if (entity instanceof net.neoforged.neoforge.entity.PartEntity<?>) {
                             return false;
                         }
                         // Pre-filter based on copy settings to avoid processing unwanted entities
@@ -1394,33 +1420,53 @@ public class WorldCopyService {
                 return; // Early exit for common case of no entities
             }
             
-            // Reusable CompoundTag to reduce object allocation
-            net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
-            
             // Batch collect entities to add (reduces per-entity overhead)
             java.util.List<net.minecraft.world.entity.Entity> entitiesToAdd = new java.util.ArrayList<>(entities.size());
-            
+
             for (net.minecraft.world.entity.Entity sourceEntity : entities) {
                 try {
                     // Create a new entity of the same type
                     net.minecraft.world.entity.EntityType<?> entityType = sourceEntity.getType();
                     net.minecraft.world.entity.Entity newEntity = entityType.create(mirrorWorld);
-                    
+
                     if (newEntity != null) {
-                        // Clear and reuse the tag
-                        entityData.getAllKeys().clear();
-                        sourceEntity.save(entityData);
-                        
+                        // Use a fresh CompoundTag per entity to prevent state leakage
+                        // NOTE: Do NOT reuse tags with getAllKeys().clear() — that corrupts
+                        // the tag's internal map and causes data from previous entities to
+                        // bleed into subsequent ones, breaking Container inventory save/load
+                        net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
+                        boolean saved = sourceEntity.save(entityData);
+
+                        if (!saved) {
+                            // Entity refused to save (passenger, removed, no encode ID, etc.)
+                            // Skip to avoid creating an entity with empty/invalid data
+                            InstantWorldMirror.LOGGER.debug(
+                                    "Skipped copying entity {} at ({}, {}, {}) - save returned false",
+                                    entityType.toShortString(),
+                                    sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());
+                            continue;
+                        }
+
                         // Remove UUID to generate new one
                         entityData.remove("UUID");
-                        
+
                         newEntity.load(entityData);
                         newEntity.setPos(sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());
                         
                         entitiesToAdd.add(newEntity);
+                    } else {
+                        InstantWorldMirror.LOGGER.debug(
+                                "Could not create entity type {} in mirror world",
+                                sourceEntity.getType().toShortString());
                     }
                 } catch (Exception e) {
-                    // Ignore individual entity copy errors
+                    // Log entity copy failures for diagnosing mod compatibility issues
+                    String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                    InstantWorldMirror.LOGGER.warn(
+                            "Failed to copy entity {} at ({}, {}, {}): {}",
+                            sourceEntity.getType().toShortString(),
+                            sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ(),
+                            errorMsg);
                 }
             }
             
