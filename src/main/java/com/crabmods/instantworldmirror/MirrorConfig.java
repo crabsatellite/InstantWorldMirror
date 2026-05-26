@@ -74,8 +74,8 @@ public class MirrorConfig {
             .define("allowItemTransfer", false);
 
     public static final ForgeConfigSpec.IntValue MIRROR_COOLDOWN = BUILDER
-            .comment("Dimension Mirror cooldown in seconds (default: 300 = 5 minutes)",
-                    "This is how long players must wait between using the Dimension Mirror.",
+            .comment("Dimensional Mirror cooldown in seconds (default: 300 = 5 minutes)",
+                    "This is how long players must wait between using the Dimensional Mirror.",
                     "Can be reduced with Efficiency enchantment (each level reduces by 20%).",
                     "Efficiency 5 = minimum cooldown of 1 minute.",
                     "Creative mode players have no cooldown.")

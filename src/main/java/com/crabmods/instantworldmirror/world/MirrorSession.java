@@ -49,16 +49,25 @@ public class MirrorSession {
     // Whether the source position was in water (affects teleportation safety check)
     // If true, water positions are considered safe (player is doing underwater exploration)
     private final boolean sourceInWater;
+
+    // Whether this session is a sandbox session.
+    private final boolean sandboxMode;
     
     // Creation timestamp for debugging
     private final long createdAt;
     
     public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension, boolean sourceInWater) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater, false);
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, boolean sandboxMode) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
         this.sourceDimension = sourceDimension;
         this.sourceInWater = sourceInWater;
+        this.sandboxMode = sandboxMode;
         this.createdAt = System.currentTimeMillis();
     }
     
@@ -111,6 +120,10 @@ public class MirrorSession {
      */
     public boolean isSourceInWater() {
         return sourceInWater;
+    }
+
+    public boolean isSandboxMode() {
+        return sandboxMode;
     }
     
     /**
@@ -223,6 +236,7 @@ public class MirrorSession {
                 ", sourcePosition=" + sourcePosition +
                 ", playerCount=" + playersInSession.size() +
                 ", destroyed=" + destroyed +
+                ", sandboxMode=" + sandboxMode +
                 '}';
     }
 }

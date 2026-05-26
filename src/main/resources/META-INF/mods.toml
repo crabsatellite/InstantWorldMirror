@@ -7,14 +7,14 @@ issueTrackerURL=""
 [[mods]]
 modId="instantworldmirror"
 version="${file.jarVersion}"
-displayName="Instant World Mirror"
+displayName="World Mirrors"
 updateJSONURL="https://raw.githubusercontent.com/crabsatellite/InstantWorldMirror/changelog/changelog.json"
 displayURL=""
 logoFile="logo.png"
 credits=""
 authors="CrabMods"
 description='''
-Instant World Mirror - A mod by CrabMods
+World Mirrors - A mod by CrabMods
 Allows players to enter a mirrored copy of the world.
 '''
 

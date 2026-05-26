@@ -1,11 +1,13 @@
 package com.crabmods.instantworldmirror.client.renderer;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import com.crabmods.instantworldmirror.client.model.MirrorPortalModel;
+import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
+import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -13,22 +15,28 @@ import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 
 /**
  * Mirror Portal Entity Renderer
  * Renders using custom Blockbench model
  */
 public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
+    private static final double MODEL_Y_OFFSET = 2.17D;
+    private static final float MODEL_SCALE = 1.5F;
 
-    private static final ResourceLocation TEXTURE = new ResourceLocation(
-            InstantWorldMirror.MODID, "textures/entity/mirror_portal.png"
-    );
+    private static final ResourceLocation DIMENSION_MIRROR_TEXTURE = new ResourceLocation(
+            InstantWorldMirror.MODID, "textures/item/dimension_mirror.png");
+    private static final ResourceLocation HEAVEN_MIRROR_TEXTURE = new ResourceLocation(
+            InstantWorldMirror.MODID, "textures/item/heaven_mirror.png");
     
-    private final MirrorPortalModel model;
+    private final DimensionMirrorItemModel dimensionMirrorModel;
+    private final HeavenMirrorItemModel heavenMirrorModel;
 
     public MirrorPortalRenderer(EntityRendererProvider.Context context) {
         super(context);
-        this.model = new MirrorPortalModel(context.bakeLayer(MirrorPortalModel.LAYER_LOCATION));
+        this.dimensionMirrorModel = new DimensionMirrorItemModel(DimensionMirrorItemModel.createBodyLayer().bakeRoot());
+        this.heavenMirrorModel = new HeavenMirrorItemModel(HeavenMirrorItemModel.createBodyLayer().bakeRoot());
     }
 
     @Override
@@ -40,8 +48,8 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         float time = entity.tickCount + partialTicks;
         float bob = (float) Math.sin(time * 0.1) * 0.1F;
 
-        // Position adjustment - place mirror at eye level with floating effect
-        poseStack.translate(0, 1.0 + bob, 0);
+        // The Blockbench models have an item-space pivot; raise them so placed mirrors sit on the block.
+        poseStack.translate(0, MODEL_Y_OFFSET + bob, 0);
 
         // Check if in loading state
         boolean isLoading = entity.isLoading();
@@ -59,9 +67,8 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
             poseStack.mulPose(Axis.YP.rotationDegrees(-this.entityRenderDispatcher.camera.getYRot()));
         }
         
-        // Scale the mirror model
-        float scale = 1.5F;
-        poseStack.scale(scale, scale, scale);
+        poseStack.mulPose(Axis.ZP.rotationDegrees(180.0F));
+        poseStack.scale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
 
         // Blink effect (when about to disappear)
         int lifetime = entity.getLifetime();
@@ -73,8 +80,12 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         // Use full brightness for magical effect
         int fullBright = LightTexture.FULL_BRIGHT;
         
-        // Get render type and render model
-        VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityTranslucent(TEXTURE));
+        ResourceLocation texture = getTextureLocation(entity);
+        EntityModel<Entity> model = entity.isHeavenPortal() ? heavenMirrorModel : dimensionMirrorModel;
+        RenderType renderType = alpha < 1.0F
+                ? RenderType.entityTranslucent(texture)
+                : RenderType.entityCutoutNoCull(texture);
+        VertexConsumer vertexConsumer = buffer.getBuffer(renderType);
         
         // Extract RGBA components for 1.20.1 API
         float red = 1.0F;
@@ -90,6 +101,6 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
 
     @Override
     public ResourceLocation getTextureLocation(MirrorPortalEntity entity) {
-        return TEXTURE;
+        return entity.isHeavenPortal() ? HEAVEN_MIRROR_TEXTURE : DIMENSION_MIRROR_TEXTURE;
     }
 }

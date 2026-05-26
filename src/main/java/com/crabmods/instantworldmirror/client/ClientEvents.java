@@ -1,7 +1,6 @@
 package com.crabmods.instantworldmirror.client;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import com.crabmods.instantworldmirror.client.model.MirrorPortalModel;
 import com.crabmods.instantworldmirror.client.renderer.MirrorPortalRenderer;
 import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.registry.ModItems;
@@ -31,15 +30,6 @@ public class ClientEvents {
     }
     
     /**
-     * Register model layers for entity models
-     */
-    @SubscribeEvent
-    public static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
-        event.registerLayerDefinition(MirrorPortalModel.LAYER_LOCATION, MirrorPortalModel::createBodyLayer);
-        InstantWorldMirror.LOGGER.info("Mirror Portal model layer registered");
-    }
-    
-    /**
      * Register HUD overlays
      */
     @SubscribeEvent
@@ -58,8 +48,9 @@ public class ClientEvents {
      */
     @SubscribeEvent
     public static void registerItemDecorations(RegisterItemDecorationsEvent event) {
-        // Register cooldown bar decorator for Dimension Mirror
+        // Register cooldown bar decorators for mirror items
         event.register(ModItems.DIMENSION_MIRROR.get(), new CooldownItemDecorator());
+        event.register(ModItems.HEAVEN_MIRROR.get(), new CooldownItemDecorator());
         InstantWorldMirror.LOGGER.info("Cooldown item decorator registered");
     }
 }

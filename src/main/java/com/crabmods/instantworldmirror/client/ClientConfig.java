@@ -16,7 +16,7 @@ public class ClientConfig {
     
     public static final ForgeConfigSpec.BooleanValue SHOW_COOLDOWN_HUD = BUILDER
             .comment("Show cooldown timer HUD in the top-left corner (default: false)",
-                    "When enabled, displays the remaining cooldown time for the Dimension Mirror.",
+                    "When enabled, displays the remaining cooldown time for the Dimensional Mirror.",
                     "The item bar already shows a charging indicator, so this is optional.")
             .define("showCooldownHud", false);
 

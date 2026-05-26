@@ -1,10 +1,12 @@
 {
-  "itemGroup.instantworldmirror": "瞬时世界之镜",
+  "itemGroup.instantworldmirror": "世界之镜",
   "item.instantworldmirror.dimension_mirror": "次元镜像镜",
+  "item.instantworldmirror.heaven_mirror": "天堂之镜",
   "entity.instantworldmirror.mirror_portal": "镜面传送门",
   "dimension.instantworldmirror.mirror_world": "镜面世界",
   "message.instantworldmirror.portal_created": "§a正在创建镜面世界传送门...",
   "message.instantworldmirror.return_portal_created": "§a正在打开返回传送门...",
+  "message.instantworldmirror.heaven_return_restricted": "§e天堂之镜只能从原来的入口返回。",
   "message.instantworldmirror.returned": "§a已返回原世界",
   "message.instantworldmirror.returned_to_corresponding_position": "§a已传送至主世界对应位置",
   "message.instantworldmirror.invalid_block": "§e无法在此方块上打开传送门",
