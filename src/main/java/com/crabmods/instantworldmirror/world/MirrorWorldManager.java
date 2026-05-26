@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -17,7 +18,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -49,6 +52,19 @@ public class MirrorWorldManager {
     private static final String ORIGINAL_POS_KEY = InstantWorldMirror.MODID + "_original_pos";
     private static final String ORIGINAL_DIM_KEY = InstantWorldMirror.MODID + "_original_dim";
     private static final String SESSION_ID_KEY = InstantWorldMirror.MODID + "_session_id";
+    private static final String SANDBOX_SESSION_KEY = InstantWorldMirror.MODID + "_sandbox_session";
+    private static final String SAVED_GAME_MODE_KEY = InstantWorldMirror.MODID + "_saved_game_mode";
+    private static final String SAVED_HEALTH_KEY = InstantWorldMirror.MODID + "_saved_health";
+    private static final String SAVED_ABSORPTION_KEY = InstantWorldMirror.MODID + "_saved_absorption";
+    private static final String SAVED_FOOD_KEY = InstantWorldMirror.MODID + "_saved_food";
+    private static final String SAVED_SATURATION_KEY = InstantWorldMirror.MODID + "_saved_saturation";
+    private static final String SAVED_EXHAUSTION_KEY = InstantWorldMirror.MODID + "_saved_exhaustion";
+    private static final String SAVED_XP_PROGRESS_KEY = InstantWorldMirror.MODID + "_saved_xp_progress";
+    private static final String SAVED_XP_LEVEL_KEY = InstantWorldMirror.MODID + "_saved_xp_level";
+    private static final String SAVED_XP_TOTAL_KEY = InstantWorldMirror.MODID + "_saved_xp_total";
+    private static final String SAVED_FIRE_TICKS_KEY = InstantWorldMirror.MODID + "_saved_fire_ticks";
+    private static final String SAVED_AIR_SUPPLY_KEY = InstantWorldMirror.MODID + "_saved_air_supply";
+    private static final String SAVED_EFFECTS_KEY = InstantWorldMirror.MODID + "_saved_effects";
 
     // Lock for thread-safe session operations
     private static final ReadWriteLock sessionLock = new ReentrantReadWriteLock();
@@ -164,6 +180,10 @@ public class MirrorWorldManager {
      * @return the created session, or empty if player already has an active session or no dimensions available
      */
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos) {
+        return createSession(player, sourcePos, false);
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, boolean sandboxMode) {
         // Check if purge mode is active
         if (purgeMode) {
             InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
@@ -199,7 +219,8 @@ public class MirrorWorldManager {
                     player.getUUID(),
                     sourcePos,
                     player.level().dimension(),
-                    sourceInWater
+                    sourceInWater,
+                    sandboxMode
             );
 
             // Allocate a dimension from the pool using actual session ID and source dimension
@@ -284,6 +305,12 @@ public class MirrorWorldManager {
      */
     public static boolean isBeingTeleportedByMod(UUID playerId) {
         return playersBeingTeleported.contains(playerId);
+    }
+
+    public static boolean isPlayerInSandboxSession(ServerPlayer player) {
+        UUID sessionId = playerToSession.get(player.getUUID());
+        MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+        return session != null && session.isSandboxMode();
     }
 
     /**
@@ -437,8 +464,12 @@ public class MirrorWorldManager {
         CompoundTag persistentData = player.getPersistentData();
         persistentData.putUUID(SESSION_ID_KEY, session.getSessionId());
 
-        // Save player inventory
-        savePlayerInventory(player);
+        if (session.isSandboxMode()) {
+            savePlayerSnapshot(player, true);
+            prepareSandboxPlayer(player);
+        } else {
+            savePlayerInventory(player);
+        }
 
         // Find a safe position to teleport to (avoid being stuck in walls)
         // If source was in water, allow water positions (player is doing underwater exploration)
@@ -650,6 +681,19 @@ public class MirrorWorldManager {
 
         // Get player's saved original position
         BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
+        UUID sessionId = playerToSession.get(player.getUUID());
+        MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+
+        if (session != null && session.isSandboxMode()) {
+            if (originalPos != null && !portalPos.closerThan(originalPos, 16.0)) {
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.heaven_return_restricted"),
+                        true
+                );
+                return false;
+            }
+            return returnToOverworld(player);
+        }
         
         // If no original position or portal is close to original position (within 16 blocks), use normal return
         if (originalPos == null || portalPos.closerThan(originalPos, 16.0)) {
@@ -1675,19 +1719,23 @@ public class MirrorWorldManager {
 
     // ==================== Inventory Management ====================
 
-    /**
-     * Save player inventory and ender chest to player's persistent data
-     * Only saves for survival mode players (creative/spectator players don't need inventory restore)
-     */
     private static void savePlayerInventory(ServerPlayer player) {
-        // Only save inventory for survival mode players
-        if (!player.gameMode.isSurvival()) {
+        savePlayerSnapshot(player, false);
+    }
+
+    /**
+     * Save player inventory and state to persistent data.
+     * Normal sessions preserve the old survival-only behavior; sandbox sessions always save full state.
+     */
+    private static void savePlayerSnapshot(ServerPlayer player, boolean sandboxMode) {
+        if (!sandboxMode && !player.gameMode.isSurvival()) {
             InstantWorldMirror.LOGGER.info("Skipping inventory save for non-survival player {}",
                     player.getName().getString());
             return;
         }
         
         CompoundTag persistentData = player.getPersistentData();
+        persistentData.putBoolean(SANDBOX_SESSION_KEY, sandboxMode);
         
         // Save inventory
         ListTag inventoryTag = new ListTag();
@@ -1705,6 +1753,10 @@ public class MirrorWorldManager {
         persistentData.putInt(ORIGINAL_POS_KEY + "_z", pos.getZ());
         persistentData.putString(ORIGINAL_DIM_KEY, player.level().dimension().location().toString());
 
+        if (sandboxMode) {
+            saveSandboxState(player, persistentData);
+        }
+
         InstantWorldMirror.LOGGER.info("Saved inventory and ender chest to persistent data for player {} ({} inventory items, {} ender chest items)",
                 player.getName().getString(), inventoryTag.size(), enderChestTag.size());
     }
@@ -1714,15 +1766,15 @@ public class MirrorWorldManager {
      * Only restores for survival mode players
      */
     private static void restorePlayerInventory(ServerPlayer player) {
-        // Only restore inventory for survival mode players
-        if (!player.gameMode.isSurvival()) {
+        CompoundTag persistentData = player.getPersistentData();
+        boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY);
+
+        if (!sandboxMode && !player.gameMode.isSurvival()) {
             InstantWorldMirror.LOGGER.info("Skipping inventory restore for non-survival player {}",
                     player.getName().getString());
             clearSavedData(player);
             return;
         }
-        
-        CompoundTag persistentData = player.getPersistentData();
 
         if (persistentData.contains(SAVED_INVENTORY_KEY)) {
             // Restore inventory
@@ -1745,10 +1797,110 @@ public class MirrorWorldManager {
                         player.getName().getString());
             }
 
+            if (sandboxMode) {
+                restoreSandboxState(player, persistentData);
+            }
+
+            player.inventoryMenu.broadcastChanges();
+            player.containerMenu.broadcastChanges();
+
             clearSavedData(player);
         } else {
             InstantWorldMirror.LOGGER.warn("No saved inventory found in persistent data for player {}",
                     player.getName().getString());
+        }
+    }
+
+    private static void saveSandboxState(ServerPlayer player, CompoundTag persistentData) {
+        persistentData.putInt(SAVED_GAME_MODE_KEY, player.gameMode.getGameModeForPlayer().getId());
+        persistentData.putFloat(SAVED_HEALTH_KEY, player.getHealth());
+        persistentData.putFloat(SAVED_ABSORPTION_KEY, player.getAbsorptionAmount());
+        persistentData.putInt(SAVED_FOOD_KEY, player.getFoodData().getFoodLevel());
+        persistentData.putFloat(SAVED_SATURATION_KEY, player.getFoodData().getSaturationLevel());
+        persistentData.putFloat(SAVED_EXHAUSTION_KEY, player.getFoodData().getExhaustionLevel());
+        persistentData.putFloat(SAVED_XP_PROGRESS_KEY, player.experienceProgress);
+        persistentData.putInt(SAVED_XP_LEVEL_KEY, player.experienceLevel);
+        persistentData.putInt(SAVED_XP_TOTAL_KEY, player.totalExperience);
+        persistentData.putInt(SAVED_FIRE_TICKS_KEY, player.getRemainingFireTicks());
+        persistentData.putInt(SAVED_AIR_SUPPLY_KEY, player.getAirSupply());
+
+        ListTag effects = new ListTag();
+        for (MobEffectInstance effect : player.getActiveEffects()) {
+            Tag savedEffect = effect.save();
+            if (savedEffect instanceof CompoundTag effectTag) {
+                effects.add(effectTag);
+            }
+        }
+        persistentData.put(SAVED_EFFECTS_KEY, effects);
+    }
+
+    private static void prepareSandboxPlayer(ServerPlayer player) {
+        player.getInventory().clearContent();
+        player.getEnderChestInventory().clearContent();
+        player.removeAllEffects();
+        player.setRemainingFireTicks(0);
+        player.setAirSupply(player.getMaxAirSupply());
+        player.setHealth(player.getMaxHealth());
+        player.setAbsorptionAmount(0.0F);
+        player.getFoodData().setFoodLevel(20);
+        player.getFoodData().setSaturation(20.0F);
+        player.getFoodData().setExhaustion(0.0F);
+        player.experienceProgress = 0.0F;
+        player.experienceLevel = 0;
+        player.totalExperience = 0;
+        player.setGameMode(GameType.CREATIVE);
+        player.inventoryMenu.broadcastChanges();
+        player.containerMenu.broadcastChanges();
+    }
+
+    private static void restoreSandboxState(ServerPlayer player, CompoundTag persistentData) {
+        if (persistentData.contains(SAVED_GAME_MODE_KEY)) {
+            GameType gameType = GameType.byId(persistentData.getInt(SAVED_GAME_MODE_KEY));
+            if (gameType != null) {
+                player.setGameMode(gameType);
+            }
+        }
+
+        if (persistentData.contains(SAVED_HEALTH_KEY)) {
+            player.setHealth(Math.min(persistentData.getFloat(SAVED_HEALTH_KEY), player.getMaxHealth()));
+        }
+        if (persistentData.contains(SAVED_ABSORPTION_KEY)) {
+            player.setAbsorptionAmount(persistentData.getFloat(SAVED_ABSORPTION_KEY));
+        }
+        if (persistentData.contains(SAVED_FOOD_KEY)) {
+            player.getFoodData().setFoodLevel(persistentData.getInt(SAVED_FOOD_KEY));
+        }
+        if (persistentData.contains(SAVED_SATURATION_KEY)) {
+            player.getFoodData().setSaturation(persistentData.getFloat(SAVED_SATURATION_KEY));
+        }
+        if (persistentData.contains(SAVED_EXHAUSTION_KEY)) {
+            player.getFoodData().setExhaustion(persistentData.getFloat(SAVED_EXHAUSTION_KEY));
+        }
+        if (persistentData.contains(SAVED_XP_PROGRESS_KEY)) {
+            player.experienceProgress = persistentData.getFloat(SAVED_XP_PROGRESS_KEY);
+        }
+        if (persistentData.contains(SAVED_XP_LEVEL_KEY)) {
+            player.experienceLevel = persistentData.getInt(SAVED_XP_LEVEL_KEY);
+        }
+        if (persistentData.contains(SAVED_XP_TOTAL_KEY)) {
+            player.totalExperience = persistentData.getInt(SAVED_XP_TOTAL_KEY);
+        }
+        if (persistentData.contains(SAVED_FIRE_TICKS_KEY)) {
+            player.setRemainingFireTicks(persistentData.getInt(SAVED_FIRE_TICKS_KEY));
+        }
+        if (persistentData.contains(SAVED_AIR_SUPPLY_KEY)) {
+            player.setAirSupply(persistentData.getInt(SAVED_AIR_SUPPLY_KEY));
+        }
+
+        player.removeAllEffects();
+        if (persistentData.contains(SAVED_EFFECTS_KEY)) {
+            ListTag effects = persistentData.getList(SAVED_EFFECTS_KEY, 10);
+            for (int i = 0; i < effects.size(); i++) {
+                MobEffectInstance effect = MobEffectInstance.load(effects.getCompound(i));
+                if (effect != null) {
+                    player.addEffect(effect);
+                }
+            }
         }
     }
 
@@ -1766,6 +1918,19 @@ public class MirrorWorldManager {
         CompoundTag persistentData = player.getPersistentData();
         persistentData.remove(SAVED_INVENTORY_KEY);
         persistentData.remove(SAVED_ENDERCHEST_KEY);
+        persistentData.remove(SANDBOX_SESSION_KEY);
+        persistentData.remove(SAVED_GAME_MODE_KEY);
+        persistentData.remove(SAVED_HEALTH_KEY);
+        persistentData.remove(SAVED_ABSORPTION_KEY);
+        persistentData.remove(SAVED_FOOD_KEY);
+        persistentData.remove(SAVED_SATURATION_KEY);
+        persistentData.remove(SAVED_EXHAUSTION_KEY);
+        persistentData.remove(SAVED_XP_PROGRESS_KEY);
+        persistentData.remove(SAVED_XP_LEVEL_KEY);
+        persistentData.remove(SAVED_XP_TOTAL_KEY);
+        persistentData.remove(SAVED_FIRE_TICKS_KEY);
+        persistentData.remove(SAVED_AIR_SUPPLY_KEY);
+        persistentData.remove(SAVED_EFFECTS_KEY);
         persistentData.remove(ORIGINAL_POS_KEY + "_x");
         persistentData.remove(ORIGINAL_POS_KEY + "_y");
         persistentData.remove(ORIGINAL_POS_KEY + "_z");

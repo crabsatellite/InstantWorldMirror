@@ -14,7 +14,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
 /**
- * HUD overlay that displays the Dimension Mirror cooldown timer
+ * HUD overlay that displays the Dimensional Mirror cooldown timer
  * Shows a countdown timer in the corner when the player has a mirror on cooldown
  * 
  * Design inspired by Waystones mod's cooldown display, but with:
@@ -51,7 +51,7 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
             return;
         }
         
-        // Only show if player has a Dimension Mirror in their inventory
+        // Only show if player has a mirror item in their inventory
         if (!hasModMirrorInInventory(player)) {
             return;
         }
@@ -80,23 +80,27 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
     }
     
     /**
-     * Check if the player has a Dimension Mirror in their inventory
+     * Check if the player has a mirror item in their inventory
      */
     private boolean hasModMirrorInInventory(LocalPlayer player) {
         // Check main inventory
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.is(ModItems.DIMENSION_MIRROR.get())) {
+            if (!stack.isEmpty() && isMirrorItem(stack)) {
                 return true;
             }
         }
         
         // Check offhand
         ItemStack offhand = player.getOffhandItem();
-        if (!offhand.isEmpty() && offhand.is(ModItems.DIMENSION_MIRROR.get())) {
+        if (!offhand.isEmpty() && isMirrorItem(offhand)) {
             return true;
         }
         
         return false;
+    }
+
+    private boolean isMirrorItem(ItemStack stack) {
+        return stack.is(ModItems.DIMENSION_MIRROR.get()) || stack.is(ModItems.HEAVEN_MIRROR.get());
     }
 }

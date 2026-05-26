@@ -1,6 +1,7 @@
 {
-  "itemGroup.instantworldmirror": "瞬时世界之镜",
+  "itemGroup.instantworldmirror": "世界之镜",
   "item.instantworldmirror.dimension_mirror": "次元镜像镜",
+  "item.instantworldmirror.heaven_mirror": "天堂之镜",
   "entity.instantworldmirror.mirror_portal": "镜面传送门",
   "dimension.instantworldmirror.mirror_world": "镜面世界",
   "message.instantworldmirror.portal_created": "§a正在创建镜面世界传送门...",
@@ -60,5 +61,6 @@
   "message.instantworldmirror.purge_mode_active": "§c镜面世界正在被清除中，请等待服务器重启。",
   "message.instantworldmirror.portal_activating": "§e正在触发返回传送门: %s",
   "message.instantworldmirror.queue_position": "§e你在复制队列中排第 %d 位，请稍候...",
-  "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候..."
+  "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候...",
+  "message.instantworldmirror.heaven_return_restricted": "§e天堂之镜只能从原来的入口返回。"
 }

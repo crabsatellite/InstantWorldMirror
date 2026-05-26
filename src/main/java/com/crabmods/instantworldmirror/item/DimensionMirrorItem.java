@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.item;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.client.renderer.MirrorItemRenderer;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.network.SyncCooldownPacket;
 import com.crabmods.instantworldmirror.world.MirrorSession;
@@ -13,6 +14,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -30,15 +32,17 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
- * Dimension Mirror - Used to open a portal to the Mirror World
+ * Dimensional Mirror - Used to open a portal to the Mirror World
  * 
  * In Overworld: Creates a session and entry portal (anyone can use)
  * In Mirror World: Creates a return portal (only owner can use)
@@ -50,6 +54,7 @@ public class DimensionMirrorItem extends Item {
 
     private static final String COOLDOWN_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_until";
     private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
+    private final boolean sandboxMode;
     
     // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
     private static final Map<UUID, Long> COOLDOWNS = new ConcurrentHashMap<>();
@@ -59,7 +64,12 @@ public class DimensionMirrorItem extends Item {
     private static final Map<UUID, Long> COOLDOWN_DURATIONS = new ConcurrentHashMap<>();
 
     public DimensionMirrorItem(Properties properties) {
+        this(properties, false);
+    }
+
+    protected DimensionMirrorItem(Properties properties, boolean sandboxMode) {
         super(properties);
+        this.sandboxMode = sandboxMode;
     }
     
     /**
@@ -197,7 +207,9 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.FAIL;
         }
         
-        if (player.isCreative()) {
+        boolean bypassCooldown = player.isCreative();
+
+        if (bypassCooldown) {
             // Creative mode: clear any existing cooldown and sync to client
             clearCooldown(player.getUUID());
             syncCooldownToClient(serverPlayer); // Sync cleared cooldown to client
@@ -245,6 +257,14 @@ public class DimensionMirrorItem extends Item {
 
         InteractionResult result;
         if (isInMirrorWorld) {
+            if (sandboxMode || MirrorWorldManager.isPlayerInSandboxSession(serverPlayer)) {
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.heaven_return_restricted"),
+                        true
+                );
+                return InteractionResult.FAIL;
+            }
+
             // In Mirror World: Create return portal
             result = createReturnPortal(serverLevel, serverPlayer, pos);
         } else {
@@ -253,7 +273,7 @@ public class DimensionMirrorItem extends Item {
         }
         
         // Apply cooldown on success (creative mode skips cooldown)
-        if (result == InteractionResult.SUCCESS && !player.isCreative()) {
+        if (result == InteractionResult.SUCCESS && !bypassCooldown) {
             applyCooldown(serverPlayer, stack);
         }
         
@@ -326,7 +346,7 @@ public class DimensionMirrorItem extends Item {
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
-        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos);
+        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, sandboxMode);
         if (sessionOpt.isEmpty()) {
             // Message already shown in createSession
             return InteractionResult.FAIL;
@@ -430,6 +450,16 @@ public class DimensionMirrorItem extends Item {
     public boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment) {
         // Only allow Efficiency enchantment
         return enchantment.is(Enchantments.EFFICIENCY);
+    }
+
+    @Override
+    public void initializeClient(Consumer<IClientItemExtensions> consumer) {
+        consumer.accept(new IClientItemExtensions() {
+            @Override
+            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                return MirrorItemRenderer.getInstance();
+            }
+        });
     }
     
     // ==================== Hold to Teleport to Spawn (Mirror World Only) ====================

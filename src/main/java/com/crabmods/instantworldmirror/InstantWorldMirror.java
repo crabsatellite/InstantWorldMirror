@@ -21,7 +21,7 @@ import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import org.slf4j.Logger;
 
 /**
- * InstantWorldMirror - Instant World Mirror
+ * InstantWorldMirror - World Mirrors
  * A Minecraft mod that allows players to enter a mirror copy of the overworld
  */
 @Mod(InstantWorldMirror.MODID)
