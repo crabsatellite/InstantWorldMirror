@@ -3,6 +3,7 @@ package com.crabmods.instantworldmirror.world;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.network.ClearMirrorEffectsPacket;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.SyncMirrorEffectsPacket;
@@ -917,13 +918,7 @@ public class MirrorWorldManager {
 
         // Apply cooldown (same as using the mirror normally) - skip for creative mode
         if (!player.isCreative()) {
-            // Use base cooldown (30 seconds minimum, since we don't have the item stack here)
-            int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20;
-            int finalCooldownSeconds = Math.max(30, baseCooldownSeconds);
-            com.crabmods.instantworldmirror.item.DimensionMirrorItem.setCooldown(player.getUUID(), finalCooldownSeconds);
-            com.crabmods.instantworldmirror.item.DimensionMirrorItem.syncCooldownToClient(player);
-            InstantWorldMirror.LOGGER.debug("Applied cooldown {} seconds to {} for teleport to spawn",
-                    finalCooldownSeconds, player.getName().getString());
+            DimensionMirrorItem.applyCooldown(player, DimensionMirrorItem.findMirrorStack(player));
         }
 
         player.displayClientMessage(
