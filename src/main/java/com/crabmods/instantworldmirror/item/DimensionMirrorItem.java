@@ -286,29 +286,54 @@ public class DimensionMirrorItem extends Item {
      * Each efficiency level reduces cooldown by 20%
      * Efficiency 5 = 30 seconds (minimum)
      */
-    private void applyCooldown(ServerPlayer player, ItemStack stack) {
-        int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
+    public static void applyCooldown(ServerPlayer player, ItemStack stack) {
+        int finalCooldownSeconds = calculateCooldownSeconds(player.level(), stack);
         int efficiencyLevel = getEfficiencyLevel(player.level(), stack);
-        
+
+        // Set our custom cooldown (real time based)
+        setCooldown(player.getUUID(), finalCooldownSeconds);
+
+        // Sync cooldown to client for HUD display
+        syncCooldownToClient(player);
+
+        InstantWorldMirror.LOGGER.debug("Applied cooldown {} seconds to {} (efficiency level: {})",
+                finalCooldownSeconds, player.getName().getString(), efficiencyLevel);
+    }
+
+    public static ItemStack findMirrorStack(Player player) {
+        ItemStack useStack = player.getUseItem();
+        if (isMirrorStack(useStack)) {
+            return useStack;
+        }
+
+        for (InteractionHand hand : InteractionHand.values()) {
+            ItemStack handStack = player.getItemInHand(hand);
+            if (isMirrorStack(handStack)) {
+                return handStack;
+            }
+        }
+
+        return ItemStack.EMPTY;
+    }
+
+    private static boolean isMirrorStack(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof DimensionMirrorItem;
+    }
+
+    private static int calculateCooldownSeconds(Level level, ItemStack stack) {
+        int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
+        int efficiencyLevel = getEfficiencyLevel(level, stack);
+
         // Each efficiency level reduces cooldown by 20%
         // Level 0: 100% (5 min), Level 1: 80% (4 min), Level 2: 60% (3 min)
         // Level 3: 40% (2 min), Level 4: 20% (1 min), Level 5: 10% (30 sec, minimum)
         double reduction = Math.min(0.9, efficiencyLevel * 0.2); // Cap at 90% reduction
         int finalCooldownSeconds = (int) (baseCooldownSeconds * (1.0 - reduction));
-        
+
         // Minimum cooldown is 30 seconds
-        finalCooldownSeconds = Math.max(30, finalCooldownSeconds);
-        
-        // Set our custom cooldown (real time based)
-        setCooldown(player.getUUID(), finalCooldownSeconds);
-        
-        // Sync cooldown to client for HUD display
-        syncCooldownToClient(player);
-        
-        InstantWorldMirror.LOGGER.debug("Applied cooldown {} seconds to {} (efficiency level: {})",
-                finalCooldownSeconds, player.getName().getString(), efficiencyLevel);
+        return Math.max(30, finalCooldownSeconds);
     }
-    
+
     /**
      * Send the current cooldown state to the client for HUD display
      */
@@ -324,7 +349,10 @@ public class DimensionMirrorItem extends Item {
     /**
      * Get the Efficiency enchantment level on the item
      */
-    private int getEfficiencyLevel(Level level, ItemStack stack) {
+    private static int getEfficiencyLevel(Level level, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return 0;
+        }
         var registryAccess = level.registryAccess();
         var enchantmentRegistry = registryAccess.lookupOrThrow(Registries.ENCHANTMENT);
         var efficiencyHolder = enchantmentRegistry.getOrThrow(Enchantments.EFFICIENCY);

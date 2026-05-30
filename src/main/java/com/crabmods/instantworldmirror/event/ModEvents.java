@@ -49,32 +49,54 @@ public class ModEvents {
     }
 
     /**
-     * Player death event - immediately cleanup session when dying in mirror world
-     * This ensures the player can create a new mirror after respawning
+     * Player death event - cleanup session when dying in or with an active mirror world.
+     * Handles two scenarios:
+     * 1. Player dies directly in a mirror world
+     * 2. Player dies in a non-mirror dimension but still has an active mirror session
+     *
+     * IMPORTANT: Does NOT restore inventory here. Inventory restoration is deferred to
+     * the respawn event to avoid corrupting vanilla death processing.
      */
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            if (MirrorWorldManager.isInMirrorWorld(player)) {
-                InstantWorldMirror.LOGGER.info("Player {} died in Mirror World, cleaning up session", 
-                        player.getName().getString());
-                
-                // Immediately cleanup session - this handles:
-                // 1. Removing player from session
-                // 2. Destroying session if last player
-                // 3. Restoring inventory data
+            boolean inMirrorWorld = MirrorWorldManager.isInMirrorWorld(player);
+            boolean hasActiveSession = MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent();
+
+            if (inMirrorWorld || hasActiveSession) {
+                if (inMirrorWorld) {
+                    InstantWorldMirror.LOGGER.info(
+                            "Player {} died in Mirror World, cleaning up session",
+                            player.getName().getString());
+                } else {
+                    InstantWorldMirror.LOGGER.info(
+                            "Player {} died in {} with active mirror session, cleaning up",
+                            player.getName().getString(),
+                            player.level().dimension().location());
+                }
+
                 MirrorWorldManager.handleMirrorWorldDeath(player, player.getServer());
             }
         }
     }
 
     /**
-     * Player respawn event - ensure players who died in mirror world respawn in overworld
-     * Session cleanup is already handled in death event
+     * Player respawn event - handle inventory restoration for mirror world deaths.
+     * Inventory restore is deferred from the death event to here to avoid crashes.
+     * Also ensures players who respawn inside a mirror world are teleported to the overworld.
      */
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Check if this player died in a mirror world and needs inventory restore
+            if (MirrorWorldManager.diedInMirrorWorld(player)) {
+                // Safe to restore inventory now - the player entity has been fully recreated
+                MirrorWorldManager.handleMirrorDeathRespawn(player);
+                InstantWorldMirror.LOGGER.info(
+                        "Restored inventory for {} on respawn after mirror world death",
+                        player.getName().getString());
+            }
+
             // If player somehow respawns in mirror world, force teleport to overworld
             if (ModDimensions.isMirrorWorld(player.level().dimension())) {
                 // Teleport to overworld spawn point (session should already be cleaned up)
@@ -98,26 +120,45 @@ public class ModEvents {
                 InstantWorldMirror.LOGGER.info("Force teleported {} to overworld after respawn in mirror world",
                         player.getName().getString());
             }
+
+            // Safety net: clear any leftover stale mirror data after respawn
+            if (MirrorWorldManager.hasSavedInventory(player)) {
+                InstantWorldMirror.LOGGER.warn(
+                        "Player {} respawned with stale mirror inventory data, clearing",
+                        player.getName().getString());
+                MirrorWorldManager.clearSavedData(player);
+            }
         }
     }
 
     /**
      * Player dimension change event - detect when player leaves mirror world via commands/other means
      * This catches /tp, /execute, other mod teleporters, etc.
+     * Skips processing if the death handler already cleaned up session data.
      */
     @SubscribeEvent
     public static void onPlayerChangeDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Skip if the death handler already processed this player.
+            // The respawn after death causes a dimension change, but session cleanup
+            // was already handled by the death event. Processing it again would
+            // double-restore inventory or operate on stale state.
+            if (MirrorWorldManager.diedInMirrorWorld(player)) {
+                return;
+            }
+
             // Check if player LEFT a mirror world (not entered one)
             if (ModDimensions.isMirrorWorld(event.getFrom()) && !ModDimensions.isMirrorWorld(event.getTo())) {
-                // Player left mirror world through non-portal means (command, other mod, etc.)
-                InstantWorldMirror.LOGGER.info("Player {} left Mirror World via external means (from {} to {})", 
-                        player.getName().getString(), 
-                        event.getFrom().location(), 
-                        event.getTo().location());
-                
-                // Clean up their session data
-                MirrorWorldManager.handleExternalExit(player, player.getServer());
+                // Only process if the player still has an active session
+                if (MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent()) {
+                    InstantWorldMirror.LOGGER.info("Player {} left Mirror World via external means (from {} to {})",
+                            player.getName().getString(),
+                            event.getFrom().location(),
+                            event.getTo().location());
+
+                    // Clean up their session data
+                    MirrorWorldManager.handleExternalExit(player, player.getServer());
+                }
             }
         }
     }
@@ -441,7 +482,19 @@ public class ModEvents {
         if (event.getEntity() instanceof ServerPlayer player) {
             // Restore any saved cooldown first
             DimensionMirrorItem.restoreCooldown(player);
-            
+
+            // Safety net: clear stale death flag that might persist from a server crash
+            // between death and respawn. Without this, the flag would remain until
+            // the next death/respawn cycle.
+            if (MirrorWorldManager.diedInMirrorWorld(player)) {
+                InstantWorldMirror.LOGGER.info(
+                        "Clearing stale mirror death flag for {} on login",
+                        player.getName().getString());
+                if (!MirrorWorldManager.hasSavedInventory(player)) {
+                    MirrorWorldManager.clearSavedData(player);
+                }
+            }
+
             // Check if player has saved inventory data (might have been in mirror world before server restart)
             if (MirrorWorldManager.hasSavedInventory(player)) {
                 // Player has saved data, restore inventory
@@ -466,8 +519,10 @@ public class ModEvents {
                             MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
                         }
                     }
-                    // Restore inventory (forceReturn will automatically restore)
-                    MirrorWorldManager.forceReturn(player);
+                    // Directly restore inventory instead of calling forceReturn().
+                    // forceReturn() -> returnToOverworld() -> isInMirrorWorld() would fail
+                    // because the player has already been teleported to the overworld above.
+                    MirrorWorldManager.restorePlayerInventoryOnLogin(player);
                     InstantWorldMirror.LOGGER.info("Player {} had saved inventory data, restored on login", 
                             player.getName().getString());
                 });
