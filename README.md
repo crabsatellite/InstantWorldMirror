@@ -8,14 +8,15 @@
 
 ## Instant Sandbox - Explore Without Consequences
 
-InstantWorldMirror provides Minecraft players with an instant sandbox testing ground. Using the Dimension Mirror, you can create a mirror copy of the surrounding area at any location, freely explore, test, and experiment without worrying about any impact on the original world.
+InstantWorldMirror provides Minecraft players with an instant sandbox testing ground. Using the Dimension Mirror or the Heaven Mirror, you can create a mirror copy of the surrounding area at any location(by default, creatures are not copied), freely explore, test, and experiment without worrying about any impact on the original world.
+
 
 ### Core Use Cases
 
 - **Mod Testing**: Test new mod functionality and compatibility in the mirror world without risking your main save
 - **Redstone Debugging**: Copy your redstone contraptions for repeated testing and debugging without teardown costs
-- **Adventure Scouting**: Explore dangerous areas in the mirror first to plan safe routes before venturing in
-- **Building Design**: Preview building plans in the mirror, then build in the main world once satisfied
+- **Adventure Scouting**: Before entering a dangerous area, use a dimension mirror to replicate the world, and then use the mirror at an appropriate location to directly return to the main world, thus avoiding combat
+- **Building Design**: Using the Heavenly Mirror, preview the architectural scheme in the mirror in creative mode, and it can be directly replicated in the main world with the help of the Worldedit Mod
 - **Server Events**: Provide safe activity spaces for players, with automatic cleanup after events
 
 ## Features
@@ -25,6 +26,7 @@ InstantWorldMirror provides Minecraft players with an instant sandbox testing gr
 The Dimension Mirror is your key to the mirror world:
 
 - Right-click any solid block to create an entry portal
+- In the Mirror World, **long-pressing the right button** with a mirror can return to the entrance of the Mirror World
 - Supports Efficiency enchantment to reduce cooldown (20% reduction per level)
 - No cooldown in Creative mode
 - Supports creating mirrors from Overworld, Nether, End, and mod-added custom dimensions
@@ -68,9 +70,16 @@ The Dimension Mirror is your key to the mirror world:
 ## Crafting Recipe
 
 ```
+Dimension Mirror
 [Glass]    [Obsidian] [Glass]
 [Obsidian] [Ender Pearl] [Obsidian]
 [Glass]    [Obsidian] [Glass]
+```
+```
+Heaven Mirror
+[Glowstone]    [Redstone Dust] [Glowstone]
+[Redstone Dust] [Ender Pearl] [Redstone Dust]
+[Glowstone]    [Redstone Dust] [Glowstone]
 ```
 
 ## Commands
