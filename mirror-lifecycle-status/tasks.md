@@ -1,0 +1,21 @@
+# Mirror lifecycle generated tasks
+
+- [x] `command.menu_uses_held_mirror` - found text
+- [x] `copy.no_portal_entity_copy` - found text
+- [x] `copy.persistent_queue` - found text
+- [x] `dimensions.persistent_json_count` - 8 matched, expected 8
+- [x] `dimensions.separate_pool` - found text
+- [x] `enchantment.helper_present` - found text
+- [x] `enchantment.mirror_item_support` - composite passed
+- [x] `enchantment.version_registration` - composite passed
+- [x] `item.entry.passes_permanence_state` - found text
+- [x] `item.kind_from_stack` - found text
+- [x] `item.shift_menu_uses_stack` - found text
+- [x] `manager.enter_requires_matching_permanence` - found text
+- [x] `manager.persistent_enter_passes_access` - found text
+- [x] `manager.save_requires_persistent_access` - found text
+- [x] `record.kind_saved_from_session` - found text
+- [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
+- [x] `sandbox.prep_receives_persistent_access` - found text
+- [x] `session.persistent_access_field` - found text
+- [x] `worldgen.structures_disabled` - found text

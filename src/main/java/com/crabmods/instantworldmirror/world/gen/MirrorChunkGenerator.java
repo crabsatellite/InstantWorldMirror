@@ -4,20 +4,24 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.StructureManager;
+import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.FixedBiomeSource;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.blending.Blender;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -60,6 +64,23 @@ public class MirrorChunkGenerator extends ChunkGenerator {
     @Override
     public void spawnOriginalMobs(WorldGenRegion level) {
         // Mirror world doesn't spawn mobs by default
+    }
+
+    @Override
+    public void applyBiomeDecoration(WorldGenLevel level, ChunkAccess chunk, StructureManager structureManager) {
+        // Keep generated mirror chunks empty. WorldCopyService writes copied blocks/entities explicitly.
+    }
+
+    @Override
+    public void createStructures(RegistryAccess registryAccess, ChunkGeneratorStructureState structureState,
+                                 StructureManager structureManager, ChunkAccess chunk,
+                                 StructureTemplateManager structureTemplateManager) {
+        // Prevent villages, mod structures, and other generated structures outside the copied area.
+    }
+
+    @Override
+    public void createReferences(WorldGenLevel level, StructureManager structureManager, ChunkAccess chunk) {
+        // No generated structures means no generated structure references.
     }
 
     @Override

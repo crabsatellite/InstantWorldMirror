@@ -5,6 +5,7 @@ import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.registry.ModBlocks;
 import com.crabmods.instantworldmirror.registry.ModChunkGenerators;
 import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
+import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.ModDimensions;
@@ -39,6 +40,9 @@ public class InstantWorldMirror {
 
         // Register items
         ModItems.ITEMS.register(modEventBus);
+
+        // Register enchantments
+        ModEnchantments.ENCHANTMENTS.register(modEventBus);
 
         // Register blocks and block entities
         ModBlocks.BLOCKS.register(modEventBus);

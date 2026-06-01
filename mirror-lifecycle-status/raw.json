@@ -1,0 +1,325 @@
+{
+  "checks": {
+    "command.menu_uses_held_mirror": {
+      "adapter": "file_contains",
+      "id": "command.menu_uses_held_mirror",
+      "message": "found text",
+      "passed": true
+    },
+    "copy.no_portal_entity_copy": {
+      "adapter": "file_contains",
+      "id": "copy.no_portal_entity_copy",
+      "message": "found text",
+      "passed": true
+    },
+    "copy.persistent_queue": {
+      "adapter": "file_contains",
+      "id": "copy.persistent_queue",
+      "message": "found text",
+      "passed": true
+    },
+    "dimensions.persistent_json_count": {
+      "adapter": "glob_count",
+      "id": "dimensions.persistent_json_count",
+      "matches": [
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_0.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_1.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_2.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_3.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_4.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_5.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_6.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_7.json"
+      ],
+      "message": "8 matched, expected 8",
+      "passed": true
+    },
+    "dimensions.separate_pool": {
+      "adapter": "file_contains",
+      "id": "dimensions.separate_pool",
+      "message": "found text",
+      "passed": true
+    },
+    "enchantment.helper_present": {
+      "adapter": "file_contains",
+      "id": "enchantment.helper_present",
+      "message": "found text",
+      "passed": true
+    },
+    "enchantment.mirror_item_support": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "skipped for 1.20.1",
+          "passed": true,
+          "skipped": true
+        },
+        {
+          "message": "found text",
+          "passed": true
+        }
+      ],
+      "id": "enchantment.mirror_item_support",
+      "message": "composite passed",
+      "passed": true
+    },
+    "enchantment.version_registration": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "skipped for 1.20.1",
+          "passed": true,
+          "skipped": true
+        },
+        {
+          "message": "found text",
+          "passed": true
+        }
+      ],
+      "id": "enchantment.version_registration",
+      "message": "composite passed",
+      "passed": true
+    },
+    "item.entry.passes_permanence_state": {
+      "adapter": "file_contains",
+      "id": "item.entry.passes_permanence_state",
+      "message": "found text",
+      "passed": true
+    },
+    "item.kind_from_stack": {
+      "adapter": "file_contains",
+      "id": "item.kind_from_stack",
+      "message": "found text",
+      "passed": true
+    },
+    "item.shift_menu_uses_stack": {
+      "adapter": "file_contains",
+      "id": "item.shift_menu_uses_stack",
+      "message": "found text",
+      "passed": true
+    },
+    "manager.enter_requires_matching_permanence": {
+      "adapter": "file_contains",
+      "id": "manager.enter_requires_matching_permanence",
+      "message": "found text",
+      "passed": true
+    },
+    "manager.persistent_enter_passes_access": {
+      "adapter": "file_contains",
+      "id": "manager.persistent_enter_passes_access",
+      "message": "found text",
+      "passed": true
+    },
+    "manager.save_requires_persistent_access": {
+      "adapter": "file_contains",
+      "id": "manager.save_requires_persistent_access",
+      "message": "found text",
+      "passed": true
+    },
+    "record.kind_saved_from_session": {
+      "adapter": "file_contains",
+      "id": "record.kind_saved_from_session",
+      "message": "found text",
+      "passed": true
+    },
+    "sandbox.applies_permanence_to_hotbar_mirror": {
+      "adapter": "file_contains",
+      "id": "sandbox.applies_permanence_to_hotbar_mirror",
+      "message": "found text",
+      "passed": true
+    },
+    "sandbox.prep_receives_persistent_access": {
+      "adapter": "file_contains",
+      "id": "sandbox.prep_receives_persistent_access",
+      "message": "found text",
+      "passed": true
+    },
+    "session.persistent_access_field": {
+      "adapter": "file_contains",
+      "id": "session.persistent_access_field",
+      "message": "found text",
+      "passed": true
+    },
+    "worldgen.structures_disabled": {
+      "adapter": "file_contains",
+      "id": "worldgen.structures_disabled",
+      "message": "found text",
+      "passed": true
+    }
+  },
+  "completion": {
+    "checkCount": 19,
+    "complete": true,
+    "coveredRouteCount": 6,
+    "failedChecks": [],
+    "passedCheckCount": 19,
+    "routeCount": 6
+  },
+  "minecraftVersion": "1.20.1",
+  "project": "InstantWorldMirror",
+  "routes": [
+    {
+      "id": "temporary.dimension_mirror",
+      "stages": [
+        {
+          "checks": [
+            "item.entry.passes_permanence_state",
+            "session.persistent_access_field"
+          ],
+          "id": "entry",
+          "status": "covered",
+          "title": "Entry portal records whether the held mirror has permanence"
+        },
+        {
+          "checks": [
+            "manager.save_requires_persistent_access"
+          ],
+          "id": "save_gate",
+          "status": "covered",
+          "title": "Temporary sessions without permanence cannot be saved through commands"
+        }
+      ],
+      "status": "covered",
+      "title": "Unenchanted Dimensional Mirror stays temporary"
+    },
+    {
+      "id": "temporary.heaven_mirror",
+      "stages": [
+        {
+          "checks": [
+            "item.kind_from_stack",
+            "record.kind_saved_from_session"
+          ],
+          "id": "kind",
+          "status": "covered",
+          "title": "Mirror kind is still derived from the two mirror items"
+        },
+        {
+          "checks": [
+            "sandbox.prep_receives_persistent_access"
+          ],
+          "id": "sandbox",
+          "status": "covered",
+          "title": "Sandbox inventory setup is parameterized by permanence"
+        }
+      ],
+      "status": "covered",
+      "title": "Unenchanted Heaven Mirror stays temporary"
+    },
+    {
+      "id": "permanent.dimension_mirror",
+      "stages": [
+        {
+          "checks": [
+            "enchantment.helper_present",
+            "enchantment.version_registration",
+            "enchantment.mirror_item_support"
+          ],
+          "id": "enchantment",
+          "status": "covered",
+          "title": "Permanence enchantment is available for mirror items"
+        },
+        {
+          "checks": [
+            "manager.enter_requires_matching_permanence",
+            "command.menu_uses_held_mirror"
+          ],
+          "id": "enter_gate",
+          "status": "covered",
+          "title": "Persistent world entry requires a matching enchanted mirror"
+        }
+      ],
+      "status": "covered",
+      "title": "Permanence enchanted Dimensional Mirror can use persistent worlds"
+    },
+    {
+      "id": "permanent.heaven_mirror",
+      "stages": [
+        {
+          "checks": [
+            "sandbox.applies_permanence_to_hotbar_mirror"
+          ],
+          "id": "sandbox_hotbar",
+          "status": "covered",
+          "title": "Creative sandbox hotbar mirror preserves permanence"
+        },
+        {
+          "checks": [
+            "manager.persistent_enter_passes_access"
+          ],
+          "id": "persistent_enter",
+          "status": "covered",
+          "title": "Entering a saved heaven mirror keeps persistent access for sandbox setup"
+        }
+      ],
+      "status": "covered",
+      "title": "Permanence enchanted Heaven Mirror keeps the enchanted mirror in sandbox"
+    },
+    {
+      "id": "persistent.pool_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "dimensions.persistent_json_count",
+            "dimensions.separate_pool"
+          ],
+          "id": "dimensions",
+          "status": "covered",
+          "title": "Eight persistent dimensions are registered independently"
+        },
+        {
+          "checks": [
+            "copy.persistent_queue",
+            "copy.no_portal_entity_copy"
+          ],
+          "id": "copy",
+          "status": "covered",
+          "title": "Persistent copy queue is separate from temporary cleanup"
+        },
+        {
+          "checks": [
+            "worldgen.structures_disabled"
+          ],
+          "id": "worldgen",
+          "status": "covered",
+          "title": "Mirror worlds do not generate external structures"
+        }
+      ],
+      "status": "covered",
+      "title": "Persistent worlds use a separate pool and lifecycle"
+    },
+    {
+      "id": "command_bypass_guards",
+      "stages": [
+        {
+          "checks": [
+            "command.menu_uses_held_mirror"
+          ],
+          "id": "menu",
+          "status": "covered",
+          "title": "Menu command resolves the held mirror stack"
+        },
+        {
+          "checks": [
+            "manager.save_requires_persistent_access"
+          ],
+          "id": "save",
+          "status": "covered",
+          "title": "Save command is blocked unless the current session was permanence-enabled"
+        },
+        {
+          "checks": [
+            "manager.enter_requires_matching_permanence"
+          ],
+          "id": "enter",
+          "status": "covered",
+          "title": "Enter command is blocked unless the player still holds a matching enchanted mirror"
+        }
+      ],
+      "status": "covered",
+      "title": "Commands cannot bypass the enchanted-mirror lifecycle"
+    }
+  ],
+  "schemaVersion": 1,
+  "truthContract": "Edit this manifest, then regenerate mirror-lifecycle-status/* with scripts/generate_mirror_lifecycle_status.py. Do not hand-edit generated reports."
+}

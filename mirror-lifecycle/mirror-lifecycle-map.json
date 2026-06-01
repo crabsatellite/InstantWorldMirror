@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "project": "InstantWorldMirror",
+  "truthContract": "Edit this manifest, then regenerate mirror-lifecycle-status/* with scripts/generate_mirror_lifecycle_status.py. Do not hand-edit generated reports.",
+  "routes": [
+    {
+      "id": "temporary.dimension_mirror",
+      "title": "Unenchanted Dimensional Mirror stays temporary",
+      "stages": [
+        {
+          "id": "entry",
+          "title": "Entry portal records whether the held mirror has permanence",
+          "checks": [
+            "item.entry.passes_permanence_state",
+            "session.persistent_access_field"
+          ]
+        },
+        {
+          "id": "save_gate",
+          "title": "Temporary sessions without permanence cannot be saved through commands",
+          "checks": [
+            "manager.save_requires_persistent_access"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "temporary.heaven_mirror",
+      "title": "Unenchanted Heaven Mirror stays temporary",
+      "stages": [
+        {
+          "id": "kind",
+          "title": "Mirror kind is still derived from the two mirror items",
+          "checks": [
+            "item.kind_from_stack",
+            "record.kind_saved_from_session"
+          ]
+        },
+        {
+          "id": "sandbox",
+          "title": "Sandbox inventory setup is parameterized by permanence",
+          "checks": [
+            "sandbox.prep_receives_persistent_access"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "permanent.dimension_mirror",
+      "title": "Permanence enchanted Dimensional Mirror can use persistent worlds",
+      "stages": [
+        {
+          "id": "enchantment",
+          "title": "Permanence enchantment is available for mirror items",
+          "checks": [
+            "enchantment.helper_present",
+            "enchantment.version_registration",
+            "enchantment.mirror_item_support"
+          ]
+        },
+        {
+          "id": "enter_gate",
+          "title": "Persistent world entry requires a matching enchanted mirror",
+          "checks": [
+            "manager.enter_requires_matching_permanence",
+            "command.menu_uses_held_mirror"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "permanent.heaven_mirror",
+      "title": "Permanence enchanted Heaven Mirror keeps the enchanted mirror in sandbox",
+      "stages": [
+        {
+          "id": "sandbox_hotbar",
+          "title": "Creative sandbox hotbar mirror preserves permanence",
+          "checks": [
+            "sandbox.applies_permanence_to_hotbar_mirror"
+          ]
+        },
+        {
+          "id": "persistent_enter",
+          "title": "Entering a saved heaven mirror keeps persistent access for sandbox setup",
+          "checks": [
+            "manager.persistent_enter_passes_access"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "persistent.pool_lifecycle",
+      "title": "Persistent worlds use a separate pool and lifecycle",
+      "stages": [
+        {
+          "id": "dimensions",
+          "title": "Eight persistent dimensions are registered independently",
+          "checks": [
+            "dimensions.persistent_json_count",
+            "dimensions.separate_pool"
+          ]
+        },
+        {
+          "id": "copy",
+          "title": "Persistent copy queue is separate from temporary cleanup",
+          "checks": [
+            "copy.persistent_queue",
+            "copy.no_portal_entity_copy"
+          ]
+        },
+        {
+          "id": "worldgen",
+          "title": "Mirror worlds do not generate external structures",
+          "checks": [
+            "worldgen.structures_disabled"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "command_bypass_guards",
+      "title": "Commands cannot bypass the enchanted-mirror lifecycle",
+      "stages": [
+        {
+          "id": "menu",
+          "title": "Menu command resolves the held mirror stack",
+          "checks": [
+            "command.menu_uses_held_mirror"
+          ]
+        },
+        {
+          "id": "save",
+          "title": "Save command is blocked unless the current session was permanence-enabled",
+          "checks": [
+            "manager.save_requires_persistent_access"
+          ]
+        },
+        {
+          "id": "enter",
+          "title": "Enter command is blocked unless the player still holds a matching enchanted mirror",
+          "checks": [
+            "manager.enter_requires_matching_permanence"
+          ]
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "item.entry.passes_permanence_state",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "text": "createEntryPortal(serverLevel, serverPlayer, pos, hasPermanence(level, stack))"
+    },
+    {
+      "id": "item.kind_from_stack",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "text": "public static MirrorKind getMirrorKind(ItemStack stack)"
+    },
+    {
+      "id": "item.shift_menu_uses_stack",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "text": "PersistentMirrorManager.openMirrorMenu(serverPlayer, stack)"
+    },
+    {
+      "id": "session.persistent_access_field",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorSession.java",
+      "text": "public boolean hasPersistentAccess()"
+    },
+    {
+      "id": "manager.save_requires_persistent_access",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "text": "if (!session.hasPersistentAccess())"
+    },
+    {
+      "id": "record.kind_saved_from_session",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "text": "MirrorKind kind = MirrorKind.fromSandboxMode(session.isSandboxMode())"
+    },
+    {
+      "id": "sandbox.prep_receives_persistent_access",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "text": "prepareSandboxPlayer(player, session.hasPersistentAccess())"
+    },
+    {
+      "id": "sandbox.applies_permanence_to_hotbar_mirror",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "text": "ModEnchantments.applyPermanence(player.level(), mirror)"
+    },
+    {
+      "id": "manager.persistent_enter_passes_access",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "text": "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind().isSandbox(), true)"
+    },
+    {
+      "id": "enchantment.helper_present",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+      "text": "PERMANENCE"
+    },
+    {
+      "id": "enchantment.version_registration",
+      "adapter": "any",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "versions": [
+            "1.21.1"
+          ],
+          "file": "src/main/resources/data/instantworldmirror/enchantment/permanence.json"
+        },
+        {
+          "adapter": "file_contains",
+          "versions": [
+            "1.20.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "text": "DeferredRegister<Enchantment>"
+        }
+      ]
+    },
+    {
+      "id": "enchantment.mirror_item_support",
+      "adapter": "any",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "versions": [
+            "1.21.1"
+          ],
+          "file": "src/main/resources/data/instantworldmirror/tags/item/mirror_enchantable.json"
+        },
+        {
+          "adapter": "file_contains",
+          "versions": [
+            "1.20.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "text": "item instanceof DimensionMirrorItem"
+        }
+      ]
+    },
+    {
+      "id": "manager.enter_requires_matching_permanence",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "text": "hasMatchingPermanenceMirror(player, record.kind())"
+    },
+    {
+      "id": "command.menu_uses_held_mirror",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "text": "PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player))"
+    },
+    {
+      "id": "dimensions.persistent_json_count",
+      "adapter": "glob_count",
+      "glob": "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_*.json",
+      "count": 8
+    },
+    {
+      "id": "dimensions.separate_pool",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/ModDimensions.java",
+      "text": "PERSISTENT_MIRROR_WORLD_POOL"
+    },
+    {
+      "id": "copy.persistent_queue",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "text": "persistentCopyQueue"
+    },
+    {
+      "id": "copy.no_portal_entity_copy",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "text": "MirrorPortalEntity"
+    },
+    {
+      "id": "worldgen.structures_disabled",
+      "adapter": "file_contains",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/gen/MirrorChunkGenerator.java",
+      "text": "Prevent villages, mod structures, and other generated structures outside the copied area."
+    }
+  ]
+}

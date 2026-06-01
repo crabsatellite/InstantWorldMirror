@@ -54,9 +54,14 @@ public class WorldCopyService {
     
     // Track copy tasks per dimension: dimensionIndex -> CopyTask
     private static final Map<Integer, CopyTask> copyTasks = new ConcurrentHashMap<>();
+
+    // Persistent copy tasks use the persistent dimension pool and never feed DimensionPool cleanup.
+    private static final Map<Integer, CopyTask> persistentCopyTasks = new ConcurrentHashMap<>();
     
     // Sequential copy queue - processes one copy task at a time
     private static final java.util.LinkedList<Integer> copyQueue = new java.util.LinkedList<>();
+
+    private static final java.util.LinkedList<Integer> persistentCopyQueue = new java.util.LinkedList<>();
     
     // Sequential cleanup queue - processes one cleanup task at a time  
     private static final java.util.LinkedList<Integer> cleanupQueue = new java.util.LinkedList<>();
@@ -1000,6 +1005,48 @@ public class WorldCopyService {
         
         return queuePosition;
     }
+
+    public static int queuePersistentWorldCopy(PersistentMirrorRecord record, ServerLevel sourceWorld, ServerLevel targetWorld) {
+        int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int dimIndex = record.dimensionIndex();
+
+        syncGameRules(sourceWorld, targetWorld);
+
+        CopyTask task = new CopyTask(
+                record.id(),
+                record.sourcePosition(),
+                chunkRadius,
+                sourceWorld.dimension(),
+                dimIndex
+        );
+
+        persistentCopyTasks.put(dimIndex, task);
+
+        synchronized (persistentCopyQueue) {
+            if (!persistentCopyQueue.contains(dimIndex)) {
+                persistentCopyQueue.addLast(dimIndex);
+            }
+        }
+
+        int queuePosition = getPersistentCopyQueuePosition(dimIndex);
+
+        InstantWorldMirror.LOGGER.info("Queued persistent mirror copy {} to persistent dimension {}",
+                record.id(), dimIndex);
+
+        return queuePosition;
+    }
+
+    public static int getPersistentCopyQueuePosition(int dimIndex) {
+        synchronized (persistentCopyQueue) {
+            int position = persistentCopyQueue.indexOf(dimIndex);
+            if (position >= 0) {
+                synchronized (copyQueue) {
+                    return copyQueue.size() + position + 1;
+                }
+            }
+            return 0;
+        }
+    }
     
     /**
      * Get the queue position for a copy task (1 = first/processing, 2+ = waiting)
@@ -1044,7 +1091,10 @@ public class WorldCopyService {
      * Only processes ONE task at a time (first in queue) to avoid server overload
      */
     public static void processCopyQueues(MinecraftServer server) {
-        if (copyTasks.isEmpty()) return; // Early exit if no tasks
+        if (copyTasks.isEmpty()) {
+            processPersistentCopyQueues(server);
+            return;
+        }
         
         int chunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
         
@@ -1118,6 +1168,69 @@ public class WorldCopyService {
                 MirrorWorldManager.getSession(task.sessionId).ifPresent(MirrorSession::markCopyComplete);
                 
                 InstantWorldMirror.LOGGER.debug("World copy completed for session {} in dimension {}",
+                        task.sessionId, currentDimIndex);
+            }
+        }
+    }
+
+    private static void processPersistentCopyQueues(MinecraftServer server) {
+        if (persistentCopyTasks.isEmpty()) return;
+
+        int chunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
+
+        Integer currentDimIndex;
+        synchronized (persistentCopyQueue) {
+            if (persistentCopyQueue.isEmpty()) return;
+            currentDimIndex = persistentCopyQueue.peekFirst();
+        }
+
+        CopyTask task = persistentCopyTasks.get(currentDimIndex);
+        if (task == null) {
+            synchronized (persistentCopyQueue) {
+                persistentCopyQueue.removeFirstOccurrence(currentDimIndex);
+            }
+            return;
+        }
+
+        if (task.isCompleted()) {
+            persistentCopyTasks.remove(currentDimIndex);
+            synchronized (persistentCopyQueue) {
+                persistentCopyQueue.removeFirstOccurrence(currentDimIndex);
+            }
+            if (!task.isCancelled()) {
+                PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server);
+            }
+            return;
+        }
+
+        ServerLevel targetWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(currentDimIndex));
+        if (targetWorld == null) return;
+
+        ServerLevel sourceWorld = server.getLevel(task.sourceDimension);
+        if (sourceWorld == null) sourceWorld = server.overworld();
+
+        if (!task.isPreloadingStarted()) {
+            task.preloadChunksAsync(sourceWorld, targetWorld);
+        }
+
+        for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
+            int[] chunkCoords = task.getNextChunk();
+            if (chunkCoords != null) {
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
+                task.addBlocksCopied(blocksCopied);
+                task.preloadChunksAsync(sourceWorld, targetWorld);
+            }
+        }
+
+        if (task.isCompleted()) {
+            persistentCopyTasks.remove(currentDimIndex);
+            synchronized (persistentCopyQueue) {
+                persistentCopyQueue.removeFirstOccurrence(currentDimIndex);
+            }
+
+            if (!task.isCancelled()) {
+                PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server);
+                InstantWorldMirror.LOGGER.info("Persistent mirror copy completed for {} in dimension {}",
                         task.sessionId, currentDimIndex);
             }
         }
@@ -1428,6 +1541,9 @@ public class WorldCopyService {
                         // parent's entity type, so copying one would create a duplicate full parent
                         // entity. Part entities are reconstructed by their parent's constructor.
                         if (entity instanceof net.minecraftforge.entity.PartEntity<?>) {
+                            return false;
+                        }
+                        if (entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity) {
                             return false;
                         }
                         // Pre-filter based on copy settings to avoid processing unwanted entities
@@ -1899,6 +2015,25 @@ public class WorldCopyService {
         }
         
         InstantWorldMirror.LOGGER.debug("Queued cleanup for dimension {}", dimensionIndex);
+    }
+
+    public static void cleanupPersistentMirrorWorld(ServerLevel mirrorWorld, BlockPos centerPos) {
+        clearAllEntitiesInDimension(mirrorWorld);
+
+        int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int centerChunkX = centerPos.getX() >> 4;
+        int centerChunkZ = centerPos.getZ() >> 4;
+        int clearedChunks = 0;
+
+        for (int x = centerChunkX - copyRadius; x <= centerChunkX + copyRadius; x++) {
+            for (int z = centerChunkZ - copyRadius; z <= centerChunkZ + copyRadius; z++) {
+                clearChunk(mirrorWorld, x, z);
+                clearedChunks++;
+            }
+        }
+
+        InstantWorldMirror.LOGGER.info("Cleared persistent mirror dimension {} around {} ({} chunks)",
+                mirrorWorld.dimension().location(), centerPos, clearedChunks);
     }
     
     /**
@@ -2412,7 +2547,11 @@ public class WorldCopyService {
         savePendingModifications();
         
         copyTasks.clear();
+        persistentCopyTasks.clear();
         cleanupTasks.clear();
+        synchronized (persistentCopyQueue) {
+            persistentCopyQueue.clear();
+        }
         copyCenterPositions.clear();
         modifiedChunks.clear();
         pendingSave.clear();

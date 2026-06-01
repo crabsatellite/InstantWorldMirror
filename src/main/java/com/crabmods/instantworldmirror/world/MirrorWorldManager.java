@@ -7,6 +7,8 @@ import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.network.ClearMirrorEffectsPacket;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.SyncMirrorEffectsPacket;
+import com.crabmods.instantworldmirror.registry.ModEnchantments;
+import com.crabmods.instantworldmirror.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -22,6 +24,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 
@@ -186,6 +189,11 @@ public class MirrorWorldManager {
     }
 
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, boolean sandboxMode) {
+        return createSession(player, sourcePos, sandboxMode, false);
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, boolean sandboxMode,
+                                                        boolean persistentAccess) {
         // Check if purge mode is active
         if (purgeMode) {
             InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
@@ -222,7 +230,8 @@ public class MirrorWorldManager {
                     sourcePos,
                     player.level().dimension(),
                     sourceInWater,
-                    sandboxMode
+                    sandboxMode,
+                    persistentAccess
             );
 
             // Allocate a dimension from the pool using actual session ID and source dimension
@@ -312,7 +321,7 @@ public class MirrorWorldManager {
     public static boolean isPlayerInSandboxSession(ServerPlayer player) {
         UUID sessionId = playerToSession.get(player.getUUID());
         MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
-        return session != null && session.isSandboxMode();
+        return (session != null && session.isSandboxMode()) || PersistentMirrorManager.isPlayerInSandboxMirror(player);
     }
 
     /**
@@ -468,7 +477,7 @@ public class MirrorWorldManager {
 
         if (session.isSandboxMode()) {
             savePlayerSnapshot(player, true);
-            prepareSandboxPlayer(player);
+            prepareSandboxPlayer(player, session.hasPersistentAccess());
         } else {
             savePlayerInventory(player);
         }
@@ -524,6 +533,10 @@ public class MirrorWorldManager {
     public static boolean returnToOverworld(ServerPlayer player) {
         if (player.level().isClientSide) {
             return false;
+        }
+
+        if (PersistentMirrorManager.isInPersistentMirror(player)) {
+            return PersistentMirrorManager.leavePersistentMirror(player);
         }
 
         MinecraftServer server = player.getServer();
@@ -674,6 +687,10 @@ public class MirrorWorldManager {
     public static boolean returnToOverworldFromPosition(ServerPlayer player, BlockPos portalPos) {
         if (player.level().isClientSide) {
             return false;
+        }
+
+        if (PersistentMirrorManager.isInPersistentMirror(player)) {
+            return PersistentMirrorManager.leavePersistentMirrorFromPosition(player, portalPos);
         }
 
         MinecraftServer server = player.getServer();
@@ -857,6 +874,10 @@ public class MirrorWorldManager {
     public static boolean teleportToMirrorSpawn(ServerPlayer player) {
         if (player.level().isClientSide) {
             return false;
+        }
+
+        if (PersistentMirrorManager.isInPersistentMirror(player)) {
+            return PersistentMirrorManager.teleportToMirrorSpawn(player);
         }
 
         // Check if player is in mirror world
@@ -1689,6 +1710,78 @@ public class MirrorWorldManager {
         return ModDimensions.isAnyMirrorWorld(player.level().dimension());
     }
 
+    public static void preparePlayerForMirrorEntry(ServerPlayer player, boolean sandboxMode) {
+        preparePlayerForMirrorEntry(player, sandboxMode, false);
+    }
+
+    public static void preparePlayerForMirrorEntry(ServerPlayer player, boolean sandboxMode, boolean persistentAccess) {
+        playerOriginalPositions.put(player.getUUID(), player.blockPosition());
+        playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
+
+        if (sandboxMode) {
+            savePlayerSnapshot(player, true);
+            prepareSandboxPlayer(player, persistentAccess);
+        } else {
+            savePlayerInventory(player);
+        }
+    }
+
+    public static void restorePlayerForMirrorExit(ServerPlayer player) {
+        boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+        if (allowItemTransfer) {
+            clearSavedData(player);
+        } else {
+            restorePlayerInventory(player);
+        }
+        cleanupPlayerTrackingData(player.getUUID());
+    }
+
+    public static BlockPos getSavedOriginalPosition(ServerPlayer player) {
+        BlockPos originalPos = playerOriginalPositions.get(player.getUUID());
+        if (originalPos != null) {
+            return originalPos;
+        }
+
+        CompoundTag persistentData = player.getPersistentData();
+        if (!persistentData.contains(ORIGINAL_POS_KEY + "_x")) {
+            return null;
+        }
+
+        return new BlockPos(
+                persistentData.getInt(ORIGINAL_POS_KEY + "_x"),
+                persistentData.getInt(ORIGINAL_POS_KEY + "_y"),
+                persistentData.getInt(ORIGINAL_POS_KEY + "_z")
+        );
+    }
+
+    public static ServerLevel getSavedOriginalLevel(ServerPlayer player, MinecraftServer server) {
+        ResourceKey<Level> originalDimension = playerOriginalDimensions.get(player.getUUID());
+        if (originalDimension == null) {
+            CompoundTag persistentData = player.getPersistentData();
+            if (persistentData.contains(ORIGINAL_DIM_KEY)) {
+                ResourceLocation dimLoc = ResourceLocation.tryParse(persistentData.getString(ORIGINAL_DIM_KEY));
+                if (dimLoc != null) {
+                    originalDimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimLoc);
+                }
+            }
+        }
+
+        if (originalDimension == null) {
+            return server.overworld();
+        }
+
+        ServerLevel level = server.getLevel(originalDimension);
+        return level != null ? level : server.overworld();
+    }
+
+    public static BlockPos findMirrorLandingPosition(ServerLevel level, BlockPos targetPos, boolean allowWater) {
+        return findSafeLandingPosition(level, targetPos, allowWater);
+    }
+
+    public static void clearMirrorLandingArea(ServerLevel level, BlockPos pos) {
+        clearAreaForPlayer(level, pos);
+    }
+
     /**
      * Set player item transfer permission
      */
@@ -1731,9 +1824,10 @@ public class MirrorWorldManager {
      * This tells the client which sky/fog/etc. to render
      */
     private static void syncDimensionEffectsToPlayer(ServerPlayer player, MirrorSession session) {
-        ResourceKey<Level> sourceDim = session.getSourceDimension();
-        int dimIndex = session.getDimensionIndex();
-        
+        syncMirrorEffectsForPlayer(player, session.getSourceDimension(), ModDimensions.getMirrorEffectsKey(session.getMirrorDimension()));
+    }
+
+    public static void syncMirrorEffectsForPlayer(ServerPlayer player, ResourceKey<Level> sourceDim, int effectsKey) {
         // Get the source dimension's effects from its DimensionType
         // This works for vanilla and modded dimensions
         ServerLevel sourceLevel = player.getServer().getLevel(sourceDim);
@@ -1747,11 +1841,11 @@ public class MirrorWorldManager {
         }
         
         // Send packet to the player
-        SyncMirrorEffectsPacket packet = new SyncMirrorEffectsPacket(dimIndex, effectsLoc.toString());
+        SyncMirrorEffectsPacket packet = new SyncMirrorEffectsPacket(effectsKey, effectsLoc.toString());
         ModNetworking.sendToPlayer(packet, player);
         
         InstantWorldMirror.LOGGER.debug("Synced mirror effects to {}: dim {} -> {}", 
-                player.getName().getString(), dimIndex, effectsLoc);
+                player.getName().getString(), effectsKey, effectsLoc);
     }
     
     /**
@@ -1763,6 +1857,10 @@ public class MirrorWorldManager {
         
         InstantWorldMirror.LOGGER.debug("Cleared mirror effects for {}: dim {}", 
                 player.getName().getString(), dimIndex);
+    }
+
+    public static void clearMirrorEffectsForPlayer(ServerPlayer player, int effectsKey) {
+        clearDimensionEffectsForPlayer(player, effectsKey);
     }
 
     // ==================== Inventory Management ====================
@@ -1882,7 +1980,7 @@ public class MirrorWorldManager {
         persistentData.put(SAVED_EFFECTS_KEY, effects);
     }
 
-    private static void prepareSandboxPlayer(ServerPlayer player) {
+    private static void prepareSandboxPlayer(ServerPlayer player, boolean persistentAccess) {
         player.getInventory().clearContent();
         player.getEnderChestInventory().clearContent();
         player.removeAllEffects();
@@ -1897,8 +1995,18 @@ public class MirrorWorldManager {
         player.experienceLevel = 0;
         player.totalExperience = 0;
         player.setGameMode(GameType.CREATIVE);
+        giveSandboxHeavenMirror(player, persistentAccess);
         player.inventoryMenu.broadcastChanges();
         player.containerMenu.broadcastChanges();
+    }
+
+    private static void giveSandboxHeavenMirror(ServerPlayer player, boolean persistentAccess) {
+        player.getInventory().selected = 0;
+        ItemStack mirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
+        if (persistentAccess) {
+            ModEnchantments.applyPermanence(player.level(), mirror);
+        }
+        player.getInventory().items.set(0, mirror);
     }
 
     private static void restoreSandboxState(ServerPlayer player, CompoundTag persistentData) {

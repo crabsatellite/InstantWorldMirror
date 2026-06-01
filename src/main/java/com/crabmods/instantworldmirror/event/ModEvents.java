@@ -7,6 +7,7 @@ import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
+import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -64,6 +65,7 @@ public class ModEvents {
             boolean hasActiveSession = MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent();
 
             if (inMirrorWorld || hasActiveSession) {
+                boolean inPersistentMirror = PersistentMirrorManager.isInPersistentMirror(player);
                 if (inMirrorWorld) {
                     InstantWorldMirror.LOGGER.info(
                             "Player {} died in Mirror World, cleaning up session",
@@ -76,6 +78,9 @@ public class ModEvents {
                 }
 
                 MirrorWorldManager.handleMirrorWorldDeath(player, player.getServer());
+                if (inPersistentMirror) {
+                    PersistentMirrorManager.handlePersistentMirrorDeath(player);
+                }
             }
         }
     }
@@ -98,7 +103,7 @@ public class ModEvents {
             }
 
             // If player somehow respawns in mirror world, force teleport to overworld
-            if (ModDimensions.isMirrorWorld(player.level().dimension())) {
+            if (ModDimensions.isAnyMirrorWorld(player.level().dimension())) {
                 // Teleport to overworld spawn point (session should already be cleaned up)
                 ServerLevel overworld = player.getServer().overworld();
                 BlockPos spawnPos = overworld.getSharedSpawnPos();
@@ -147,8 +152,24 @@ public class ModEvents {
                 return;
             }
 
-            // Check if player LEFT a mirror world (not entered one)
-            if (ModDimensions.isMirrorWorld(event.getFrom()) && !ModDimensions.isMirrorWorld(event.getTo())) {
+            if (MirrorWorldManager.isBeingTeleportedByMod(player.getUUID())) {
+                return;
+            }
+
+            boolean leftMirrorWorld = ModDimensions.isAnyMirrorWorld(event.getFrom())
+                    && !ModDimensions.isAnyMirrorWorld(event.getTo());
+
+            if (ModDimensions.isPersistentMirrorWorld(event.getFrom()) && leftMirrorWorld) {
+                InstantWorldMirror.LOGGER.info("Player {} left persistent Mirror World via external means (from {} to {})",
+                        player.getName().getString(),
+                        event.getFrom().location(),
+                        event.getTo().location());
+                PersistentMirrorManager.handleExternalExit(player);
+                return;
+            }
+
+            // Check if player LEFT a temporary mirror world (not entered one)
+            if (ModDimensions.isTemporaryMirrorWorld(event.getFrom()) && leftMirrorWorld) {
                 // Only process if the player still has an active session
                 if (MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent()) {
                     InstantWorldMirror.LOGGER.info("Player {} left Mirror World via external means (from {} to {})", 
@@ -194,7 +215,7 @@ public class ModEvents {
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         Level level = (Level) event.getLevel();
         
-        if (ModDimensions.isMirrorWorld(level.dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             BlockState state = event.getPlacedBlock();
             
             // Prevent placing end portal frames (only for survival/adventure players)
@@ -229,7 +250,7 @@ public class ModEvents {
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         Level level = (Level) event.getLevel();
         
-        if (ModDimensions.isMirrorWorld(level.dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Track this chunk as modified (for cleanup)
             int dimIndex = ModDimensions.getMirrorWorldIndex(level.dimension());
             if (dimIndex >= 0) {
@@ -246,7 +267,7 @@ public class ModEvents {
     public static void onPortalSpawn(BlockEvent.PortalSpawnEvent event) {
         Level level = (Level) event.getLevel();
 
-        if (ModDimensions.isMirrorWorld(level.dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Prevent nether portal spawn in mirror world
             event.setCanceled(true);
             InstantWorldMirror.LOGGER.info("Blocked nether portal spawn in Mirror World at {}", event.getPos());
@@ -262,7 +283,7 @@ public class ModEvents {
     public static void onMobSpawn(MobSpawnEvent.FinalizeSpawn event) {
         Level level = event.getLevel().getLevel();
         
-        if (ModDimensions.isMirrorWorld(level.dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Check if mob spawning is enabled (uses runtime override or config)
             if (!MirrorConfig.isMobSpawningEnabled()) {
                 MobSpawnType spawnType = event.getSpawnType();
@@ -312,7 +333,7 @@ public class ModEvents {
         Entity entity = event.getEntity();
         
         // Check if entity is currently in any mirror world
-        if (ModDimensions.isMirrorWorld(entity.level().dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(entity.level().dimension())) {
             // Check if this is a player being teleported by our mod
             if (entity instanceof ServerPlayer player) {
                 if (MirrorWorldManager.isBeingTeleportedByMod(player.getUUID())) {
@@ -391,20 +412,20 @@ public class ModEvents {
         }
         
         // For mirror dimensions: sync time/weather and track player chunks
-        if (!ModDimensions.isMirrorWorld(serverLevel.dimension())) {
+        if (!ModDimensions.isAnyMirrorWorld(serverLevel.dimension())) {
             return; // Not a mirror world, nothing to do
         }
         
         int dimIndex = ModDimensions.getMirrorWorldIndex(serverLevel.dimension());
-        if (dimIndex < 0) {
+        int persistentDimIndex = ModDimensions.getPersistentMirrorWorldIndex(serverLevel.dimension());
+        if (dimIndex < 0 && persistentDimIndex < 0) {
             return; // Invalid dimension index
         }
         
         long gameTime = serverLevel.getGameTime();
         
-        // OPTIMIZED: Lazy track player positions - only when moved significantly
-        // Check every 10 ticks but only actually track if player moved 2+ chunks
-        if (gameTime % 10 == 0 && !serverLevel.players().isEmpty()) {
+        // OPTIMIZED: Lazy track temporary mirror player positions for cleanup.
+        if (dimIndex >= 0 && gameTime % 10 == 0 && !serverLevel.players().isEmpty()) {
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             for (ServerPlayer player : serverLevel.players()) {
                 int chunkX = player.getBlockX() >> 4;
@@ -435,8 +456,14 @@ public class ModEvents {
         
         // Sync time and weather every 20 ticks (1 second)
         if (gameTime % 20 == 0) {
-            ResourceKey<Level> sourceDimKey = DimensionPool.getSourceDimension(dimIndex);
-            ServerLevel sourceLevel = serverLevel.getServer().getLevel(sourceDimKey);
+            ServerLevel sourceLevel;
+            if (dimIndex >= 0) {
+                ResourceKey<Level> sourceDimKey = DimensionPool.getSourceDimension(dimIndex);
+                sourceLevel = serverLevel.getServer().getLevel(sourceDimKey);
+            } else {
+                sourceLevel = PersistentMirrorManager.getSourceLevelForPersistentDimension(
+                        serverLevel.getServer(), persistentDimIndex);
+            }
             
             // Fallback to overworld if source level is unavailable
             if (sourceLevel == null) {
@@ -505,7 +532,7 @@ public class ModEvents {
                 // Player has saved data, restore inventory
                 player.getServer().execute(() -> {
                     // If in mirror world, teleport back to overworld first
-                    if (ModDimensions.isMirrorWorld(player.level().dimension())) {
+                    if (ModDimensions.isAnyMirrorWorld(player.level().dimension())) {
                         ServerLevel overworld = player.getServer().overworld();
                         BlockPos spawnPos = overworld.getSharedSpawnPos();
                         
@@ -531,7 +558,7 @@ public class ModEvents {
                     InstantWorldMirror.LOGGER.info("Player {} had saved inventory data, restored on login", 
                             player.getName().getString());
                 });
-            } else if (ModDimensions.isMirrorWorld(player.level().dimension())) {
+            } else if (ModDimensions.isAnyMirrorWorld(player.level().dimension())) {
                 // Player in mirror world but no saved data (abnormal situation), force teleport to overworld
                 player.getServer().execute(() -> {
                     ServerLevel overworld = player.getServer().overworld();

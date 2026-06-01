@@ -52,6 +52,9 @@ public class MirrorSession {
 
     // Whether this session is a sandbox session.
     private final boolean sandboxMode;
+
+    // Whether this session was opened with a mirror carrying the permanence enchantment.
+    private final boolean persistentAccess;
     
     // Creation timestamp for debugging
     private final long createdAt;
@@ -62,12 +65,18 @@ public class MirrorSession {
 
     public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
                          boolean sourceInWater, boolean sandboxMode) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater, sandboxMode, false);
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, boolean sandboxMode, boolean persistentAccess) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
         this.sourceDimension = sourceDimension;
         this.sourceInWater = sourceInWater;
         this.sandboxMode = sandboxMode;
+        this.persistentAccess = persistentAccess;
         this.createdAt = System.currentTimeMillis();
     }
     
@@ -124,6 +133,10 @@ public class MirrorSession {
 
     public boolean isSandboxMode() {
         return sandboxMode;
+    }
+
+    public boolean hasPersistentAccess() {
+        return persistentAccess;
     }
     
     /**

@@ -6,9 +6,12 @@ import com.crabmods.instantworldmirror.client.renderer.MirrorItemRenderer;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.SyncCooldownPacket;
+import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.ModDimensions;
+import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -187,6 +190,13 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.PASS;
         }
 
+        if (player.isShiftKeyDown()) {
+            if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+                PersistentMirrorManager.openMirrorMenu(serverPlayer, stack);
+            }
+            return InteractionResult.SUCCESS;
+        }
+
         // Client side: return PASS to let server decide
         // This ensures the interaction reaches the server for cooldown checking
         if (level.isClientSide) {
@@ -258,7 +268,7 @@ public class DimensionMirrorItem extends Item {
         }
 
         // Check if player is in any mirror world dimension using the proper check
-        boolean isInMirrorWorld = ModDimensions.isMirrorWorld(level.dimension());
+        boolean isInMirrorWorld = ModDimensions.isAnyMirrorWorld(level.dimension());
 
         ServerLevel serverLevel = (ServerLevel) level;
 
@@ -276,7 +286,7 @@ public class DimensionMirrorItem extends Item {
             result = createReturnPortal(serverLevel, serverPlayer, pos);
         } else {
             // In any other dimension (Overworld, Nether, End, mod dimensions): Create entry portal with session
-            result = createEntryPortal(serverLevel, serverPlayer, pos);
+            result = createEntryPortal(serverLevel, serverPlayer, pos, hasPermanence(level, stack));
         }
         
         // Apply cooldown on success (creative mode skips cooldown)
@@ -327,6 +337,21 @@ public class DimensionMirrorItem extends Item {
         return !stack.isEmpty() && stack.getItem() instanceof DimensionMirrorItem;
     }
 
+    public static boolean hasPermanence(Level level, ItemStack stack) {
+        return isMirrorStack(stack) && ModEnchantments.hasPermanence(level, stack);
+    }
+
+    public static MirrorKind getMirrorKind(ItemStack stack) {
+        if (stack.getItem() instanceof DimensionMirrorItem mirrorItem) {
+            return mirrorItem.getMirrorKind();
+        }
+        return MirrorKind.DIMENSION;
+    }
+
+    public MirrorKind getMirrorKind() {
+        return MirrorKind.fromSandboxMode(sandboxMode);
+    }
+
     private static int calculateCooldownSeconds(Level level, ItemStack stack) {
         int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
         int efficiencyLevel = getEfficiencyLevel(level, stack);
@@ -366,7 +391,8 @@ public class DimensionMirrorItem extends Item {
     /**
      * Create an entry portal in the overworld
      */
-    private InteractionResult createEntryPortal(ServerLevel level, ServerPlayer player, BlockPos pos) {
+    private InteractionResult createEntryPortal(ServerLevel level, ServerPlayer player, BlockPos pos,
+                                                boolean persistentAccess) {
         // Check if player already has an active session
         if (MirrorWorldManager.hasActiveSession(player.getUUID())) {
             player.displayClientMessage(
@@ -378,7 +404,7 @@ public class DimensionMirrorItem extends Item {
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
-        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, sandboxMode);
+        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, sandboxMode, persistentAccess);
         if (sessionOpt.isEmpty()) {
             // Message already shown in createSession
             return InteractionResult.FAIL;
@@ -480,8 +506,7 @@ public class DimensionMirrorItem extends Item {
     
     @Override
     public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        // Only allow Efficiency enchantment
-        return enchantment == Enchantments.BLOCK_EFFICIENCY;
+        return enchantment == Enchantments.BLOCK_EFFICIENCY || ModEnchantments.isPermanence(enchantment);
     }
 
     @Override
@@ -507,9 +532,16 @@ public class DimensionMirrorItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
+
+        if (player.isShiftKeyDown()) {
+            if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+                PersistentMirrorManager.openMirrorMenu(serverPlayer, stack);
+            }
+            return InteractionResultHolder.consume(stack);
+        }
         
         // Only enable holding interaction in mirror world
-        if (ModDimensions.isMirrorWorld(level.dimension())) {
+        if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Start using the item - this enables the hold-to-finish mechanism
             player.startUsingItem(hand);
             return InteractionResultHolder.consume(stack);
@@ -543,7 +575,7 @@ public class DimensionMirrorItem extends Item {
      */
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        if (entity instanceof Player player && ModDimensions.isMirrorWorld(level.dimension())) {
+        if (entity instanceof Player player && ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Send teleport request to server from client side
             if (level.isClientSide) {
                 ModNetworking.sendToServer(new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket());
