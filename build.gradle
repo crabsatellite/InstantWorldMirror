@@ -22,7 +22,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_id}-${minecraft_version}"
 }
 
 // Mojang ships Java 21 to end users in 1.21, so mods should target Java 21.
@@ -179,6 +179,110 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+def mirrorLifecycleManifest = layout.projectDirectory.file('mirror-lifecycle/mirror-lifecycle-map.json')
+def mirrorLifecycleGenerator = layout.projectDirectory.file('scripts/generate_mirror_lifecycle_status.py')
+def mirrorLifecycleGeneratorTest = layout.projectDirectory.file('scripts/test_generate_mirror_lifecycle_status.py')
+def mirrorLifecycleStatusFiles = [
+        layout.projectDirectory.file('mirror-lifecycle-status/raw.json'),
+        layout.projectDirectory.file('mirror-lifecycle-status/report-index.md'),
+        layout.projectDirectory.file('mirror-lifecycle-status/route-index.md'),
+        layout.projectDirectory.file('mirror-lifecycle-status/coverage-matrix.json'),
+        layout.projectDirectory.file('mirror-lifecycle-status/coverage-matrix.md'),
+        layout.projectDirectory.file('mirror-lifecycle-status/tasks.md'),
+        layout.projectDirectory.file('mirror-lifecycle-status/completion.json'),
+        layout.projectDirectory.file('mirror-lifecycle-status/completion.md')
+]
+
+tasks.register('generateMirrorLifecycleStatus', Exec) {
+    group = 'verification'
+    description = 'Generate mirror lifecycle route and coverage reports from the manifest.'
+    commandLine 'python', 'scripts/generate_mirror_lifecycle_status.py'
+    inputs.file(mirrorLifecycleManifest)
+    inputs.file(mirrorLifecycleGenerator)
+    inputs.dir(layout.projectDirectory.dir('src/main/java'))
+    inputs.dir(layout.projectDirectory.dir('src/main/resources'))
+    outputs.files(mirrorLifecycleStatusFiles)
+}
+
+tasks.register('checkMirrorLifecycleCoverage', Exec) {
+    group = 'verification'
+    description = 'Verify generated mirror lifecycle reports are current and fully covered.'
+    commandLine 'python', 'scripts/generate_mirror_lifecycle_status.py', '--check', '--fail-incomplete'
+    inputs.file(mirrorLifecycleManifest)
+    inputs.file(mirrorLifecycleGenerator)
+    inputs.files(mirrorLifecycleStatusFiles)
+    inputs.dir(layout.projectDirectory.dir('src/main/java'))
+    inputs.dir(layout.projectDirectory.dir('src/main/resources'))
+}
+
+tasks.register('testMirrorLifecycleStatusGenerator', Exec) {
+    group = 'verification'
+    description = 'Run unit tests for the mirror lifecycle status generator.'
+    commandLine 'python', '-m', 'unittest', 'scripts.test_generate_mirror_lifecycle_status'
+    inputs.file(mirrorLifecycleGenerator)
+    inputs.file(mirrorLifecycleGeneratorTest)
+}
+
+def persistentMirrorDimensionDir = layout.projectDirectory.dir('src/main/resources/data/instantworldmirror/dimension')
+def persistentMirrorSourceFiles = [
+        layout.projectDirectory.file('src/main/java/com/crabmods/instantworldmirror/world/ModDimensions.java'),
+        layout.projectDirectory.file('src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java'),
+        layout.projectDirectory.file('src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java'),
+        layout.projectDirectory.file('src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java'),
+        layout.projectDirectory.file('src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java')
+]
+
+tasks.register('persistentMirrorStaticTest') {
+    group = 'verification'
+    description = 'Verifies persistent mirror resources and lifecycle wiring.'
+    inputs.dir(persistentMirrorDimensionDir)
+    inputs.files(persistentMirrorSourceFiles)
+
+    doLast {
+        def json = new groovy.json.JsonSlurper()
+        def dimensionDir = persistentMirrorDimensionDir.asFile
+        (0..<8).each { index ->
+            def dimensionFile = new File(dimensionDir, "persistent_mirror_world_${index}.json")
+            assert dimensionFile.isFile(): "Missing persistent mirror dimension ${index}"
+            def parsed = json.parse(dimensionFile)
+            assert parsed.type == 'instantworldmirror:mirror_world': "Wrong dimension type in ${dimensionFile.name}"
+            assert parsed.generator.type == 'instantworldmirror:mirror_chunk_generator': "Wrong generator in ${dimensionFile.name}"
+            assert parsed.generator.biome == 'minecraft:plains': "Wrong biome in ${dimensionFile.name}"
+        }
+
+        def modDimensions = persistentMirrorSourceFiles[0].asFile.text
+        assert modDimensions.contains('MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE = 8')
+        assert modDimensions.contains('persistent_mirror_world_')
+        assert modDimensions.contains('getPersistentMirrorWorld')
+        assert modDimensions.contains('getMirrorEffectsKey')
+
+        def persistentManager = persistentMirrorSourceFiles[1].asFile.text
+        ['canCreatePersistentMirror', 'saveCurrentTemporaryMirror', 'enterPersistentMirror',
+         'leavePersistentMirrorFromPosition', 'handlePersistentCopyComplete'].each { symbol ->
+            assert persistentManager.contains(symbol): "PersistentMirrorManager missing ${symbol}"
+        }
+
+        def copyService = persistentMirrorSourceFiles[2].asFile.text
+        assert copyService.contains('persistentCopyTasks')
+        assert copyService.contains('queuePersistentWorldCopy')
+        assert copyService.contains('processPersistentCopyQueues')
+
+        def mirrorItem = persistentMirrorSourceFiles[3].asFile.text
+        assert mirrorItem.contains('player.isShiftKeyDown()')
+        assert mirrorItem.contains('MirrorKind.fromSandboxMode(sandboxMode)')
+
+        def events = persistentMirrorSourceFiles[4].asFile.text
+        assert events.contains('PersistentMirrorManager.handleExternalExit')
+        assert events.contains('MirrorWorldManager.isBeingTeleportedByMod')
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('testMirrorLifecycleStatusGenerator')
+    dependsOn tasks.named('checkMirrorLifecycleCoverage')
+    dependsOn tasks.named('persistentMirrorStaticTest')
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

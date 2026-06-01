@@ -63,4 +63,9 @@
   "message.instantworldmirror.queue_position": "§eYou are #%d in the copy queue, please wait...",
   "message.instantworldmirror.copy_started": "§aWorld copy started! Please wait...",
   "message.instantworldmirror.heaven_return_restricted": "§eHeaven Mirror sessions can only return through the original entrance."
+,
+  "message.instantworldmirror.permanence_required": "This mirror needs the Permanence enchantment for permanent worlds.",
+  "message.instantworldmirror.permanent_type_mismatch": "Use the same mirror type that created this temporary mirror.",
+  "message.instantworldmirror.permanent_session_required": "This temporary mirror was created without the Permanence enchantment.",
+  "enchantment.instantworldmirror.permanence": "Permanence"
 }

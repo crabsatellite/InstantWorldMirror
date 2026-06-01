@@ -18,7 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MirrorDimensionEffectsManager {
     
-    // Map of mirror dimension index to source dimension effects key
+    // Map of mirror dimension effects key to source dimension effects key.
+    // Temporary mirrors use their pool index; persistent mirrors use 10000 + pool index.
     private static final Map<Integer, ResourceLocation> mirrorToSourceEffects = new ConcurrentHashMap<>();
     
     // Cached DimensionSpecialEffects instances
@@ -61,13 +62,13 @@ public class MirrorDimensionEffectsManager {
         ResourceKey<Level> dimension = level.dimension();
         
         // Check if this is a mirror dimension
-        int dimIndex = ModDimensions.getMirrorWorldIndex(dimension);
-        if (dimIndex < 0) {
+        int effectsKey = ModDimensions.getMirrorEffectsKey(dimension);
+        if (effectsKey < 0) {
             return null; // Not a mirror dimension
         }
         
         // Get the source effects for this mirror dimension
-        ResourceLocation sourceEffects = mirrorToSourceEffects.get(dimIndex);
+        ResourceLocation sourceEffects = mirrorToSourceEffects.get(effectsKey);
         if (sourceEffects == null) {
             return null; // No override set, use default
         }

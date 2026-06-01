@@ -4,11 +4,14 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
+import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
@@ -98,6 +101,44 @@ public class ModCommands {
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ModCommands::statusCommand)
                         )
+                        // /iwm persistent - Manage persistent mirror worlds
+                        .then(Commands.literal("persistent")
+                                .then(Commands.literal("menu")
+                                        .executes(ModCommands::persistentMenuCommand)
+                                )
+                                .then(Commands.literal("save")
+                                        .executes(context -> persistentSaveCommand(context, ""))
+                                        .then(Commands.argument("name", StringArgumentType.greedyString())
+                                                .executes(context -> persistentSaveCommand(
+                                                        context, StringArgumentType.getString(context, "name")))
+                                        )
+                                )
+                                .then(Commands.literal("enter")
+                                        .then(Commands.argument("id", StringArgumentType.word())
+                                                .executes(ModCommands::persistentEnterCommand)
+                                        )
+                                )
+                                .then(Commands.literal("leave")
+                                        .executes(ModCommands::persistentLeaveCommand)
+                                )
+                                .then(Commands.literal("delete")
+                                        .then(Commands.argument("id", StringArgumentType.word())
+                                                .executes(ModCommands::persistentDeleteCommand)
+                                        )
+                                )
+                                .then(Commands.literal("grant")
+                                        .requires(source -> source.hasPermission(3))
+                                        .then(Commands.argument("player", EntityArgument.player())
+                                                .executes(context -> persistentGrantCommand(context, true))
+                                        )
+                                )
+                                .then(Commands.literal("revoke")
+                                        .requires(source -> source.hasPermission(3))
+                                        .then(Commands.argument("player", EntityArgument.player())
+                                                .executes(context -> persistentGrantCommand(context, false))
+                                        )
+                                )
+                        )
                         // /iwm forceclear <dimension> - Force clear a dimension (with tab completion)
                         .then(Commands.literal("forceclear")
                                 .requires(source -> source.hasPermission(3))
@@ -130,6 +171,75 @@ public class ModCommands {
         
         source.sendFailure(Component.translatable("command.instantworldmirror.player_only"));
         return 0;
+    }
+
+    private static int persistentMenuCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player));
+            return 1;
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentSaveCommand(CommandContext<CommandSourceStack> context, String name) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            return PersistentMirrorManager.saveCurrentTemporaryMirror(player, name) ? 1 : 0;
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentEnterCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            try {
+                UUID id = UUID.fromString(StringArgumentType.getString(context, "id"));
+                return PersistentMirrorManager.enterPersistentMirror(player, id) ? 1 : 0;
+            } catch (IllegalArgumentException e) {
+                context.getSource().sendFailure(Component.literal("Invalid persistent mirror id."));
+                return 0;
+            }
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentLeaveCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            return PersistentMirrorManager.leavePersistentMirror(player) ? 1 : 0;
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentDeleteCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            try {
+                UUID id = UUID.fromString(StringArgumentType.getString(context, "id"));
+                return PersistentMirrorManager.deleteRecord(player, id) ? 1 : 0;
+            } catch (IllegalArgumentException e) {
+                context.getSource().sendFailure(Component.literal("Invalid persistent mirror id."));
+                return 0;
+            }
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentGrantCommand(CommandContext<CommandSourceStack> context, boolean granted) {
+        try {
+            ServerPlayer target = EntityArgument.getPlayer(context, "player");
+            PersistentMirrorManager.setCreationGrant(context.getSource().getServer(), target.getUUID(), granted);
+            context.getSource().sendSuccess(
+                    () -> Component.literal((granted ? "Granted" : "Revoked") + " persistent mirror creation for "
+                            + target.getName().getString()),
+                    true
+            );
+            return 1;
+        } catch (Exception e) {
+            context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
+            return 0;
+        }
     }
 
     private static int mobOnCommand(CommandContext<CommandSourceStack> context) {

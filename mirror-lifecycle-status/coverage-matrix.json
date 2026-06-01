@@ -1,0 +1,123 @@
+{
+  "rows": [
+    {
+      "checks": [
+        "item.entry.passes_permanence_state",
+        "session.persistent_access_field"
+      ],
+      "route": "temporary.dimension_mirror",
+      "stage": "entry",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.save_requires_persistent_access"
+      ],
+      "route": "temporary.dimension_mirror",
+      "stage": "save_gate",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "item.kind_from_stack",
+        "record.kind_saved_from_session"
+      ],
+      "route": "temporary.heaven_mirror",
+      "stage": "kind",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "sandbox.prep_receives_persistent_access"
+      ],
+      "route": "temporary.heaven_mirror",
+      "stage": "sandbox",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "enchantment.helper_present",
+        "enchantment.version_registration",
+        "enchantment.mirror_item_support"
+      ],
+      "route": "permanent.dimension_mirror",
+      "stage": "enchantment",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.enter_requires_matching_permanence",
+        "command.menu_uses_held_mirror"
+      ],
+      "route": "permanent.dimension_mirror",
+      "stage": "enter_gate",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "sandbox.applies_permanence_to_hotbar_mirror"
+      ],
+      "route": "permanent.heaven_mirror",
+      "stage": "sandbox_hotbar",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.persistent_enter_passes_access"
+      ],
+      "route": "permanent.heaven_mirror",
+      "stage": "persistent_enter",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "dimensions.persistent_json_count",
+        "dimensions.separate_pool"
+      ],
+      "route": "persistent.pool_lifecycle",
+      "stage": "dimensions",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "copy.persistent_queue",
+        "copy.no_portal_entity_copy"
+      ],
+      "route": "persistent.pool_lifecycle",
+      "stage": "copy",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "worldgen.structures_disabled"
+      ],
+      "route": "persistent.pool_lifecycle",
+      "stage": "worldgen",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "command.menu_uses_held_mirror"
+      ],
+      "route": "command_bypass_guards",
+      "stage": "menu",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.save_requires_persistent_access"
+      ],
+      "route": "command_bypass_guards",
+      "stage": "save",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.enter_requires_matching_permanence"
+      ],
+      "route": "command_bypass_guards",
+      "stage": "enter",
+      "status": "covered"
+    }
+  ]
+}
