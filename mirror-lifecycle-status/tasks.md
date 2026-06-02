@@ -10,7 +10,8 @@
 - [x] `copy.persistent_completion_order` - method contains ordered text
 - [x] `copy.persistent_queue` - found text
 - [x] `copy.persistent_queue_order` - method contains ordered text
-- [x] `copy.pristine_generator_columns` - method contains ordered text
+- [x] `copy.pristine_generator_features` - all text found
+- [x] `copy.pristine_generator_pipeline` - composite passed
 - [x] `copy.pristine_task_flag` - all text found
 - [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text
@@ -34,6 +35,7 @@
 - [x] `item.finish_use_packet_scope` - method contains ordered text
 - [x] `item.kind_from_stack` - found text
 - [x] `item.shift_menu_uses_stack` - found text
+- [x] `kind.first_dream_not_sandbox` - method contains ordered text
 - [x] `kind.first_dream_present` - all text found
 - [x] `kind.first_dream_pristine` - all text found
 - [x] `lang.persistent_messages` - composite passed
@@ -57,6 +59,7 @@
 - [x] `record.source_session_persisted` - all text found
 - [x] `runtime.gametest_behavior_coverage` - all text found
 - [x] `runtime.gametest_empty_template` - all text found
+- [x] `runtime.gametest_pristine_terrain_coverage` - all text found
 - [x] `runtime.gametest_smoke_script` - all text found
 - [x] `runtime.gametest_source_registered` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found

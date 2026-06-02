@@ -60,10 +60,27 @@
       "message": "method contains ordered text",
       "passed": true
     },
-    "copy.pristine_generator_columns": {
-      "adapter": "method_contains_in_order",
-      "id": "copy.pristine_generator_columns",
-      "message": "method contains ordered text",
+    "copy.pristine_generator_features": {
+      "adapter": "file_contains_all",
+      "id": "copy.pristine_generator_features",
+      "message": "all text found",
+      "passed": true
+    },
+    "copy.pristine_generator_pipeline": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "skipped for 1.20.1",
+          "passed": true,
+          "skipped": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "copy.pristine_generator_pipeline",
+      "message": "composite passed",
       "passed": true
     },
     "copy.pristine_task_flag": {
@@ -257,6 +274,12 @@
       "message": "found text",
       "passed": true
     },
+    "kind.first_dream_not_sandbox": {
+      "adapter": "method_contains_in_order",
+      "id": "kind.first_dream_not_sandbox",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "kind.first_dream_present": {
       "adapter": "file_contains_all",
       "id": "kind.first_dream_present",
@@ -413,6 +436,12 @@
       "message": "all text found",
       "passed": true
     },
+    "runtime.gametest_pristine_terrain_coverage": {
+      "adapter": "file_contains_all",
+      "id": "runtime.gametest_pristine_terrain_coverage",
+      "message": "all text found",
+      "passed": true
+    },
     "runtime.gametest_smoke_script": {
       "adapter": "file_contains_all",
       "id": "runtime.gametest_smoke_script",
@@ -469,11 +498,11 @@
     }
   },
   "completion": {
-    "checkCount": 66,
+    "checkCount": 69,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 66,
+    "passedCheckCount": 69,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -534,21 +563,23 @@
           "checks": [
             "item.kind_from_stack",
             "kind.first_dream_present",
+            "kind.first_dream_not_sandbox",
             "kind.first_dream_pristine"
           ],
           "id": "kind",
           "status": "covered",
-          "title": "First Dream Mirror is a distinct sandbox mirror kind"
+          "title": "First Dream Mirror is a distinct default-state mirror kind"
         },
         {
           "checks": [
             "session.kind_field",
             "copy.pristine_task_flag",
-            "copy.pristine_generator_columns"
+            "copy.pristine_generator_features",
+            "copy.pristine_generator_pipeline"
           ],
           "id": "copy",
           "status": "covered",
-          "title": "Temporary first dream sessions use source generator columns instead of current chunks"
+          "title": "Temporary first dream sessions regenerate pristine terrain instead of copying current chunks"
         }
       ],
       "status": "covered",
@@ -886,11 +917,12 @@
         },
         {
           "checks": [
-            "runtime.gametest_behavior_coverage"
+            "runtime.gametest_behavior_coverage",
+            "runtime.gametest_pristine_terrain_coverage"
           ],
           "id": "coverage",
           "status": "covered",
-          "title": "Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior"
+          "title": "Runtime tests cover mirror kind, permanence, cooldown, sandbox hotbar, default player state, and pristine terrain behavior"
         },
         {
           "checks": [

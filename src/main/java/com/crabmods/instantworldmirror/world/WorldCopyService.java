@@ -12,19 +12,17 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 
@@ -1481,39 +1479,55 @@ public class WorldCopyService {
 
         try {
             LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
-            ChunkGenerator generator = sourceWorld.getChunkSource().getGenerator();
-            RandomState randomState = sourceWorld.getChunkSource().randomState();
-            int minY = Math.max(sourceWorld.getMinBuildHeight(), mirrorWorld.getMinBuildHeight());
-            int maxY = Math.min(sourceWorld.getMaxBuildHeight(), mirrorWorld.getMaxBuildHeight());
+            ChunkAccess generatedChunk = PristineTerrainGenerator.generateChunk(sourceWorld, chunkX, chunkZ);
+            clearChunkForPristineCopy(mirrorWorld, targetChunk);
+
+            int sourceMinSectionY = generatedChunk.getMinSection();
             int targetMinSectionY = targetChunk.getMinSection();
+            int targetSectionCount = targetChunk.getSectionsCount();
 
-            for (int localZ = 0; localZ < 16; localZ++) {
-                int worldZ = chunkZ * 16 + localZ;
+            for (int sourceSectionIndex = 0; sourceSectionIndex < generatedChunk.getSectionsCount(); sourceSectionIndex++) {
+                LevelChunkSection sourceSection = generatedChunk.getSection(sourceSectionIndex);
+                if (sourceSection == null || sourceSection.hasOnlyAir()) {
+                    continue;
+                }
 
-                for (int localX = 0; localX < 16; localX++) {
-                    int worldX = chunkX * 16 + localX;
-                    NoiseColumn column = generator.getBaseColumn(worldX, worldZ, sourceWorld, randomState);
+                int sectionY = sourceMinSectionY + sourceSectionIndex;
+                int targetSectionIndex = sectionY - targetMinSectionY;
+                if (targetSectionIndex < 0 || targetSectionIndex >= targetSectionCount) {
+                    continue;
+                }
 
-                    for (int y = minY; y < maxY; y++) {
-                        BlockState state = column.getBlock(y);
-                        if (state == null || state.isAir() || isPortalBlock(state)) {
-                            continue;
+                LevelChunkSection targetSection = targetChunk.getSection(targetSectionIndex);
+                int baseY = sectionY * 16;
+
+                for (int localY = 0; localY < 16; localY++) {
+                    int y = baseY + localY;
+                    if (y < mirrorWorld.getMinBuildHeight() || y >= mirrorWorld.getMaxBuildHeight()) {
+                        continue;
+                    }
+
+                    for (int localZ = 0; localZ < 16; localZ++) {
+                        int worldZ = chunkZ * 16 + localZ;
+
+                        for (int localX = 0; localX < 16; localX++) {
+                            BlockState state = sourceSection.getBlockState(localX, localY, localZ);
+                            if (state == null || state.isAir() || isPortalBlock(state)) {
+                                continue;
+                            }
+
+                            int worldX = chunkX * 16 + localX;
+                            if (targetSection != null) {
+                                targetSection.setBlockState(localX, localY, localZ, state, false);
+                            } else {
+                                mirrorWorld.setBlock(new BlockPos(worldX, y, worldZ), state, 2 | 16);
+                            }
+                            blocksCopied++;
+
+                            if (state.hasBlockEntity()) {
+                                copyGeneratedBlockEntity(generatedChunk, targetChunk, new BlockPos(worldX, y, worldZ));
+                            }
                         }
-
-                        int sectionY = y >> 4;
-                        int targetRelativeSectionIndex = sectionY - targetMinSectionY;
-                        if (targetRelativeSectionIndex < 0
-                                || targetRelativeSectionIndex >= targetChunk.getSectionsCount()) {
-                            continue;
-                        }
-
-                        LevelChunkSection targetSection = targetChunk.getSection(targetRelativeSectionIndex);
-                        if (targetSection != null) {
-                            targetSection.setBlockState(localX, y & 15, localZ, state, false);
-                        } else {
-                            mirrorWorld.setBlock(new BlockPos(worldX, y, worldZ), state, 2 | 16);
-                        }
-                        blocksCopied++;
                     }
                 }
             }
@@ -1521,10 +1535,11 @@ public class WorldCopyService {
             targetChunk.setUnsaved(true);
 
             if (MirrorConfig.COPY_BIOMES.get()) {
-                LevelChunk sourceChunk = sourceWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
-                if (sourceChunk != null) {
-                    copyChunkBiomes(sourceChunk, targetChunk);
-                }
+                copyChunkBiomes(generatedChunk, targetChunk);
+            }
+
+            if (MirrorConfig.COPY_STRUCTURES.get()) {
+                copyChunkStructures(generatedChunk, targetChunk, sourceWorld, mirrorWorld);
             }
 
             if (MirrorConfig.COPY_HEIGHTMAPS.get()) {
@@ -1540,6 +1555,28 @@ public class WorldCopyService {
         }
 
         return blocksCopied;
+    }
+
+    private static void clearChunkForPristineCopy(ServerLevel mirrorWorld, LevelChunk chunk) {
+        clearPendingBlockEntities(chunk);
+
+        for (BlockPos bePos : new java.util.ArrayList<>(chunk.getBlockEntities().keySet())) {
+            mirrorWorld.removeBlockEntity(bePos);
+        }
+
+        for (int relativeSectionIndex = 0; relativeSectionIndex < chunk.getSectionsCount(); relativeSectionIndex++) {
+            LevelChunkSection section = chunk.getSection(relativeSectionIndex);
+            if (section != null && !section.hasOnlyAir()) {
+                clearSectionBlockStates(section);
+            }
+        }
+    }
+
+    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, LevelChunk targetChunk, BlockPos pos) {
+        CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
+        if (tag != null) {
+            targetChunk.setBlockEntityNbt(tag.copy());
+        }
     }
 
     /**
@@ -1772,7 +1809,7 @@ public class WorldCopyService {
      * 
      * OPTIMIZED: Uses Mixin Accessor instead of reflection for ~20% faster biome copying.
      */
-    private static void copyChunkBiomes(LevelChunk sourceChunk, LevelChunk targetChunk) {
+    private static void copyChunkBiomes(ChunkAccess sourceChunk, LevelChunk targetChunk) {
         if (biomesCopyError) {
             return; // Skip if we've already had a critical error
         }
@@ -1851,7 +1888,7 @@ public class WorldCopyService {
      * - Structure starts (the actual structure instances)
      * - Structure references (pointers to nearby structure starts)
      */
-    private static void copyChunkStructures(LevelChunk sourceChunk, LevelChunk targetChunk,
+    private static void copyChunkStructures(ChunkAccess sourceChunk, LevelChunk targetChunk,
                                             ServerLevel sourceWorld, ServerLevel mirrorWorld) {
         if (structureCopyError) {
             return;

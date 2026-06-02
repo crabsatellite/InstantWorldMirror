@@ -51,20 +51,22 @@
       "stages": [
         {
           "id": "kind",
-          "title": "First Dream Mirror is a distinct sandbox mirror kind",
+          "title": "First Dream Mirror is a distinct default-state mirror kind",
           "checks": [
             "item.kind_from_stack",
             "kind.first_dream_present",
+            "kind.first_dream_not_sandbox",
             "kind.first_dream_pristine"
           ]
         },
         {
           "id": "copy",
-          "title": "Temporary first dream sessions use source generator columns instead of current chunks",
+          "title": "Temporary first dream sessions regenerate pristine terrain instead of copying current chunks",
           "checks": [
             "session.kind_field",
             "copy.pristine_task_flag",
-            "copy.pristine_generator_columns"
+            "copy.pristine_generator_features",
+            "copy.pristine_generator_pipeline"
           ]
         }
       ]
@@ -363,9 +365,10 @@
         },
         {
           "id": "coverage",
-          "title": "Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior",
+          "title": "Runtime tests cover mirror kind, permanence, cooldown, sandbox hotbar, default player state, and pristine terrain behavior",
           "checks": [
-            "runtime.gametest_behavior_coverage"
+            "runtime.gametest_behavior_coverage",
+            "runtime.gametest_pristine_terrain_coverage"
           ]
         },
         {
@@ -716,6 +719,15 @@
       "texts": [
         "usesPristineTerrain()",
         "return this == FIRST_DREAM"
+      ]
+    },
+    {
+      "id": "kind.first_dream_not_sandbox",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorKind.java",
+      "method": "isSandbox",
+      "texts": [
+        "return this == HEAVEN"
       ]
     },
     {
@@ -1100,18 +1112,48 @@
       ]
     },
     {
-      "id": "copy.pristine_generator_columns",
-      "adapter": "method_contains_in_order",
+      "id": "copy.pristine_generator_features",
+      "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
-      "method": "copyPristineTerrainChunk",
       "texts": [
-        "ChunkGenerator generator = sourceWorld.getChunkSource().getGenerator()",
-        "RandomState randomState = sourceWorld.getChunkSource().randomState()",
-        "generator.getBaseColumn(worldX, worldZ, sourceWorld, randomState)",
-        "column.getBlock(y)",
+        "PristineTerrainGenerator.generateChunk(sourceWorld, chunkX, chunkZ)",
+        "clearChunkForPristineCopy(mirrorWorld, targetChunk)",
         "targetSection.setBlockState",
-        "copyChunkBiomes(sourceChunk, targetChunk)",
+        "copyChunkBiomes(generatedChunk, targetChunk)",
+        "copyChunkStructures(generatedChunk, targetChunk, sourceWorld, mirrorWorld)",
         "relightChunk(mirrorWorld, targetChunk)"
+      ]
+    },
+    {
+      "id": "copy.pristine_generator_pipeline",
+      "adapter": "any",
+      "checks": [
+        {
+          "adapter": "file_contains_all",
+          "versions": [
+            "1.21.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+          "texts": [
+            "ChunkPyramid.GENERATION_PYRAMID.getStepTo(status)",
+            "ChunkStatus.FEATURES",
+            "generator.createStructures",
+            "without reading player-modified chunks"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "versions": [
+            "1.20.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+          "texts": [
+            "status.generate",
+            "ChunkStatus.FEATURES",
+            "ChunkStatus.STRUCTURE_STARTS",
+            "without reading player-modified chunks"
+          ]
+        }
       ]
     },
     {
@@ -1165,6 +1207,7 @@
         "mirrorKindsAndPermanenceEnchanting",
         "permanenceDoesNotResetEfficiencyCooldown",
         "heavenSandboxKeepsPermanenceMirror",
+        "firstDreamUsesDefaultPlayerState",
         "persistentRecordsTrackSourceSession",
         "persistentDataRemovesUnreadyRecords",
         "DimensionMirrorItem.findMirrorStack(player)",
@@ -1172,13 +1215,25 @@
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",
-        "ModItems.FIRST_DREAM_MIRROR",
+        "First dream entry must keep creative mode",
         "data.getRecordBySourceSession(sourceSessionId)",
         "data.removeUnreadyRecords()",
         "data.allocateDimensionIndex() == 0",
         "loaded.selector().equals(\"slot_1\")",
         "data.getRecordBySelector(\"slot_1\", candidate -> true)",
         "loaded.setName(\"renamed mirror\")"
+      ]
+    },
+    {
+      "id": "runtime.gametest_pristine_terrain_coverage",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
+      "texts": [
+        "firstDreamTerrainIgnoresCurrentWorldEdits",
+        "PristineTerrainGenerator.generateChunk",
+        "ChunkStatus.FEATURES",
+        "Blocks.GOLD_BLOCK",
+        "must not copy player edits"
       ]
     },
     {
