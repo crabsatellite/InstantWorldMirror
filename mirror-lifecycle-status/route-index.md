@@ -79,3 +79,9 @@ Commands cannot bypass the enchanted-mirror lifecycle
 - `menu`: covered - Menu command resolves the held mirror stack
 - `save`: covered - Save command is blocked unless the current session was permanence-enabled
 - `enter`: covered - Enter command is blocked unless the player still holds a matching enchanted mirror
+
+## runtime_smoke_infra - covered
+
+runClient smoke verification is reproducible from repo infra
+
+- `script`: covered - Smoke script launches runClient, waits for render/audio evidence, and cleans temporary processes/logs
