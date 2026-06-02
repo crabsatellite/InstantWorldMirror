@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.client.renderer;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
+import com.crabmods.instantworldmirror.client.model.FirstDreamMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.MirrorKind;
@@ -26,16 +27,21 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
     private static final ResourceLocation HEAVEN_MIRROR_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             InstantWorldMirror.MODID, "textures/item/heaven_mirror.png"
     );
+    private static final ResourceLocation FIRST_DREAM_MIRROR_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+            InstantWorldMirror.MODID, "textures/item/first_dream_mirror.png"
+    );
 
     private static MirrorItemRenderer instance;
 
     private final DimensionMirrorItemModel dimensionMirrorModel;
     private final HeavenMirrorItemModel heavenMirrorModel;
+    private final FirstDreamMirrorItemModel firstDreamMirrorModel;
 
     private MirrorItemRenderer() {
         super(Minecraft.getInstance().getBlockEntityRenderDispatcher(), Minecraft.getInstance().getEntityModels());
         this.dimensionMirrorModel = new DimensionMirrorItemModel(DimensionMirrorItemModel.createBodyLayer().bakeRoot());
         this.heavenMirrorModel = new HeavenMirrorItemModel(HeavenMirrorItemModel.createBodyLayer().bakeRoot());
+        this.firstDreamMirrorModel = new FirstDreamMirrorItemModel(FirstDreamMirrorItemModel.createBodyLayer().bakeRoot());
     }
 
     public static MirrorItemRenderer getInstance() {
@@ -49,22 +55,37 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
     public void renderByItem(ItemStack stack, ItemDisplayContext displayContext, PoseStack poseStack,
                              MultiBufferSource buffer, int packedLight, int packedOverlay) {
         MirrorKind kind = DimensionMirrorItem.getMirrorKind(stack);
-        boolean isHeavenMirror = kind.usesHeavenVisuals();
 
         poseStack.pushPose();
-        applyItemTransform(displayContext, poseStack, isHeavenMirror);
+        applyItemTransform(displayContext, poseStack, kind);
 
-        ResourceLocation texture = isHeavenMirror ? HEAVEN_MIRROR_TEXTURE : DIMENSION_MIRROR_TEXTURE;
-        EntityModel<Entity> model = isHeavenMirror ? heavenMirrorModel : dimensionMirrorModel;
+        ResourceLocation texture = textureFor(kind);
+        EntityModel<Entity> model = modelFor(kind);
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutoutNoCull(texture));
         model.renderToBuffer(poseStack, vertexConsumer, packedLight, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
 
         poseStack.popPose();
     }
 
-    private static void applyItemTransform(ItemDisplayContext displayContext, PoseStack poseStack, boolean isHeavenMirror) {
+    private EntityModel<Entity> modelFor(MirrorKind kind) {
+        return switch (kind) {
+            case HEAVEN -> heavenMirrorModel;
+            case FIRST_DREAM -> firstDreamMirrorModel;
+            case DIMENSION -> dimensionMirrorModel;
+        };
+    }
+
+    private static ResourceLocation textureFor(MirrorKind kind) {
+        return switch (kind) {
+            case HEAVEN -> HEAVEN_MIRROR_TEXTURE;
+            case FIRST_DREAM -> FIRST_DREAM_MIRROR_TEXTURE;
+            case DIMENSION -> DIMENSION_MIRROR_TEXTURE;
+        };
+    }
+
+    private static void applyItemTransform(ItemDisplayContext displayContext, PoseStack poseStack, MirrorKind kind) {
         if (displayContext == ItemDisplayContext.GUI) {
-            if (isHeavenMirror) {
+            if (kind == MirrorKind.HEAVEN) {
                 poseStack.translate(0.46D, 1.43D, 0.5D);
             } else {
                 poseStack.translate(0.45D, 1.44D, 0.5D);

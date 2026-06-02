@@ -28,24 +28,19 @@ public class DimensionMirrorItemModel extends EntityModel<Entity> {
         PartDefinition partdefinition = meshdefinition.getRoot();
 
         partdefinition.addOrReplaceChild("group", CubeListBuilder.create()
-                .texOffs(0, 0).addBox(-3.5F, -0.5F, 3.0F, 7.0F, 1.0F, 9.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 14).addBox(-3.5F, -1.0F, 1.0F, 7.0F, 2.0F, 2.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 14).addBox(-3.5F, -1.0F, 1.0F, 7.0F, 2.0F, 2.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 10).addBox(-3.5F, -1.0F, 12.0F, 7.0F, 2.0F, 2.0F, new CubeDeformation(0.0F))
-                .texOffs(0, 23).addBox(3.5F, -1.0F, 2.0F, 1.0F, 2.0F, 11.0F, new CubeDeformation(0.0F))
-                .texOffs(32, 7).addBox(4.5F, -1.0F, 2.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(8, 36).addBox(-5.5F, -1.0F, 2.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(4, 36).addBox(4.5F, -1.0F, 12.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(36, 7).addBox(-5.5F, -1.0F, 12.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 18).addBox(4.5F, -1.5F, 5.0F, 1.0F, 3.0F, 5.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 26).addBox(-5.5F, -1.5F, 5.0F, 1.0F, 3.0F, 5.0F, new CubeDeformation(0.0F))
-                .texOffs(28, 30).addBox(-4.5F, -1.5F, 9.0F, 1.0F, 3.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(32, 0).addBox(-2.5F, -1.5F, 11.0F, 2.0F, 3.0F, 4.0F, new CubeDeformation(0.0F))
-                .texOffs(32, 34).addBox(-0.5F, -1.5F, 14.0F, 1.0F, 3.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(0, 36).addBox(-1.5F, -1.5F, 15.0F, 1.0F, 3.0F, 1.0F, new CubeDeformation(0.0F))
-                .texOffs(24, 34).addBox(2.5F, -1.5F, 5.0F, 2.0F, 3.0F, 2.0F, new CubeDeformation(0.0F))
-                .texOffs(0, 10).addBox(-4.5F, -1.0F, 2.0F, 1.0F, 2.0F, 11.0F, new CubeDeformation(0.0F)),
-                PartPose.offsetAndRotation(-1.0F, 25.0F, 0.0F, -1.5708F, 0.0F, 3.1416F));
+                .texOffs(10, 22).addBox(4.5F, -1.0F, 10.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(10, 22).addBox(-5.5F, -1.0F, 10.0F, 1.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(23, 38).addBox(-3.5F, -1.0F, 2.0F, 7.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(15, 24).addBox(-3.5F, -0.5F, 3.0F, 7.0F, 1.0F, 9.0F, new CubeDeformation(0.0F))
+                .texOffs(23, 42).addBox(-3.5F, -1.0F, 1.0F, 7.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(23, 20).addBox(-3.5F, -1.0F, 12.0F, 7.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(23, 16).addBox(-3.5F, -1.0F, 13.0F, 7.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(32, 46).addBox(-1.5F, -1.0F, 0.0F, 2.0F, 2.0F, 1.0F, new CubeDeformation(0.0F))
+                .texOffs(9, 21).addBox(4.5F, -1.0F, 4.0F, 1.0F, 2.0F, 2.0F, new CubeDeformation(0.0F))
+                .texOffs(9, 21).addBox(-5.5F, -1.0F, 3.0F, 1.0F, 2.0F, 2.0F, new CubeDeformation(0.0F))
+                .texOffs(7, 23).addBox(3.5F, -1.0F, 2.0F, 1.0F, 2.0F, 11.0F, new CubeDeformation(0.0F))
+                .texOffs(31, 23).addBox(-4.5F, -1.0F, 2.0F, 1.0F, 2.0F, 11.0F, new CubeDeformation(0.0F)),
+                PartPose.offsetAndRotation(-1.0F, 24.0F, 0.0F, -1.5708F, 0.0F, 3.1416F));
 
         return LayerDefinition.create(meshdefinition, 64, 64);
     }
