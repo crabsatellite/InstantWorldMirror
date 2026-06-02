@@ -2,10 +2,15 @@
 
 - [x] `build.verify_mirror_jar_contents` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
+- [x] `command.persistent_record_suggestions` - all text found
+- [x] `command.persistent_rename_command` - all text found
+- [x] `command.persistent_uses_selector` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_completion_order` - method contains ordered text
 - [x] `copy.persistent_queue` - found text
 - [x] `copy.persistent_queue_order` - method contains ordered text
+- [x] `data.selector_lookup` - method contains all text
+- [x] `data.source_session_lookup` - method contains all text
 - [x] `dimensions.persistent_json_count` - 8 matched, expected 8
 - [x] `dimensions.persistent_json_values` - all json values matched
 - [x] `dimensions.separate_pool` - found text
@@ -24,18 +29,24 @@
 - [x] `item.finish_use_packet_scope` - method contains ordered text
 - [x] `item.kind_from_stack` - found text
 - [x] `item.shift_menu_uses_stack` - found text
+- [x] `lang.persistent_messages` - composite passed
 - [x] `manager.create_session_order` - method contains ordered text
 - [x] `manager.delete_persistent_order` - method contains ordered text
 - [x] `manager.enter_persistent_order` - method contains ordered text
 - [x] `manager.enter_requires_matching_permanence` - found text
 - [x] `manager.heaven_return_origin_gate` - method contains ordered text
 - [x] `manager.leave_persistent_order` - method contains ordered text
+- [x] `manager.menu_uses_selectors` - all text found
 - [x] `manager.persistent_enter_passes_access` - found text
+- [x] `manager.rename_record_order` - method contains ordered text
 - [x] `manager.return_temporary_order` - method contains ordered text
 - [x] `manager.save_persistent_order` - method contains ordered text
+- [x] `manager.save_rejects_duplicate_session` - method contains ordered text
 - [x] `manager.save_requires_persistent_access` - found text
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `record.kind_saved_from_session` - found text
+- [x] `record.selector_present` - method contains all text
+- [x] `record.source_session_persisted` - all text found
 - [x] `runtime.gametest_behavior_coverage` - all text found
 - [x] `runtime.gametest_empty_template` - all text found
 - [x] `runtime.gametest_smoke_script` - all text found

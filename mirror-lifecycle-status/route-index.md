@@ -57,10 +57,11 @@ Death, external dimension changes, and logout restore or clean mirror state with
 
 ## persistent.record_lifecycle - covered
 
-Persistent mirror records save, enter, leave, and delete through closed lifecycle gates
+Persistent mirror records save, enter, rename, leave, and delete through closed lifecycle gates
 
-- `save`: covered - Saving a persistent mirror checks permission, session permanence, copy completion, slot allocation, and queueing
+- `save`: covered - Saving a persistent mirror checks permission, session permanence, duplicate-session rejection, slot allocation, and queueing
 - `enter`: covered - Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity
+- `rename`: covered - Renaming a persistent mirror resolves a player-facing selector and marks saved data dirty
 - `leave`: covered - Leaving a persistent mirror restores saved state before teleport cleanup and effect clearing
 - `delete`: covered - Deleting a persistent mirror ejects players, cleans the persistent world, and removes the record
 
@@ -79,6 +80,7 @@ Commands cannot bypass the enchanted-mirror lifecycle
 - `menu`: covered - Menu command resolves the held mirror stack
 - `save`: covered - Save command is blocked unless the current session was permanence-enabled
 - `enter`: covered - Enter command is blocked unless the player still holds a matching enchanted mirror
+- `selection`: covered - Persistent record commands use player-facing selectors with autocomplete and localization
 
 ## runtime_smoke_infra - covered
 

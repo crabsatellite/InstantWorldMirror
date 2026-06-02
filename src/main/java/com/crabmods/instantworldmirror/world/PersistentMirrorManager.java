@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -95,7 +96,8 @@ public class PersistentMirrorManager {
             return;
         }
 
-        player.sendSystemMessage(Component.literal("=== Mirror Menu ===").withStyle(ChatFormatting.GOLD));
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.menu.header")
+                .withStyle(ChatFormatting.GOLD));
 
         Optional<MirrorSession> temporarySession = MirrorWorldManager.getPlayerCurrentSession(player.getUUID());
         if (temporarySession.isPresent()) {
@@ -114,11 +116,12 @@ public class PersistentMirrorManager {
 
     private static void showTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,
                                                 boolean heldHasPermanence) {
-        player.sendSystemMessage(Component.literal("Current temporary mirror: " + labelFor(session.isSandboxMode()))
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.temporary.current",
+                        labelComponentFor(session.isSandboxMode()))
                 .withStyle(ChatFormatting.GRAY));
 
         if (!session.isCopyComplete()) {
-            player.sendSystemMessage(Component.literal("World copy is still running. Save after it completes.")
+            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.copy_running")
                     .withStyle(ChatFormatting.YELLOW));
             return;
         }
@@ -130,41 +133,52 @@ public class PersistentMirrorManager {
         } else if (heldKind != sessionKind) {
             player.sendSystemMessage(Component.translatable("message.instantworldmirror.permanent_type_mismatch")
                     .withStyle(ChatFormatting.RED));
+        } else if (hasSavedPersistentRecord(player, session.getSessionId())) {
+            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.already_saved")
+                    .withStyle(ChatFormatting.YELLOW));
         } else if (canCreatePersistentMirror(player)) {
             player.sendSystemMessage(button(
-                    "[Save this mirror permanently]",
+                    Component.translatable("message.instantworldmirror.persistent.button.save"),
                     "/iwm persistent save",
-                    "Copy this temporary mirror into a persistent slot.",
+                    Component.translatable("message.instantworldmirror.persistent.hover.save"),
                     ChatFormatting.GREEN
             ));
         } else {
-            player.sendSystemMessage(Component.literal("Permanent save requires an operator or a creation grant.")
+            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.save.requires_grant")
                     .withStyle(ChatFormatting.RED));
         }
 
         player.sendSystemMessage(button(
-                "[Return to original world]",
+                Component.translatable("message.instantworldmirror.persistent.button.return"),
                 "/iwm return",
-                "Leave this temporary mirror.",
+                Component.translatable("message.instantworldmirror.persistent.hover.return"),
                 ChatFormatting.AQUA
         ));
     }
 
     private static void showPersistentInsideMenu(ServerPlayer player, PersistentMirrorRecord record) {
-        player.sendSystemMessage(Component.literal("Persistent mirror: " + record.name())
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.inside.current", record.name())
                 .withStyle(ChatFormatting.GRAY));
         player.sendSystemMessage(button(
-                "[Leave persistent mirror]",
+                Component.translatable("message.instantworldmirror.persistent.button.leave"),
                 "/iwm persistent leave",
-                "Return to the position where you entered.",
+                Component.translatable("message.instantworldmirror.persistent.hover.leave"),
                 ChatFormatting.AQUA
         ));
 
         if (canManageRecord(player, record)) {
+            String selector = record.selector();
             player.sendSystemMessage(button(
-                    "[Delete this persistent mirror]",
-                    "/iwm persistent delete " + record.id(),
-                    "Delete the saved record and clear this persistent slot.",
+                    Component.translatable("message.instantworldmirror.persistent.button.rename"),
+                    "/iwm persistent rename " + selector + " ",
+                    Component.translatable("message.instantworldmirror.persistent.hover.rename"),
+                    ChatFormatting.YELLOW,
+                    ClickEvent.Action.SUGGEST_COMMAND
+            ));
+            player.sendSystemMessage(button(
+                    Component.translatable("message.instantworldmirror.persistent.button.delete"),
+                    "/iwm persistent delete " + selector,
+                    Component.translatable("message.instantworldmirror.persistent.hover.delete", selector),
                     ChatFormatting.RED
             ));
         }
@@ -172,7 +186,8 @@ public class PersistentMirrorManager {
 
     private static void showPersistentListMenu(ServerPlayer player, MirrorKind heldKind,
                                                Collection<PersistentMirrorRecord> records) {
-        player.sendSystemMessage(Component.literal("Showing " + labelFor(heldKind.isSandbox()) + " records.")
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.list.header",
+                        labelComponentFor(heldKind.isSandbox()))
                 .withStyle(ChatFormatting.GRAY));
 
         int shown = 0;
@@ -182,22 +197,44 @@ public class PersistentMirrorManager {
             }
 
             ChatFormatting color = record.ready() ? ChatFormatting.GREEN : ChatFormatting.YELLOW;
-            String status = record.ready() ? "" : " (copying)";
-            player.sendSystemMessage(button(
-                    "[" + record.name() + status + "]",
-                    "/iwm persistent enter " + record.id(),
-                    "Enter this persistent mirror.",
+            String selector = record.selector();
+            MutableComponent label = Component.literal("[" + record.name());
+            if (!record.ready()) {
+                label.append(Component.translatable("message.instantworldmirror.persistent.status.copying"));
+            }
+            label.append("]");
+
+            MutableComponent line = Component.empty().append(button(
+                    label,
+                    "/iwm persistent enter " + selector,
+                    Component.translatable("message.instantworldmirror.persistent.hover.enter", selector),
                     color
             ));
+            if (canManageRecord(player, record)) {
+                line.append(Component.literal(" ")).append(button(
+                        Component.translatable("message.instantworldmirror.persistent.button.rename"),
+                        "/iwm persistent rename " + selector + " ",
+                        Component.translatable("message.instantworldmirror.persistent.hover.rename"),
+                        ChatFormatting.YELLOW,
+                        ClickEvent.Action.SUGGEST_COMMAND
+                ));
+                line.append(Component.literal(" ")).append(button(
+                        Component.translatable("message.instantworldmirror.persistent.button.delete"),
+                        "/iwm persistent delete " + selector,
+                        Component.translatable("message.instantworldmirror.persistent.hover.delete", selector),
+                        ChatFormatting.RED
+                ));
+            }
+            player.sendSystemMessage(line);
             shown++;
         }
 
         if (shown == 0) {
-            player.sendSystemMessage(Component.literal("No accessible persistent mirrors for this mirror type.")
+            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.no_accessible")
                     .withStyle(ChatFormatting.YELLOW));
         }
 
-        player.sendSystemMessage(Component.literal("Create a temporary portal first, enter it, then use this menu there to save it permanently.")
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.create_hint")
                 .withStyle(ChatFormatting.DARK_GRAY));
     }
 
@@ -208,13 +245,13 @@ public class PersistentMirrorManager {
         }
 
         if (!canCreatePersistentMirror(player)) {
-            player.displayClientMessage(Component.literal("You do not have permission to save persistent mirrors."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.no_save_permission"), false);
             return false;
         }
 
         Optional<MirrorSession> sessionOpt = MirrorWorldManager.getPlayerCurrentSession(player.getUUID());
         if (sessionOpt.isEmpty()) {
-            player.displayClientMessage(Component.literal("Enter a temporary mirror before saving it permanently."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.enter_temporary_first"), false);
             return false;
         }
 
@@ -225,21 +262,26 @@ public class PersistentMirrorManager {
         }
 
         if (!session.isCopyComplete()) {
-            player.displayClientMessage(Component.literal("The temporary mirror is still copying. Try again when it finishes."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.temporary_copying"), false);
             return false;
         }
 
         PersistentMirrorData data = PersistentMirrorData.get(server);
+        if (data.getRecordBySourceSession(session.getSessionId()).isPresent()) {
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.already_saved"), false);
+            return false;
+        }
+
         int dimensionIndex = data.allocateDimensionIndex();
         if (dimensionIndex < 0) {
-            player.displayClientMessage(Component.literal("No persistent mirror slots are available."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.no_slots"), false);
             return false;
         }
 
         ServerLevel sourceMirrorWorld = server.getLevel(session.getMirrorDimension());
         ServerLevel targetMirrorWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex));
         if (sourceMirrorWorld == null || targetMirrorWorld == null) {
-            player.displayClientMessage(Component.literal("Persistent mirror dimension is not loaded."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.dimension_not_loaded"), false);
             return false;
         }
 
@@ -249,6 +291,7 @@ public class PersistentMirrorManager {
         PersistentMirrorRecord record = new PersistentMirrorRecord(
                 recordId,
                 player.getUUID(),
+                session.getSessionId(),
                 name,
                 kind,
                 dimensionIndex,
@@ -264,7 +307,7 @@ public class PersistentMirrorManager {
         pendingCopyCreators.put(recordId, player.getUUID());
         int queuePosition = WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld);
 
-        player.sendSystemMessage(Component.literal("Persistent mirror save queued: " + name + " (#" + queuePosition + ")")
+        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.save_queued", name, queuePosition)
                 .withStyle(ChatFormatting.GREEN));
         return true;
     }
@@ -284,7 +327,7 @@ public class PersistentMirrorManager {
         if (creatorId != null) {
             ServerPlayer creator = server.getPlayerList().getPlayer(creatorId);
             if (creator != null) {
-                creator.sendSystemMessage(Component.literal("Persistent mirror saved: " + record.name())
+                creator.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.saved", record.name())
                         .withStyle(ChatFormatting.GREEN));
             }
         }
@@ -300,13 +343,13 @@ public class PersistentMirrorManager {
 
         Optional<PersistentMirrorRecord> recordOpt = PersistentMirrorData.get(server).getRecord(recordId);
         if (recordOpt.isEmpty()) {
-            player.displayClientMessage(Component.literal("Persistent mirror not found."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.not_found"), false);
             return false;
         }
 
         PersistentMirrorRecord record = recordOpt.get();
         if (!record.ready()) {
-            player.displayClientMessage(Component.literal("This persistent mirror is still copying."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.copying"), false);
             return false;
         }
 
@@ -316,18 +359,18 @@ public class PersistentMirrorManager {
         }
 
         if (!canEnterRecord(player, record)) {
-            player.displayClientMessage(Component.literal("You cannot enter this persistent mirror."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.cannot_enter"), false);
             return false;
         }
 
         if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player)) {
-            player.displayClientMessage(Component.literal("Leave your current mirror session first."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.leave_current_first"), false);
             return false;
         }
 
         ServerLevel targetLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
         if (targetLevel == null) {
-            player.displayClientMessage(Component.literal("Persistent mirror dimension is not loaded."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.dimension_not_loaded"), false);
             return false;
         }
 
@@ -356,7 +399,7 @@ public class PersistentMirrorManager {
 
         MirrorWorldManager.syncMirrorEffectsForPlayer(player, record.sourceDimension(), ModDimensions.getMirrorEffectsKey(targetLevel.dimension()));
         targetLevel.playSound(null, safePos, SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 0.5F, 1.0F);
-        player.displayClientMessage(Component.literal("Entered persistent mirror: " + record.name()), true);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.entered", record.name()), true);
         return true;
     }
 
@@ -423,7 +466,7 @@ public class PersistentMirrorManager {
 
         playerToPersistentMirror.remove(player.getUUID());
         MirrorWorldManager.clearMirrorEffectsForPlayer(player, ModDimensions.getMirrorEffectsKey(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex())));
-        player.displayClientMessage(Component.literal("Left persistent mirror."), true);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.left"), true);
         return true;
     }
 
@@ -447,7 +490,7 @@ public class PersistentMirrorManager {
             DimensionMirrorItem.applyCooldown(player, DimensionMirrorItem.findMirrorStack(player));
         }
 
-        player.displayClientMessage(Component.literal("Teleported to persistent mirror entrance."), true);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.spawn_teleported"), true);
         return true;
     }
 
@@ -458,7 +501,7 @@ public class PersistentMirrorManager {
     public static void handleExternalExit(ServerPlayer player) {
         playerToPersistentMirror.remove(player.getUUID());
         MirrorWorldManager.restorePlayerForMirrorExit(player);
-        player.displayClientMessage(Component.literal("You left a persistent mirror. Your state was restored."), false);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.external_exit"), false);
     }
 
     public static boolean deleteRecord(ServerPlayer player, UUID recordId) {
@@ -470,13 +513,13 @@ public class PersistentMirrorManager {
         PersistentMirrorData data = PersistentMirrorData.get(server);
         Optional<PersistentMirrorRecord> recordOpt = data.getRecord(recordId);
         if (recordOpt.isEmpty()) {
-            player.displayClientMessage(Component.literal("Persistent mirror not found."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.not_found"), false);
             return false;
         }
 
         PersistentMirrorRecord record = recordOpt.get();
         if (!canManageRecord(player, record)) {
-            player.displayClientMessage(Component.literal("You cannot delete this persistent mirror."), false);
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.cannot_delete"), false);
             return false;
         }
 
@@ -489,7 +532,33 @@ public class PersistentMirrorManager {
         }
 
         data.removeRecord(record.id());
-        player.displayClientMessage(Component.literal("Deleted persistent mirror: " + record.name()), false);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.deleted", record.name()), false);
+        return true;
+    }
+
+    public static boolean renameRecord(ServerPlayer player, UUID recordId, String requestedName) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return false;
+        }
+
+        PersistentMirrorData data = PersistentMirrorData.get(server);
+        Optional<PersistentMirrorRecord> recordOpt = data.getRecord(recordId);
+        if (recordOpt.isEmpty()) {
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.not_found"), false);
+            return false;
+        }
+
+        PersistentMirrorRecord record = recordOpt.get();
+        if (!canManageRecord(player, record)) {
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.cannot_rename"), false);
+            return false;
+        }
+
+        String name = sanitizeName(requestedName, record.name());
+        record.setName(name);
+        data.setDirty();
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.renamed", name), false);
         return true;
     }
 
@@ -535,7 +604,7 @@ public class PersistentMirrorManager {
             MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
         }
 
-        player.displayClientMessage(Component.literal("Left persistent mirror."), true);
+        player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.left"), true);
         return true;
     }
 
@@ -543,11 +612,41 @@ public class PersistentMirrorManager {
         return canEnterRecord(player, record);
     }
 
-    private static Component button(String label, String command, String hover, ChatFormatting color) {
-        return Component.literal(label).withStyle(style -> style
+    public static Collection<PersistentMirrorRecord> getAccessibleRecords(ServerPlayer player) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return java.util.List.of();
+        }
+
+        return PersistentMirrorData.get(server).records().stream()
+                .filter(record -> canEnterRecord(player, record))
+                .toList();
+    }
+
+    public static Optional<PersistentMirrorRecord> resolveRecordSelector(ServerPlayer player, String selector) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return Optional.empty();
+        }
+
+        return PersistentMirrorData.get(server).getRecordBySelector(selector, record -> canEnterRecord(player, record));
+    }
+
+    private static boolean hasSavedPersistentRecord(ServerPlayer player, UUID sourceSessionId) {
+        MinecraftServer server = player.getServer();
+        return server != null && PersistentMirrorData.get(server).getRecordBySourceSession(sourceSessionId).isPresent();
+    }
+
+    private static Component button(Component label, String command, Component hover, ChatFormatting color) {
+        return button(label, command, hover, color, ClickEvent.Action.RUN_COMMAND);
+    }
+
+    private static Component button(Component label, String command, Component hover, ChatFormatting color,
+                                    ClickEvent.Action clickAction) {
+        return Component.empty().append(label).withStyle(style -> style
                 .withColor(color)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(hover))));
+                .withClickEvent(new ClickEvent(clickAction, command))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover)));
     }
 
     private static String sanitizeName(String requestedName, String fallback) {
@@ -567,5 +666,11 @@ public class PersistentMirrorManager {
 
     private static String labelFor(boolean sandboxMode) {
         return sandboxMode ? "Heaven Mirror" : "Dimensional Mirror";
+    }
+
+    private static Component labelComponentFor(boolean sandboxMode) {
+        return Component.translatable(sandboxMode
+                ? "item.instantworldmirror.heaven_mirror"
+                : "item.instantworldmirror.dimension_mirror");
     }
 }

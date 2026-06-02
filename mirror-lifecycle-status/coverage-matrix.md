@@ -20,8 +20,9 @@
 | `death_external_logout_lifecycle` | `respawn` | `covered` | `events.respawn_restore_order` |
 | `death_external_logout_lifecycle` | `external_exit` | `covered` | `events.dimension_change_exit_order` |
 | `death_external_logout_lifecycle` | `logout` | `covered` | `events.logout_cleanup_order` |
-| `persistent.record_lifecycle` | `save` | `covered` | `manager.save_persistent_order` |
+| `persistent.record_lifecycle` | `save` | `covered` | `manager.save_persistent_order`, `manager.save_rejects_duplicate_session`, `record.source_session_persisted`, `data.source_session_lookup`, `record.selector_present`, `data.selector_lookup` |
 | `persistent.record_lifecycle` | `enter` | `covered` | `manager.enter_persistent_order` |
+| `persistent.record_lifecycle` | `rename` | `covered` | `manager.rename_record_order`, `manager.menu_uses_selectors` |
 | `persistent.record_lifecycle` | `leave` | `covered` | `manager.leave_persistent_order` |
 | `persistent.record_lifecycle` | `delete` | `covered` | `manager.delete_persistent_order` |
 | `persistent.pool_lifecycle` | `dimensions` | `covered` | `dimensions.persistent_json_count`, `dimensions.persistent_json_values`, `dimensions.separate_pool` |
@@ -30,6 +31,7 @@
 | `command_bypass_guards` | `menu` | `covered` | `command.menu_uses_held_mirror` |
 | `command_bypass_guards` | `save` | `covered` | `manager.save_requires_persistent_access` |
 | `command_bypass_guards` | `enter` | `covered` | `manager.enter_requires_matching_permanence` |
+| `command_bypass_guards` | `selection` | `covered` | `command.persistent_record_suggestions`, `command.persistent_uses_selector`, `command.persistent_rename_command`, `lang.persistent_messages` |
 | `runtime_smoke_infra` | `script` | `covered` | `runtime.runclient_smoke_script` |
 | `runtime.gametest_lifecycle` | `registration` | `covered` | `runtime.gametest_source_registered`, `runtime.gametest_empty_template` |
 | `runtime.gametest_lifecycle` | `coverage` | `covered` | `runtime.gametest_behavior_coverage` |

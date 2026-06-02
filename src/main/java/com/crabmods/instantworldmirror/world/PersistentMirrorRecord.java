@@ -6,6 +6,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -14,6 +15,7 @@ import java.util.UUID;
 public class PersistentMirrorRecord {
     private final UUID id;
     private final UUID ownerId;
+    private final UUID sourceSessionId;
     private String name;
     private final MirrorKind kind;
     private final int dimensionIndex;
@@ -24,11 +26,12 @@ public class PersistentMirrorRecord {
     private final long createdAt;
     private boolean ready;
 
-    public PersistentMirrorRecord(UUID id, UUID ownerId, String name, MirrorKind kind, int dimensionIndex,
+    public PersistentMirrorRecord(UUID id, UUID ownerId, UUID sourceSessionId, String name, MirrorKind kind, int dimensionIndex,
                                   ResourceKey<Level> sourceDimension, BlockPos sourcePosition,
                                   BlockPos entryPosition, boolean sourceInWater, long createdAt, boolean ready) {
         this.id = id;
         this.ownerId = ownerId;
+        this.sourceSessionId = Objects.requireNonNull(sourceSessionId, "sourceSessionId");
         this.name = name;
         this.kind = kind;
         this.dimensionIndex = dimensionIndex;
@@ -46,6 +49,10 @@ public class PersistentMirrorRecord {
 
     public UUID ownerId() {
         return ownerId;
+    }
+
+    public UUID sourceSessionId() {
+        return sourceSessionId;
     }
 
     public String name() {
@@ -88,6 +95,10 @@ public class PersistentMirrorRecord {
         return ready;
     }
 
+    public String selector() {
+        return "slot_" + (dimensionIndex + 1);
+    }
+
     public void setReady(boolean ready) {
         this.ready = ready;
     }
@@ -96,6 +107,7 @@ public class PersistentMirrorRecord {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("id", id);
         tag.putUUID("owner", ownerId);
+        tag.putUUID("source_session", sourceSessionId);
         tag.putString("name", name);
         tag.putString("kind", kind.id());
         tag.putInt("dimension_index", dimensionIndex);
@@ -111,6 +123,7 @@ public class PersistentMirrorRecord {
     public static PersistentMirrorRecord load(CompoundTag tag) {
         UUID id = tag.getUUID("id");
         UUID owner = tag.getUUID("owner");
+        UUID sourceSessionId = tag.getUUID("source_session");
         String name = tag.getString("name");
         MirrorKind kind = MirrorKind.byId(tag.getString("kind"));
         int dimensionIndex = tag.getInt("dimension_index");
@@ -123,7 +136,7 @@ public class PersistentMirrorRecord {
         boolean sourceInWater = tag.getBoolean("source_in_water");
         long createdAt = tag.getLong("created_at");
         boolean ready = tag.getBoolean("ready");
-        return new PersistentMirrorRecord(id, owner, name, kind, dimensionIndex, sourceDimension,
+        return new PersistentMirrorRecord(id, owner, sourceSessionId, name, kind, dimensionIndex, sourceDimension,
                 sourcePos, entryPos, sourceInWater, createdAt, ready);
     }
 

@@ -12,6 +12,24 @@
       "message": "found text",
       "passed": true
     },
+    "command.persistent_record_suggestions": {
+      "adapter": "file_contains_all",
+      "id": "command.persistent_record_suggestions",
+      "message": "all text found",
+      "passed": true
+    },
+    "command.persistent_rename_command": {
+      "adapter": "file_contains_all",
+      "id": "command.persistent_rename_command",
+      "message": "all text found",
+      "passed": true
+    },
+    "command.persistent_uses_selector": {
+      "adapter": "file_contains_all",
+      "id": "command.persistent_uses_selector",
+      "message": "all text found",
+      "passed": true
+    },
     "copy.no_portal_entity_copy": {
       "adapter": "file_contains",
       "id": "copy.no_portal_entity_copy",
@@ -34,6 +52,18 @@
       "adapter": "method_contains_in_order",
       "id": "copy.persistent_queue_order",
       "message": "method contains ordered text",
+      "passed": true
+    },
+    "data.selector_lookup": {
+      "adapter": "method_contains_all",
+      "id": "data.selector_lookup",
+      "message": "method contains all text",
+      "passed": true
+    },
+    "data.source_session_lookup": {
+      "adapter": "method_contains_all",
+      "id": "data.source_session_lookup",
+      "message": "method contains all text",
       "passed": true
     },
     "dimensions.persistent_json_count": {
@@ -197,6 +227,30 @@
       "message": "found text",
       "passed": true
     },
+    "lang.persistent_messages": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "lang.persistent_messages",
+      "message": "composite passed",
+      "passed": true
+    },
     "manager.create_session_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.create_session_order",
@@ -233,10 +287,22 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "manager.menu_uses_selectors": {
+      "adapter": "file_contains_all",
+      "id": "manager.menu_uses_selectors",
+      "message": "all text found",
+      "passed": true
+    },
     "manager.persistent_enter_passes_access": {
       "adapter": "file_contains",
       "id": "manager.persistent_enter_passes_access",
       "message": "found text",
+      "passed": true
+    },
+    "manager.rename_record_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.rename_record_order",
+      "message": "method contains ordered text",
       "passed": true
     },
     "manager.return_temporary_order": {
@@ -248,6 +314,12 @@
     "manager.save_persistent_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.save_persistent_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.save_rejects_duplicate_session": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.save_rejects_duplicate_session",
       "message": "method contains ordered text",
       "passed": true
     },
@@ -267,6 +339,18 @@
       "adapter": "file_contains",
       "id": "record.kind_saved_from_session",
       "message": "found text",
+      "passed": true
+    },
+    "record.selector_present": {
+      "adapter": "method_contains_all",
+      "id": "record.selector_present",
+      "message": "method contains all text",
+      "passed": true
+    },
+    "record.source_session_persisted": {
+      "adapter": "file_contains_all",
+      "id": "record.source_session_persisted",
+      "message": "all text found",
       "passed": true
     },
     "runtime.gametest_behavior_coverage": {
@@ -325,11 +409,11 @@
     }
   },
   "completion": {
-    "checkCount": 45,
+    "checkCount": 56,
     "complete": true,
     "coveredRouteCount": 13,
     "failedChecks": [],
-    "passedCheckCount": 45,
+    "passedCheckCount": 56,
     "routeCount": 13
   },
   "minecraftVersion": "1.21.1",
@@ -541,11 +625,16 @@
       "stages": [
         {
           "checks": [
-            "manager.save_persistent_order"
+            "manager.save_persistent_order",
+            "manager.save_rejects_duplicate_session",
+            "record.source_session_persisted",
+            "data.source_session_lookup",
+            "record.selector_present",
+            "data.selector_lookup"
           ],
           "id": "save",
           "status": "covered",
-          "title": "Saving a persistent mirror checks permission, session permanence, copy completion, slot allocation, and queueing"
+          "title": "Saving a persistent mirror checks permission, session permanence, duplicate-session rejection, slot allocation, and queueing"
         },
         {
           "checks": [
@@ -554,6 +643,15 @@
           "id": "enter",
           "status": "covered",
           "title": "Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity"
+        },
+        {
+          "checks": [
+            "manager.rename_record_order",
+            "manager.menu_uses_selectors"
+          ],
+          "id": "rename",
+          "status": "covered",
+          "title": "Renaming a persistent mirror resolves a player-facing selector and marks saved data dirty"
         },
         {
           "checks": [
@@ -573,7 +671,7 @@
         }
       ],
       "status": "covered",
-      "title": "Persistent mirror records save, enter, leave, and delete through closed lifecycle gates"
+      "title": "Persistent mirror records save, enter, rename, leave, and delete through closed lifecycle gates"
     },
     {
       "id": "persistent.pool_lifecycle",
@@ -637,6 +735,17 @@
           "id": "enter",
           "status": "covered",
           "title": "Enter command is blocked unless the player still holds a matching enchanted mirror"
+        },
+        {
+          "checks": [
+            "command.persistent_record_suggestions",
+            "command.persistent_uses_selector",
+            "command.persistent_rename_command",
+            "lang.persistent_messages"
+          ],
+          "id": "selection",
+          "status": "covered",
+          "title": "Persistent record commands use player-facing selectors with autocomplete and localization"
         }
       ],
       "status": "covered",
