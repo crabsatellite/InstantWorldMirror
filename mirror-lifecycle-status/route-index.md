@@ -16,6 +16,13 @@ Unenchanted Heaven Mirror stays temporary
 - `kind`: covered - Mirror kind is still derived from the two mirror items
 - `sandbox`: covered - Sandbox inventory setup is parameterized by permanence
 
+## temporary.first_dream_mirror - covered
+
+Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary
+
+- `kind`: covered - First Dream Mirror is a distinct sandbox mirror kind
+- `copy`: covered - Temporary first dream sessions use source generator columns instead of current chunks
+
 ## permanent.dimension_mirror - covered
 
 Permanence enchanted Dimensional Mirror can use persistent worlds

@@ -4,21 +4,42 @@ package com.crabmods.instantworldmirror.world;
  * Server-side mirror behavior type.
  */
 public enum MirrorKind {
-    DIMENSION("dimension"),
-    HEAVEN("heaven");
+    DIMENSION("dimension", "item.instantworldmirror.dimension_mirror", "Dimensional Mirror"),
+    HEAVEN("heaven", "item.instantworldmirror.heaven_mirror", "Heaven Mirror"),
+    FIRST_DREAM("first_dream", "item.instantworldmirror.first_dream_mirror", "First Dream Mirror");
 
     private final String id;
+    private final String translationKey;
+    private final String defaultName;
 
-    MirrorKind(String id) {
+    MirrorKind(String id, String translationKey, String defaultName) {
         this.id = id;
+        this.translationKey = translationKey;
+        this.defaultName = defaultName;
     }
 
     public String id() {
         return id;
     }
 
+    public String translationKey() {
+        return translationKey;
+    }
+
+    public String defaultName() {
+        return defaultName;
+    }
+
     public boolean isSandbox() {
-        return this == HEAVEN;
+        return this == HEAVEN || this == FIRST_DREAM;
+    }
+
+    public boolean usesPristineTerrain() {
+        return this == FIRST_DREAM;
+    }
+
+    public boolean usesHeavenVisuals() {
+        return this == HEAVEN || this == FIRST_DREAM;
     }
 
     public static MirrorKind fromSandboxMode(boolean sandboxMode) {

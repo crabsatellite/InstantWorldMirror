@@ -117,7 +117,7 @@ public class PersistentMirrorManager {
     private static void showTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,
                                                 boolean heldHasPermanence) {
         player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.temporary.current",
-                        labelComponentFor(session.isSandboxMode()))
+                        labelComponentFor(session.getKind()))
                 .withStyle(ChatFormatting.GRAY));
 
         if (!session.isCopyComplete()) {
@@ -126,7 +126,7 @@ public class PersistentMirrorManager {
             return;
         }
 
-        MirrorKind sessionKind = MirrorKind.fromSandboxMode(session.isSandboxMode());
+        MirrorKind sessionKind = session.getKind();
         if (!heldHasPermanence) {
             player.sendSystemMessage(Component.translatable("message.instantworldmirror.permanence_required")
                     .withStyle(ChatFormatting.RED));
@@ -187,7 +187,7 @@ public class PersistentMirrorManager {
     private static void showPersistentListMenu(ServerPlayer player, MirrorKind heldKind,
                                                Collection<PersistentMirrorRecord> records) {
         player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.list.header",
-                        labelComponentFor(heldKind.isSandbox()))
+                        labelComponentFor(heldKind))
                 .withStyle(ChatFormatting.GRAY));
 
         int shown = 0;
@@ -286,7 +286,7 @@ public class PersistentMirrorManager {
         }
 
         UUID recordId = UUID.randomUUID();
-        MirrorKind kind = MirrorKind.fromSandboxMode(session.isSandboxMode());
+        MirrorKind kind = session.getKind();
         String name = sanitizeName(requestedName, defaultName(kind, data.records().size() + 1));
         PersistentMirrorRecord record = new PersistentMirrorRecord(
                 recordId,
@@ -396,7 +396,7 @@ public class PersistentMirrorManager {
             return false;
         }
 
-        MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind().isSandbox(), true);
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true);
         playerToPersistentMirror.put(player.getUUID(), record.id());
 
         BlockPos safePos = MirrorWorldManager.findMirrorLandingPosition(targetLevel, record.entryPosition(), record.sourceInWater());
@@ -685,16 +685,14 @@ public class PersistentMirrorManager {
     }
 
     private static String defaultName(MirrorKind kind, int index) {
-        return labelFor(kind.isSandbox()) + " " + index;
+        return labelFor(kind) + " " + index;
     }
 
-    private static String labelFor(boolean sandboxMode) {
-        return sandboxMode ? "Heaven Mirror" : "Dimensional Mirror";
+    private static String labelFor(MirrorKind kind) {
+        return kind.defaultName();
     }
 
-    private static Component labelComponentFor(boolean sandboxMode) {
-        return Component.translatable(sandboxMode
-                ? "item.instantworldmirror.heaven_mirror"
-                : "item.instantworldmirror.dimension_mirror");
+    private static Component labelComponentFor(MirrorKind kind) {
+        return Component.translatable(kind.translationKey());
     }
 }

@@ -36,6 +36,26 @@
     },
     {
       "checks": [
+        "item.kind_from_stack",
+        "kind.first_dream_present",
+        "kind.first_dream_pristine"
+      ],
+      "route": "temporary.first_dream_mirror",
+      "stage": "kind",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "session.kind_field",
+        "copy.pristine_task_flag",
+        "copy.pristine_generator_columns"
+      ],
+      "route": "temporary.first_dream_mirror",
+      "stage": "copy",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "enchantment.helper_present",
         "enchantment.version_registration",
         "enchantment.mirror_item_support"

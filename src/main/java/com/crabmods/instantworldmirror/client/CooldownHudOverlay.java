@@ -1,7 +1,7 @@
 package com.crabmods.instantworldmirror.client;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
-import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -101,6 +101,6 @@ public class CooldownHudOverlay implements LayeredDraw.Layer {
     }
 
     private boolean isMirrorItem(ItemStack stack) {
-        return stack.is(ModItems.DIMENSION_MIRROR.get()) || stack.is(ModItems.HEAVEN_MIRROR.get());
+        return stack.getItem() instanceof DimensionMirrorItem;
     }
 }

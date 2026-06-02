@@ -60,6 +60,18 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "copy.pristine_generator_columns": {
+      "adapter": "method_contains_in_order",
+      "id": "copy.pristine_generator_columns",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "copy.pristine_task_flag": {
+      "adapter": "file_contains_all",
+      "id": "copy.pristine_task_flag",
+      "message": "all text found",
+      "passed": true
+    },
     "data.remove_unready_records": {
       "adapter": "method_contains_in_order",
       "id": "data.remove_unready_records",
@@ -245,6 +257,18 @@
       "message": "found text",
       "passed": true
     },
+    "kind.first_dream_present": {
+      "adapter": "file_contains_all",
+      "id": "kind.first_dream_present",
+      "message": "all text found",
+      "passed": true
+    },
+    "kind.first_dream_pristine": {
+      "adapter": "file_contains_all",
+      "id": "kind.first_dream_pristine",
+      "message": "all text found",
+      "passed": true
+    },
     "lang.persistent_messages": {
       "adapter": "all",
       "children": [
@@ -419,6 +443,12 @@
       "message": "found text",
       "passed": true
     },
+    "session.kind_field": {
+      "adapter": "file_contains_all",
+      "id": "session.kind_field",
+      "message": "all text found",
+      "passed": true
+    },
     "session.persistent_access_field": {
       "adapter": "file_contains",
       "id": "session.persistent_access_field",
@@ -439,12 +469,12 @@
     }
   },
   "completion": {
-    "checkCount": 61,
+    "checkCount": 66,
     "complete": true,
-    "coveredRouteCount": 13,
+    "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 61,
-    "routeCount": 13
+    "passedCheckCount": 66,
+    "routeCount": 14
   },
   "minecraftVersion": "1.21.1",
   "project": "InstantWorldMirror",
@@ -496,6 +526,33 @@
       ],
       "status": "covered",
       "title": "Unenchanted Heaven Mirror stays temporary"
+    },
+    {
+      "id": "temporary.first_dream_mirror",
+      "stages": [
+        {
+          "checks": [
+            "item.kind_from_stack",
+            "kind.first_dream_present",
+            "kind.first_dream_pristine"
+          ],
+          "id": "kind",
+          "status": "covered",
+          "title": "First Dream Mirror is a distinct sandbox mirror kind"
+        },
+        {
+          "checks": [
+            "session.kind_field",
+            "copy.pristine_task_flag",
+            "copy.pristine_generator_columns"
+          ],
+          "id": "copy",
+          "status": "covered",
+          "title": "Temporary first dream sessions use source generator columns instead of current chunks"
+        }
+      ],
+      "status": "covered",
+      "title": "Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary"
     },
     {
       "id": "permanent.dimension_mirror",

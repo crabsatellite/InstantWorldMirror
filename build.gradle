@@ -272,6 +272,7 @@ tasks.register('persistentMirrorStaticTest') {
         def mirrorItem = persistentMirrorSourceFiles[3].asFile.text
         assert mirrorItem.contains('player.isShiftKeyDown()')
         assert mirrorItem.contains('MirrorKind.fromSandboxMode(sandboxMode)')
+        assert mirrorItem.contains('MirrorWorldManager.createSession(player, pos, kind, persistentAccess)')
 
         def events = persistentMirrorSourceFiles[4].asFile.text
         assert events.contains('PersistentMirrorManager.handleExternalExit')
@@ -281,10 +282,14 @@ tasks.register('persistentMirrorStaticTest') {
 
 def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/registry/ModEnchantments.class',
+        'com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.class',
         'com/crabmods/instantworldmirror/world/MirrorKind.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorData.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorManager.class',
-        'com/crabmods/instantworldmirror/world/PersistentMirrorRecord.class'
+        'com/crabmods/instantworldmirror/world/PersistentMirrorRecord.class',
+        'assets/instantworldmirror/models/item/first_dream_mirror.json',
+        'assets/instantworldmirror/textures/item/first_dream_mirror.png',
+        'data/instantworldmirror/recipe/first_dream_mirror.json'
 ]
 (0..<8).each { index ->
     mirrorJarRequiredEntries.add("data/instantworldmirror/dimension/persistent_mirror_world_${index}.json")

@@ -2,6 +2,13 @@
   "itemGroup.instantworldmirror": "World Mirrors",
   "item.instantworldmirror.dimension_mirror": "Dimensional Mirror",
   "item.instantworldmirror.heaven_mirror": "Heaven Mirror",
+  "item.instantworldmirror.first_dream_mirror": "First Dream Mirror",
+  "item.instantworldmirror.dimension_mirror.function": "The default mirror, creating a normal mirror world.",
+  "item.instantworldmirror.heaven_mirror.function": "Turns you creative after entry, for free testing.",
+  "item.instantworldmirror.first_dream_mirror.function": "Generates original terrain from the current world seed.",
+  "item.instantworldmirror.dimension_mirror.desc": "An empty workshop beyond the glass, waiting for steel companions...",
+  "item.instantworldmirror.heaven_mirror.desc": "Above the light, everything can be tested...",
+  "item.instantworldmirror.first_dream_mirror.desc": "Where the dream begins...",
   "entity.instantworldmirror.mirror_portal": "Mirror Portal",
   "dimension.instantworldmirror.mirror_world": "Mirror World",
   "message.instantworldmirror.portal_created": "§aCreating mirror world portal...",
@@ -62,7 +69,7 @@
   "message.instantworldmirror.portal_activating": "§eActivating return portal: %s",
   "message.instantworldmirror.queue_position": "§eYou are #%d in the copy queue, please wait...",
   "message.instantworldmirror.copy_started": "§aWorld copy started! Please wait...",
-  "message.instantworldmirror.heaven_return_restricted": "§eHeaven Mirror sessions can only return through the original entrance."
+  "message.instantworldmirror.heaven_return_restricted": "§eThis mirror can only return through the original entrance."
 ,
   "message.instantworldmirror.permanence_required": "This mirror needs the Permanence enchantment for permanent worlds.",
   "message.instantworldmirror.permanent_type_mismatch": "Use the same mirror type that created this temporary mirror.",

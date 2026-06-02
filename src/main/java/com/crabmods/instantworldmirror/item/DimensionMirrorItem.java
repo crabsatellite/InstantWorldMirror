@@ -11,6 +11,7 @@ import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
@@ -29,6 +30,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -38,6 +40,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,7 +60,7 @@ public class DimensionMirrorItem extends Item {
 
     private static final String COOLDOWN_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_until";
     private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
-    private final boolean sandboxMode;
+    private final MirrorKind kind;
     
     // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
     private static final Map<UUID, Long> COOLDOWNS = new ConcurrentHashMap<>();
@@ -67,12 +70,16 @@ public class DimensionMirrorItem extends Item {
     private static final Map<UUID, Long> COOLDOWN_DURATIONS = new ConcurrentHashMap<>();
 
     public DimensionMirrorItem(Properties properties) {
-        this(properties, false);
+        this(properties, MirrorKind.DIMENSION);
     }
 
     protected DimensionMirrorItem(Properties properties, boolean sandboxMode) {
+        this(properties, MirrorKind.fromSandboxMode(sandboxMode));
+    }
+
+    protected DimensionMirrorItem(Properties properties, MirrorKind kind) {
         super(properties);
-        this.sandboxMode = sandboxMode;
+        this.kind = kind;
     }
     
     /**
@@ -267,7 +274,7 @@ public class DimensionMirrorItem extends Item {
 
         InteractionResult result;
         if (isInMirrorWorld) {
-            if (sandboxMode || MirrorWorldManager.isPlayerInSandboxSession(serverPlayer)) {
+            if (kind.isSandbox() || MirrorWorldManager.isPlayerInSandboxSession(serverPlayer)) {
                 player.displayClientMessage(
                         Component.translatable("message.instantworldmirror.heaven_return_restricted"),
                         true
@@ -342,7 +349,15 @@ public class DimensionMirrorItem extends Item {
     }
 
     public MirrorKind getMirrorKind() {
-        return MirrorKind.fromSandboxMode(sandboxMode);
+        return kind;
+    }
+
+    @Override
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipComponents,
+                                TooltipFlag tooltipFlag) {
+        super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+        tooltipComponents.add(Component.translatable(getDescriptionId() + ".function").withStyle(ChatFormatting.DARK_GRAY));
+        tooltipComponents.add(Component.translatable(getDescriptionId() + ".desc").withStyle(ChatFormatting.GRAY));
     }
 
     static int calculateCooldownSeconds(Level level, ItemStack stack) {
@@ -400,7 +415,7 @@ public class DimensionMirrorItem extends Item {
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
-        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, sandboxMode, persistentAccess);
+        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, kind, persistentAccess);
         if (sessionOpt.isEmpty()) {
             // Message already shown in createSession
             return InteractionResult.FAIL;
