@@ -154,7 +154,12 @@
     },
     {
       "checks": [
-        "manager.save_persistent_order"
+        "manager.save_persistent_order",
+        "manager.save_rejects_duplicate_session",
+        "record.source_session_persisted",
+        "data.source_session_lookup",
+        "record.selector_present",
+        "data.selector_lookup"
       ],
       "route": "persistent.record_lifecycle",
       "stage": "save",
@@ -166,6 +171,15 @@
       ],
       "route": "persistent.record_lifecycle",
       "stage": "enter",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.rename_record_order",
+        "manager.menu_uses_selectors"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "rename",
       "status": "covered"
     },
     {
@@ -235,6 +249,17 @@
       ],
       "route": "command_bypass_guards",
       "stage": "enter",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "command.persistent_record_suggestions",
+        "command.persistent_uses_selector",
+        "command.persistent_rename_command",
+        "lang.persistent_messages"
+      ],
+      "route": "command_bypass_guards",
+      "stage": "selection",
       "status": "covered"
     },
     {

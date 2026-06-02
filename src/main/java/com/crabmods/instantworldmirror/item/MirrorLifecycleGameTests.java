@@ -6,10 +6,14 @@ import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
+import com.crabmods.instantworldmirror.world.PersistentMirrorData;
+import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,6 +22,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -104,6 +109,55 @@ public final class MirrorLifecycleGameTests {
                 "Sandbox entry must clear vanilla ender chest items");
 
         MirrorWorldManager.restorePlayerForMirrorExit(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
+        UUID recordId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        UUID sourceSessionId = UUID.randomUUID();
+        PersistentMirrorRecord record = new PersistentMirrorRecord(
+                recordId,
+                ownerId,
+                sourceSessionId,
+                "duplicate guard",
+                MirrorKind.HEAVEN,
+                0,
+                Level.OVERWORLD,
+                BlockPos.ZERO,
+                BlockPos.ZERO.above(),
+                false,
+                123L,
+                false
+        );
+
+        CompoundTag saved = record.save();
+        helper.assertTrue(saved.getUUID("source_session").equals(sourceSessionId),
+                "Persistent records must write the source session id");
+
+        PersistentMirrorRecord loaded = PersistentMirrorRecord.load(saved);
+        helper.assertTrue(loaded.sourceSessionId().equals(sourceSessionId),
+                "Persistent records must reload the source session id");
+
+        PersistentMirrorData data = new PersistentMirrorData();
+        data.addRecord(loaded);
+        helper.assertTrue(data.getRecordBySourceSession(sourceSessionId).orElseThrow() == loaded,
+                "Persistent data must find a saved record by source session id");
+        helper.assertFalse(data.getRecordBySourceSession(UUID.randomUUID()).isPresent(),
+                "Persistent data must not match unrelated source sessions");
+        helper.assertTrue(loaded.selector().equals("slot_1"),
+                "Persistent records must expose a player-facing slot selector");
+        helper.assertTrue(data.getRecordBySelector("slot_1", candidate -> true).orElseThrow() == loaded,
+                "Persistent data must resolve player-facing slot selectors");
+        helper.assertTrue(data.getRecordBySelector("1", candidate -> true).orElseThrow() == loaded,
+                "Persistent data must resolve numeric slot selectors");
+        loaded.setName("renamed mirror");
+        helper.assertTrue(data.getRecordBySelector("renamed mirror", candidate -> true).orElseThrow() == loaded,
+                "Persistent data must resolve a unique renamed mirror by name");
+        helper.assertFalse(data.getRecordBySelector("slot_2", candidate -> true).isPresent(),
+                "Persistent data must not resolve empty slots");
+
         helper.succeed();
     }
 

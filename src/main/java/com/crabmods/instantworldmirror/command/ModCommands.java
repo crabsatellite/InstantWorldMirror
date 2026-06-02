@@ -9,10 +9,13 @@ import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
+import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -32,8 +35,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -52,6 +58,16 @@ public class ModCommands {
                 builder
         );
     };
+
+    private static final SuggestionProvider<CommandSourceStack> PERSISTENT_RECORD_SUGGESTIONS = (context, builder) -> {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            return suggestPersistentRecords(player, builder);
+        }
+        return builder.buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> PERSISTENT_NAME_SUGGESTIONS = (context, builder) ->
+            SharedSuggestionProvider.suggest(List.of("Dimensional Mirror", "Heaven Mirror"), builder);
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
@@ -109,12 +125,14 @@ public class ModCommands {
                                 .then(Commands.literal("save")
                                         .executes(context -> persistentSaveCommand(context, ""))
                                         .then(Commands.argument("name", StringArgumentType.greedyString())
+                                                .suggests(PERSISTENT_NAME_SUGGESTIONS)
                                                 .executes(context -> persistentSaveCommand(
                                                         context, StringArgumentType.getString(context, "name")))
                                         )
                                 )
                                 .then(Commands.literal("enter")
-                                        .then(Commands.argument("id", StringArgumentType.word())
+                                        .then(Commands.argument("mirror", StringArgumentType.string())
+                                                .suggests(PERSISTENT_RECORD_SUGGESTIONS)
                                                 .executes(ModCommands::persistentEnterCommand)
                                         )
                                 )
@@ -122,8 +140,18 @@ public class ModCommands {
                                         .executes(ModCommands::persistentLeaveCommand)
                                 )
                                 .then(Commands.literal("delete")
-                                        .then(Commands.argument("id", StringArgumentType.word())
+                                        .then(Commands.argument("mirror", StringArgumentType.string())
+                                                .suggests(PERSISTENT_RECORD_SUGGESTIONS)
                                                 .executes(ModCommands::persistentDeleteCommand)
+                                        )
+                                )
+                                .then(Commands.literal("rename")
+                                        .then(Commands.argument("mirror", StringArgumentType.string())
+                                                .suggests(PERSISTENT_RECORD_SUGGESTIONS)
+                                                .then(Commands.argument("name", StringArgumentType.greedyString())
+                                                        .suggests(PERSISTENT_NAME_SUGGESTIONS)
+                                                        .executes(ModCommands::persistentRenameCommand)
+                                                )
                                         )
                                 )
                                 .then(Commands.literal("grant")
@@ -192,13 +220,8 @@ public class ModCommands {
 
     private static int persistentEnterCommand(CommandContext<CommandSourceStack> context) {
         if (context.getSource().getEntity() instanceof ServerPlayer player) {
-            try {
-                UUID id = UUID.fromString(StringArgumentType.getString(context, "id"));
-                return PersistentMirrorManager.enterPersistentMirror(player, id) ? 1 : 0;
-            } catch (IllegalArgumentException e) {
-                context.getSource().sendFailure(Component.literal("Invalid persistent mirror id."));
-                return 0;
-            }
+            Optional<UUID> recordId = getPersistentRecordId(context, player);
+            return recordId.map(id -> PersistentMirrorManager.enterPersistentMirror(player, id) ? 1 : 0).orElse(0);
         }
         context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
         return 0;
@@ -214,13 +237,18 @@ public class ModCommands {
 
     private static int persistentDeleteCommand(CommandContext<CommandSourceStack> context) {
         if (context.getSource().getEntity() instanceof ServerPlayer player) {
-            try {
-                UUID id = UUID.fromString(StringArgumentType.getString(context, "id"));
-                return PersistentMirrorManager.deleteRecord(player, id) ? 1 : 0;
-            } catch (IllegalArgumentException e) {
-                context.getSource().sendFailure(Component.literal("Invalid persistent mirror id."));
-                return 0;
-            }
+            Optional<UUID> recordId = getPersistentRecordId(context, player);
+            return recordId.map(id -> PersistentMirrorManager.deleteRecord(player, id) ? 1 : 0).orElse(0);
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int persistentRenameCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            Optional<UUID> recordId = getPersistentRecordId(context, player);
+            String name = StringArgumentType.getString(context, "name");
+            return recordId.map(id -> PersistentMirrorManager.renameRecord(player, id, name) ? 1 : 0).orElse(0);
         }
         context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
         return 0;
@@ -231,8 +259,10 @@ public class ModCommands {
             ServerPlayer target = EntityArgument.getPlayer(context, "player");
             PersistentMirrorManager.setCreationGrant(context.getSource().getServer(), target.getUUID(), granted);
             context.getSource().sendSuccess(
-                    () -> Component.literal((granted ? "Granted" : "Revoked") + " persistent mirror creation for "
-                            + target.getName().getString()),
+                    () -> Component.translatable(granted
+                                    ? "command.instantworldmirror.persistent.grant.success"
+                                    : "command.instantworldmirror.persistent.revoke.success",
+                            target.getName().getString()),
                     true
             );
             return 1;
@@ -240,6 +270,37 @@ public class ModCommands {
             context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_not_found"));
             return 0;
         }
+    }
+
+    private static Optional<UUID> getPersistentRecordId(CommandContext<CommandSourceStack> context, ServerPlayer player) {
+        String selector = StringArgumentType.getString(context, "mirror");
+        Optional<PersistentMirrorRecord> record = PersistentMirrorManager.resolveRecordSelector(player, selector);
+        if (record.isEmpty()) {
+            context.getSource().sendFailure(
+                    Component.translatable("command.instantworldmirror.persistent.selector_not_found", selector));
+        }
+        return record.map(PersistentMirrorRecord::id);
+    }
+
+    private static CompletableFuture<Suggestions> suggestPersistentRecords(ServerPlayer player, SuggestionsBuilder builder) {
+        for (PersistentMirrorRecord record : PersistentMirrorManager.getAccessibleRecords(player)) {
+            suggestIfMatching(builder, record.selector());
+            if (isSimpleSelectorName(record.name())) {
+                suggestIfMatching(builder, record.name());
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static void suggestIfMatching(SuggestionsBuilder builder, String value) {
+        String remaining = builder.getRemainingLowerCase();
+        if (value.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+            builder.suggest(value);
+        }
+    }
+
+    private static boolean isSimpleSelectorName(String value) {
+        return value != null && !value.isBlank() && value.chars().noneMatch(Character::isWhitespace);
     }
 
     private static int mobOnCommand(CommandContext<CommandSourceStack> context) {

@@ -181,13 +181,18 @@
     },
     {
       "id": "persistent.record_lifecycle",
-      "title": "Persistent mirror records save, enter, leave, and delete through closed lifecycle gates",
+      "title": "Persistent mirror records save, enter, rename, leave, and delete through closed lifecycle gates",
       "stages": [
         {
           "id": "save",
-          "title": "Saving a persistent mirror checks permission, session permanence, copy completion, slot allocation, and queueing",
+          "title": "Saving a persistent mirror checks permission, session permanence, duplicate-session rejection, slot allocation, and queueing",
           "checks": [
-            "manager.save_persistent_order"
+            "manager.save_persistent_order",
+            "manager.save_rejects_duplicate_session",
+            "record.source_session_persisted",
+            "data.source_session_lookup",
+            "record.selector_present",
+            "data.selector_lookup"
           ]
         },
         {
@@ -195,6 +200,14 @@
           "title": "Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity",
           "checks": [
             "manager.enter_persistent_order"
+          ]
+        },
+        {
+          "id": "rename",
+          "title": "Renaming a persistent mirror resolves a player-facing selector and marks saved data dirty",
+          "checks": [
+            "manager.rename_record_order",
+            "manager.menu_uses_selectors"
           ]
         },
         {
@@ -268,6 +281,16 @@
           "title": "Enter command is blocked unless the player still holds a matching enchanted mirror",
           "checks": [
             "manager.enter_requires_matching_permanence"
+          ]
+        },
+        {
+          "id": "selection",
+          "title": "Persistent record commands use player-facing selectors with autocomplete and localization",
+          "checks": [
+            "command.persistent_record_suggestions",
+            "command.persistent_uses_selector",
+            "command.persistent_rename_command",
+            "lang.persistent_messages"
           ]
         }
       ]
@@ -535,6 +558,7 @@
         "MirrorWorldManager.getPlayerCurrentSession(player.getUUID())",
         "if (!session.hasPersistentAccess())",
         "if (!session.isCopyComplete())",
+        "if (data.getRecordBySourceSession(session.getSessionId()).isPresent())",
         "int dimensionIndex = data.allocateDimensionIndex()",
         "server.getLevel(session.getMirrorDimension())",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex))",
@@ -542,6 +566,61 @@
         "PersistentMirrorRecord record = new PersistentMirrorRecord(",
         "data.addRecord(record)",
         "WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld)"
+      ]
+    },
+    {
+      "id": "manager.save_rejects_duplicate_session",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "saveCurrentTemporaryMirror",
+      "texts": [
+        "PersistentMirrorData data = PersistentMirrorData.get(server)",
+        "if (data.getRecordBySourceSession(session.getSessionId()).isPresent())",
+        "message.instantworldmirror.persistent.already_saved",
+        "return false",
+        "int dimensionIndex = data.allocateDimensionIndex()"
+      ]
+    },
+    {
+      "id": "record.source_session_persisted",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorRecord.java",
+      "texts": [
+        "private final UUID sourceSessionId",
+        "Objects.requireNonNull(sourceSessionId, \"sourceSessionId\")",
+        "tag.putUUID(\"source_session\", sourceSessionId)",
+        "UUID sourceSessionId = tag.getUUID(\"source_session\")"
+      ]
+    },
+    {
+      "id": "data.source_session_lookup",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorData.java",
+      "method": "getRecordBySourceSession",
+      "texts": [
+        "sourceSessionId.equals(record.sourceSessionId())",
+        ".findFirst()"
+      ]
+    },
+    {
+      "id": "record.selector_present",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorRecord.java",
+      "method": "selector",
+      "texts": [
+        "\"slot_\"",
+        "dimensionIndex + 1"
+      ]
+    },
+    {
+      "id": "data.selector_lookup",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorData.java",
+      "method": "getRecordBySelector",
+      "texts": [
+        "UUID.fromString(normalized)",
+        "parseSlotSelector(normalized)",
+        "record.name().equalsIgnoreCase(normalized)"
       ]
     },
     {
@@ -677,10 +756,100 @@
       ]
     },
     {
+      "id": "manager.rename_record_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "renameRecord",
+      "texts": [
+        "PersistentMirrorData data = PersistentMirrorData.get(server)",
+        "data.getRecord(recordId)",
+        "if (!canManageRecord(player, record))",
+        "String name = sanitizeName(requestedName, record.name())",
+        "record.setName(name)",
+        "data.setDirty()"
+      ]
+    },
+    {
+      "id": "manager.menu_uses_selectors",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "texts": [
+        "record.selector()",
+        "\"/iwm persistent enter \" + selector",
+        "\"/iwm persistent delete \" + selector",
+        "ClickEvent.Action.SUGGEST_COMMAND"
+      ]
+    },
+    {
       "id": "command.menu_uses_held_mirror",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
       "text": "PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player))"
+    },
+    {
+      "id": "command.persistent_record_suggestions",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "texts": [
+        "PERSISTENT_RECORD_SUGGESTIONS",
+        "suggestPersistentRecords",
+        "record.selector()",
+        "suggestIfMatching"
+      ]
+    },
+    {
+      "id": "command.persistent_uses_selector",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "texts": [
+        "Commands.argument(\"mirror\", StringArgumentType.string())",
+        "PersistentMirrorManager.resolveRecordSelector(player, selector)",
+        "command.instantworldmirror.persistent.selector_not_found"
+      ]
+    },
+    {
+      "id": "command.persistent_rename_command",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "texts": [
+        "Commands.literal(\"rename\")",
+        "persistentRenameCommand",
+        "PersistentMirrorManager.renameRecord(player, id, name)"
+      ]
+    },
+    {
+      "id": "lang.persistent_messages",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json"
+        },
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json"
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json",
+          "texts": [
+            "message.instantworldmirror.persistent.renamed",
+            "command.instantworldmirror.persistent.selector_not_found",
+            "command.instantworldmirror.persistent.grant.success",
+            "enchantment.instantworldmirror.permanence"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json",
+          "texts": [
+            "message.instantworldmirror.persistent.renamed",
+            "command.instantworldmirror.persistent.selector_not_found",
+            "command.instantworldmirror.persistent.grant.success",
+            "enchantment.instantworldmirror.permanence"
+          ]
+        }
+      ]
     },
     {
       "id": "events.respawn_restore_order",
@@ -839,9 +1008,14 @@
         "mirrorKindsAndPermanenceEnchanting",
         "permanenceDoesNotResetEfficiencyCooldown",
         "heavenSandboxKeepsPermanenceMirror",
+        "persistentRecordsTrackSourceSession",
         "DimensionMirrorItem.findMirrorStack(player)",
         "DimensionMirrorItem.calculateCooldownSeconds",
-        "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)"
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
+        "data.getRecordBySourceSession(sourceSessionId)",
+        "loaded.selector().equals(\"slot_1\")",
+        "data.getRecordBySelector(\"slot_1\", candidate -> true)",
+        "loaded.setName(\"renamed mirror\")"
       ]
     },
     {

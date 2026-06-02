@@ -1,8 +1,8 @@
 {
-  "checkCount": 45,
+  "checkCount": 56,
   "complete": true,
   "coveredRouteCount": 13,
   "failedChecks": [],
-  "passedCheckCount": 45,
+  "passedCheckCount": 56,
   "routeCount": 13
 }

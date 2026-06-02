@@ -9,8 +9,12 @@ import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.function.Predicate;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +50,36 @@ public class PersistentMirrorData extends SavedData {
         return records.values().stream()
                 .filter(record -> record.dimensionIndex() == dimensionIndex)
                 .findFirst();
+    }
+
+    public Optional<PersistentMirrorRecord> getRecordBySourceSession(UUID sourceSessionId) {
+        return records.values().stream()
+                .filter(record -> sourceSessionId.equals(record.sourceSessionId()))
+                .findFirst();
+    }
+
+    public Optional<PersistentMirrorRecord> getRecordBySelector(String selector, Predicate<PersistentMirrorRecord> filter) {
+        if (selector == null || selector.isBlank()) {
+            return Optional.empty();
+        }
+
+        String normalized = selector.trim();
+        try {
+            UUID id = UUID.fromString(normalized);
+            return getRecord(id).filter(filter);
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        OptionalInt slot = parseSlotSelector(normalized);
+        if (slot.isPresent()) {
+            return getRecordByDimensionIndex(slot.getAsInt() - 1).filter(filter);
+        }
+
+        List<PersistentMirrorRecord> nameMatches = records().stream()
+                .filter(filter)
+                .filter(record -> record.name().equalsIgnoreCase(normalized))
+                .toList();
+        return nameMatches.size() == 1 ? Optional.of(nameMatches.get(0)) : Optional.empty();
     }
 
     public void addRecord(PersistentMirrorRecord record) {
@@ -121,5 +155,24 @@ public class PersistentMirrorData extends SavedData {
         tag.put("creation_grants", grantsTag);
 
         return tag;
+    }
+
+    private static OptionalInt parseSlotSelector(String selector) {
+        String lower = selector.toLowerCase(Locale.ROOT);
+        String numberText;
+        if (lower.startsWith("slot_")) {
+            numberText = lower.substring("slot_".length());
+        } else if (lower.startsWith("slot")) {
+            numberText = lower.substring("slot".length());
+        } else {
+            numberText = lower;
+        }
+
+        try {
+            int slot = Integer.parseInt(numberText);
+            return slot > 0 ? OptionalInt.of(slot) : OptionalInt.empty();
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
     }
 }
