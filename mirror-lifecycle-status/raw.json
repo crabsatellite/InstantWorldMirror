@@ -12,10 +12,22 @@
       "message": "found text",
       "passed": true
     },
+    "copy.persistent_completion_order": {
+      "adapter": "method_contains_in_order",
+      "id": "copy.persistent_completion_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "copy.persistent_queue": {
       "adapter": "file_contains",
       "id": "copy.persistent_queue",
       "message": "found text",
+      "passed": true
+    },
+    "copy.persistent_queue_order": {
+      "adapter": "method_contains_in_order",
+      "id": "copy.persistent_queue_order",
+      "message": "method contains ordered text",
       "passed": true
     },
     "dimensions.persistent_json_count": {
@@ -32,6 +44,22 @@
         "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_7.json"
       ],
       "message": "8 matched, expected 8",
+      "passed": true
+    },
+    "dimensions.persistent_json_values": {
+      "adapter": "glob_json_values_equal",
+      "id": "dimensions.persistent_json_values",
+      "matches": [
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_0.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_1.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_2.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_3.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_4.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_5.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_6.json",
+        "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_7.json"
+      ],
+      "message": "all json values matched",
       "passed": true
     },
     "dimensions.separate_pool": {
@@ -80,10 +108,75 @@
       "message": "composite passed",
       "passed": true
     },
+    "events.dimension_change_exit_order": {
+      "adapter": "method_contains_in_order",
+      "id": "events.dimension_change_exit_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "events.logout_cleanup_order": {
+      "adapter": "method_contains_in_order",
+      "id": "events.logout_cleanup_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "events.respawn_restore_order": {
+      "adapter": "method_contains_in_order",
+      "id": "events.respawn_restore_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "item.air_use_order": {
+      "adapter": "method_contains_in_order",
+      "id": "item.air_use_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "item.block_use_order": {
+      "adapter": "method_contains_in_order",
+      "id": "item.block_use_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "item.cooldown_applies_after_success": {
+      "adapter": "method_contains_in_order",
+      "id": "item.cooldown_applies_after_success",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "item.cooldown_efficiency_only": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "skipped for 1.20.1",
+          "passed": true,
+          "skipped": true
+        },
+        {
+          "message": "method contains all text",
+          "passed": true
+        }
+      ],
+      "id": "item.cooldown_efficiency_only",
+      "message": "composite passed",
+      "passed": true
+    },
+    "item.cooldown_ignores_permanence": {
+      "adapter": "method_contains_none",
+      "id": "item.cooldown_ignores_permanence",
+      "message": "method forbidden text absent",
+      "passed": true
+    },
     "item.entry.passes_permanence_state": {
       "adapter": "file_contains",
       "id": "item.entry.passes_permanence_state",
       "message": "found text",
+      "passed": true
+    },
+    "item.finish_use_packet_scope": {
+      "adapter": "method_contains_in_order",
+      "id": "item.finish_use_packet_scope",
+      "message": "method contains ordered text",
       "passed": true
     },
     "item.kind_from_stack": {
@@ -98,10 +191,40 @@
       "message": "found text",
       "passed": true
     },
+    "manager.create_session_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.create_session_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.delete_persistent_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.delete_persistent_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.enter_persistent_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.enter_persistent_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.enter_requires_matching_permanence": {
       "adapter": "file_contains",
       "id": "manager.enter_requires_matching_permanence",
       "message": "found text",
+      "passed": true
+    },
+    "manager.heaven_return_origin_gate": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.heaven_return_origin_gate",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.leave_persistent_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.leave_persistent_order",
+      "message": "method contains ordered text",
       "passed": true
     },
     "manager.persistent_enter_passes_access": {
@@ -110,10 +233,28 @@
       "message": "found text",
       "passed": true
     },
+    "manager.return_temporary_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.return_temporary_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.save_persistent_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.save_persistent_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.save_requires_persistent_access": {
       "adapter": "file_contains",
       "id": "manager.save_requires_persistent_access",
       "message": "found text",
+      "passed": true
+    },
+    "manager.teleport_session_order": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.teleport_session_order",
+      "message": "method contains ordered text",
       "passed": true
     },
     "record.kind_saved_from_session": {
@@ -148,12 +289,12 @@
     }
   },
   "completion": {
-    "checkCount": 19,
+    "checkCount": 39,
     "complete": true,
-    "coveredRouteCount": 6,
+    "coveredRouteCount": 10,
     "failedChecks": [],
-    "passedCheckCount": 19,
-    "routeCount": 6
+    "passedCheckCount": 39,
+    "routeCount": 10
   },
   "minecraftVersion": "1.20.1",
   "project": "InstantWorldMirror",
@@ -256,11 +397,155 @@
       "title": "Permanence enchanted Heaven Mirror keeps the enchanted mirror in sandbox"
     },
     {
+      "id": "active_use_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "item.block_use_order",
+            "item.cooldown_applies_after_success"
+          ],
+          "id": "block_use",
+          "status": "covered",
+          "title": "Block interaction validates access and space before creating portals and applying cooldown"
+        },
+        {
+          "checks": [
+            "item.air_use_order",
+            "item.finish_use_packet_scope"
+          ],
+          "id": "air_hold",
+          "status": "covered",
+          "title": "Air interaction only starts hold-to-return inside mirror worlds"
+        },
+        {
+          "checks": [
+            "item.cooldown_efficiency_only",
+            "item.cooldown_ignores_permanence"
+          ],
+          "id": "cooldown",
+          "status": "covered",
+          "title": "Cooldown reduction remains tied to Efficiency and not Permanence"
+        }
+      ],
+      "status": "covered",
+      "title": "Mirror item interactions keep cooldown, menu, portal, and hold-return behavior scoped"
+    },
+    {
+      "id": "temporary.session_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "manager.create_session_order"
+          ],
+          "id": "create",
+          "status": "covered",
+          "title": "Session creation refuses purge/duplicate sessions before allocating a temporary dimension"
+        },
+        {
+          "checks": [
+            "manager.teleport_session_order"
+          ],
+          "id": "enter",
+          "status": "covered",
+          "title": "Session entry saves origin and inventory before teleport and return portal spawn"
+        },
+        {
+          "checks": [
+            "manager.return_temporary_order"
+          ],
+          "id": "return",
+          "status": "covered",
+          "title": "Temporary return restores inventory, bypasses own teleport guards, and destroys finished sessions"
+        },
+        {
+          "checks": [
+            "manager.heaven_return_origin_gate"
+          ],
+          "id": "heaven_origin_gate",
+          "status": "covered",
+          "title": "Heaven mirror return portals can only return through the original entrance area"
+        }
+      ],
+      "status": "covered",
+      "title": "Temporary mirror sessions save, enter, return, and clean up state in order"
+    },
+    {
+      "id": "death_external_logout_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "events.respawn_restore_order"
+          ],
+          "id": "respawn",
+          "status": "covered",
+          "title": "Mirror-world death restoration is deferred to respawn and forces overworld recovery"
+        },
+        {
+          "checks": [
+            "events.dimension_change_exit_order"
+          ],
+          "id": "external_exit",
+          "status": "covered",
+          "title": "External dimension changes route persistent and temporary exits through the correct cleanup handlers"
+        },
+        {
+          "checks": [
+            "events.logout_cleanup_order"
+          ],
+          "id": "logout",
+          "status": "covered",
+          "title": "Logout saves cooldown before session cleanup and local tracking cleanup"
+        }
+      ],
+      "status": "covered",
+      "title": "Death, external dimension changes, and logout restore or clean mirror state without duplication"
+    },
+    {
+      "id": "persistent.record_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "manager.save_persistent_order"
+          ],
+          "id": "save",
+          "status": "covered",
+          "title": "Saving a persistent mirror checks permission, session permanence, copy completion, slot allocation, and queueing"
+        },
+        {
+          "checks": [
+            "manager.enter_persistent_order"
+          ],
+          "id": "enter",
+          "status": "covered",
+          "title": "Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity"
+        },
+        {
+          "checks": [
+            "manager.leave_persistent_order"
+          ],
+          "id": "leave",
+          "status": "covered",
+          "title": "Leaving a persistent mirror restores saved state before teleport cleanup and effect clearing"
+        },
+        {
+          "checks": [
+            "manager.delete_persistent_order"
+          ],
+          "id": "delete",
+          "status": "covered",
+          "title": "Deleting a persistent mirror ejects players, cleans the persistent world, and removes the record"
+        }
+      ],
+      "status": "covered",
+      "title": "Persistent mirror records save, enter, leave, and delete through closed lifecycle gates"
+    },
+    {
       "id": "persistent.pool_lifecycle",
       "stages": [
         {
           "checks": [
             "dimensions.persistent_json_count",
+            "dimensions.persistent_json_values",
             "dimensions.separate_pool"
           ],
           "id": "dimensions",
@@ -270,6 +555,8 @@
         {
           "checks": [
             "copy.persistent_queue",
+            "copy.persistent_queue_order",
+            "copy.persistent_completion_order",
             "copy.no_portal_entity_copy"
           ],
           "id": "copy",
