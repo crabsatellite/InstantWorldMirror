@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,62 @@ def read_text(root: Path, relative: str) -> str:
     return (root / relative).read_text(encoding="utf-8", errors="replace")
 
 
+def contains_in_order(haystack: str, needles: list[str]) -> bool:
+    cursor = 0
+    for needle in needles:
+        index = haystack.find(needle, cursor)
+        if index < 0:
+            return False
+        cursor = index + len(needle)
+    return True
+
+
+def extract_method_text(source: str, method_name: str, signature_contains: list[str] | None = None) -> str:
+    signature_contains = signature_contains or []
+    declaration = re.compile(
+        r"\b(?:public|protected|private)\s+"
+        r"(?:(?:static|final|synchronized)\s+)*"
+        r"[\w<>\[\], ?.@]+\s+"
+        + re.escape(method_name)
+        + r"\s*\(",
+        re.MULTILINE,
+    )
+
+    for match in declaration.finditer(source):
+        brace_index = source.find("{", match.end())
+        if brace_index < 0:
+            continue
+        semicolon_index = source.find(";", match.end(), brace_index)
+        if semicolon_index >= 0:
+            continue
+
+        signature = source[match.start():brace_index]
+        if not all(needle in signature for needle in signature_contains):
+            continue
+
+        depth = 0
+        for index in range(brace_index, len(source)):
+            char = source[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return source[match.start():index + 1]
+
+    qualifier = f" with signature containing {signature_contains}" if signature_contains else ""
+    raise ValueError(f"method {method_name}{qualifier} not found")
+
+
+def json_path_value(document: Any, path: str) -> Any:
+    value = document
+    for part in path.split("."):
+        if not isinstance(value, dict) or part not in value:
+            raise KeyError(path)
+        value = value[part]
+    return value
+
+
 def evaluate_leaf(root: Path, version: str, check: dict[str, Any]) -> dict[str, Any]:
     adapter = check["adapter"]
     if not applies_to_version(check, version):
@@ -65,6 +122,22 @@ def evaluate_leaf(root: Path, version: str, check: dict[str, Any]) -> dict[str, 
                 "passed": passed,
                 "message": "found text" if passed else f"missing text in {check['file']}",
             }
+        if adapter == "file_contains_all":
+            text = read_text(root, check["file"])
+            needles = check["texts"]
+            missing = [needle for needle in needles if needle not in text]
+            return {
+                "passed": not missing,
+                "message": "all text found" if not missing else f"missing {missing} in {check['file']}",
+            }
+        if adapter == "file_contains_in_order":
+            text = read_text(root, check["file"])
+            needles = check["texts"]
+            passed = contains_in_order(text, needles)
+            return {
+                "passed": passed,
+                "message": "ordered text found" if passed else f"text order mismatch in {check['file']}",
+            }
         if adapter == "file_not_contains":
             text = read_text(root, check["file"])
             needle = check["text"]
@@ -72,6 +145,32 @@ def evaluate_leaf(root: Path, version: str, check: dict[str, Any]) -> dict[str, 
             return {
                 "passed": passed,
                 "message": "text absent" if passed else f"forbidden text in {check['file']}",
+            }
+        if adapter == "method_contains_all":
+            text = read_text(root, check["file"])
+            method = extract_method_text(text, check["method"], check.get("signatureContains"))
+            needles = check["texts"]
+            missing = [needle for needle in needles if needle not in method]
+            return {
+                "passed": not missing,
+                "message": "method contains all text" if not missing else f"method {check['method']} missing {missing}",
+            }
+        if adapter == "method_contains_in_order":
+            text = read_text(root, check["file"])
+            method = extract_method_text(text, check["method"], check.get("signatureContains"))
+            needles = check["texts"]
+            passed = contains_in_order(method, needles)
+            return {
+                "passed": passed,
+                "message": "method contains ordered text" if passed else f"method {check['method']} order mismatch",
+            }
+        if adapter == "method_contains_none":
+            text = read_text(root, check["file"])
+            method = extract_method_text(text, check["method"], check.get("signatureContains"))
+            forbidden = [needle for needle in check["texts"] if needle in method]
+            return {
+                "passed": not forbidden,
+                "message": "method forbidden text absent" if not forbidden else f"method {check['method']} contains {forbidden}",
             }
         if adapter == "file_exists":
             passed = (root / check["file"]).is_file()
@@ -92,6 +191,32 @@ def evaluate_leaf(root: Path, version: str, check: dict[str, Any]) -> dict[str, 
             return {
                 "passed": passed,
                 "message": f"{len(matches)} matched, expected {expected}",
+                "matches": [path.relative_to(root).as_posix() for path in matches],
+            }
+        if adapter == "glob_json_values_equal":
+            matches = sorted(
+                path for path in root.rglob("*")
+                if fnmatch.fnmatch(path.relative_to(root).as_posix(), check["glob"])
+            )
+            if "count" in check and len(matches) != int(check["count"]):
+                return {
+                    "passed": False,
+                    "message": f"{len(matches)} matched, expected {check['count']}",
+                    "matches": [path.relative_to(root).as_posix() for path in matches],
+                }
+
+            failures = []
+            for path in matches:
+                parsed = read_json(path)
+                for json_path, expected in check["values"].items():
+                    actual = json_path_value(parsed, json_path)
+                    if actual != expected:
+                        failures.append(
+                            f"{path.relative_to(root).as_posix()} {json_path}={actual!r}, expected {expected!r}"
+                        )
+            return {
+                "passed": not failures,
+                "message": "all json values matched" if not failures else "; ".join(failures),
                 "matches": [path.relative_to(root).as_posix() for path in matches],
             }
     except Exception as exc:  # noqa: BLE001

@@ -1,5 +1,5 @@
 # Mirror lifecycle completion
 
 - complete: `true`
-- routes: `6/6`
-- checks: `19/19`
+- routes: `10/10`
+- checks: `39/39`

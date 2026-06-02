@@ -2,18 +2,38 @@
 
 - [x] `command.menu_uses_held_mirror` - found text
 - [x] `copy.no_portal_entity_copy` - found text
+- [x] `copy.persistent_completion_order` - method contains ordered text
 - [x] `copy.persistent_queue` - found text
+- [x] `copy.persistent_queue_order` - method contains ordered text
 - [x] `dimensions.persistent_json_count` - 8 matched, expected 8
+- [x] `dimensions.persistent_json_values` - all json values matched
 - [x] `dimensions.separate_pool` - found text
 - [x] `enchantment.helper_present` - found text
 - [x] `enchantment.mirror_item_support` - composite passed
 - [x] `enchantment.version_registration` - composite passed
+- [x] `events.dimension_change_exit_order` - method contains ordered text
+- [x] `events.logout_cleanup_order` - method contains ordered text
+- [x] `events.respawn_restore_order` - method contains ordered text
+- [x] `item.air_use_order` - method contains ordered text
+- [x] `item.block_use_order` - method contains ordered text
+- [x] `item.cooldown_applies_after_success` - method contains ordered text
+- [x] `item.cooldown_efficiency_only` - composite passed
+- [x] `item.cooldown_ignores_permanence` - method forbidden text absent
 - [x] `item.entry.passes_permanence_state` - found text
+- [x] `item.finish_use_packet_scope` - method contains ordered text
 - [x] `item.kind_from_stack` - found text
 - [x] `item.shift_menu_uses_stack` - found text
+- [x] `manager.create_session_order` - method contains ordered text
+- [x] `manager.delete_persistent_order` - method contains ordered text
+- [x] `manager.enter_persistent_order` - method contains ordered text
 - [x] `manager.enter_requires_matching_permanence` - found text
+- [x] `manager.heaven_return_origin_gate` - method contains ordered text
+- [x] `manager.leave_persistent_order` - method contains ordered text
 - [x] `manager.persistent_enter_passes_access` - found text
+- [x] `manager.return_temporary_order` - method contains ordered text
+- [x] `manager.save_persistent_order` - method contains ordered text
 - [x] `manager.save_requires_persistent_access` - found text
+- [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `record.kind_saved_from_session` - found text
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.prep_receives_persistent_access` - found text

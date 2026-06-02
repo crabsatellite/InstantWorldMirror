@@ -71,7 +71,123 @@
     },
     {
       "checks": [
+        "item.block_use_order",
+        "item.cooldown_applies_after_success"
+      ],
+      "route": "active_use_lifecycle",
+      "stage": "block_use",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "item.air_use_order",
+        "item.finish_use_packet_scope"
+      ],
+      "route": "active_use_lifecycle",
+      "stage": "air_hold",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "item.cooldown_efficiency_only",
+        "item.cooldown_ignores_permanence"
+      ],
+      "route": "active_use_lifecycle",
+      "stage": "cooldown",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.create_session_order"
+      ],
+      "route": "temporary.session_lifecycle",
+      "stage": "create",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.teleport_session_order"
+      ],
+      "route": "temporary.session_lifecycle",
+      "stage": "enter",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.return_temporary_order"
+      ],
+      "route": "temporary.session_lifecycle",
+      "stage": "return",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.heaven_return_origin_gate"
+      ],
+      "route": "temporary.session_lifecycle",
+      "stage": "heaven_origin_gate",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "events.respawn_restore_order"
+      ],
+      "route": "death_external_logout_lifecycle",
+      "stage": "respawn",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "events.dimension_change_exit_order"
+      ],
+      "route": "death_external_logout_lifecycle",
+      "stage": "external_exit",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "events.logout_cleanup_order"
+      ],
+      "route": "death_external_logout_lifecycle",
+      "stage": "logout",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.save_persistent_order"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "save",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.enter_persistent_order"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "enter",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.leave_persistent_order"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "leave",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.delete_persistent_order"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "delete",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "dimensions.persistent_json_count",
+        "dimensions.persistent_json_values",
         "dimensions.separate_pool"
       ],
       "route": "persistent.pool_lifecycle",
@@ -81,6 +197,8 @@
     {
       "checks": [
         "copy.persistent_queue",
+        "copy.persistent_queue_order",
+        "copy.persistent_completion_order",
         "copy.no_portal_entity_copy"
       ],
       "route": "persistent.pool_lifecycle",

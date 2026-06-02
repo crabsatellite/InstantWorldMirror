@@ -89,6 +89,131 @@
       ]
     },
     {
+      "id": "active_use_lifecycle",
+      "title": "Mirror item interactions keep cooldown, menu, portal, and hold-return behavior scoped",
+      "stages": [
+        {
+          "id": "block_use",
+          "title": "Block interaction validates access and space before creating portals and applying cooldown",
+          "checks": [
+            "item.block_use_order",
+            "item.cooldown_applies_after_success"
+          ]
+        },
+        {
+          "id": "air_hold",
+          "title": "Air interaction only starts hold-to-return inside mirror worlds",
+          "checks": [
+            "item.air_use_order",
+            "item.finish_use_packet_scope"
+          ]
+        },
+        {
+          "id": "cooldown",
+          "title": "Cooldown reduction remains tied to Efficiency and not Permanence",
+          "checks": [
+            "item.cooldown_efficiency_only",
+            "item.cooldown_ignores_permanence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "temporary.session_lifecycle",
+      "title": "Temporary mirror sessions save, enter, return, and clean up state in order",
+      "stages": [
+        {
+          "id": "create",
+          "title": "Session creation refuses purge/duplicate sessions before allocating a temporary dimension",
+          "checks": [
+            "manager.create_session_order"
+          ]
+        },
+        {
+          "id": "enter",
+          "title": "Session entry saves origin and inventory before teleport and return portal spawn",
+          "checks": [
+            "manager.teleport_session_order"
+          ]
+        },
+        {
+          "id": "return",
+          "title": "Temporary return restores inventory, bypasses own teleport guards, and destroys finished sessions",
+          "checks": [
+            "manager.return_temporary_order"
+          ]
+        },
+        {
+          "id": "heaven_origin_gate",
+          "title": "Heaven mirror return portals can only return through the original entrance area",
+          "checks": [
+            "manager.heaven_return_origin_gate"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "death_external_logout_lifecycle",
+      "title": "Death, external dimension changes, and logout restore or clean mirror state without duplication",
+      "stages": [
+        {
+          "id": "respawn",
+          "title": "Mirror-world death restoration is deferred to respawn and forces overworld recovery",
+          "checks": [
+            "events.respawn_restore_order"
+          ]
+        },
+        {
+          "id": "external_exit",
+          "title": "External dimension changes route persistent and temporary exits through the correct cleanup handlers",
+          "checks": [
+            "events.dimension_change_exit_order"
+          ]
+        },
+        {
+          "id": "logout",
+          "title": "Logout saves cooldown before session cleanup and local tracking cleanup",
+          "checks": [
+            "events.logout_cleanup_order"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "persistent.record_lifecycle",
+      "title": "Persistent mirror records save, enter, leave, and delete through closed lifecycle gates",
+      "stages": [
+        {
+          "id": "save",
+          "title": "Saving a persistent mirror checks permission, session permanence, copy completion, slot allocation, and queueing",
+          "checks": [
+            "manager.save_persistent_order"
+          ]
+        },
+        {
+          "id": "enter",
+          "title": "Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity",
+          "checks": [
+            "manager.enter_persistent_order"
+          ]
+        },
+        {
+          "id": "leave",
+          "title": "Leaving a persistent mirror restores saved state before teleport cleanup and effect clearing",
+          "checks": [
+            "manager.leave_persistent_order"
+          ]
+        },
+        {
+          "id": "delete",
+          "title": "Deleting a persistent mirror ejects players, cleans the persistent world, and removes the record",
+          "checks": [
+            "manager.delete_persistent_order"
+          ]
+        }
+      ]
+    },
+    {
       "id": "persistent.pool_lifecycle",
       "title": "Persistent worlds use a separate pool and lifecycle",
       "stages": [
@@ -97,6 +222,7 @@
           "title": "Eight persistent dimensions are registered independently",
           "checks": [
             "dimensions.persistent_json_count",
+            "dimensions.persistent_json_values",
             "dimensions.separate_pool"
           ]
         },
@@ -105,6 +231,8 @@
           "title": "Persistent copy queue is separate from temporary cleanup",
           "checks": [
             "copy.persistent_queue",
+            "copy.persistent_queue_order",
+            "copy.persistent_completion_order",
             "copy.no_portal_entity_copy"
           ]
         },
@@ -165,16 +293,202 @@
       "text": "PersistentMirrorManager.openMirrorMenu(serverPlayer, stack)"
     },
     {
+      "id": "item.block_use_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "useOn",
+      "texts": [
+        "if (player.isShiftKeyDown())",
+        "PersistentMirrorManager.openMirrorMenu(serverPlayer, stack)",
+        "if (level.isClientSide)",
+        "if (!MirrorWorldManager.canAccessMirrorWorld(serverPlayer))",
+        "boolean bypassCooldown = player.isCreative()",
+        "long remainingMillis = getRemainingCooldownMillis(player.getUUID())",
+        "if (!state.isSolidRender(level, pos))",
+        "boolean isInMirrorWorld = ModDimensions.isAnyMirrorWorld(level.dimension())",
+        "createEntryPortal(serverLevel, serverPlayer, pos, hasPermanence(level, stack))",
+        "if (result == InteractionResult.SUCCESS && !bypassCooldown)",
+        "applyCooldown(serverPlayer, stack)"
+      ]
+    },
+    {
+      "id": "item.cooldown_applies_after_success",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "useOn",
+      "texts": [
+        "InteractionResult result",
+        "if (result == InteractionResult.SUCCESS && !bypassCooldown)",
+        "applyCooldown(serverPlayer, stack)"
+      ]
+    },
+    {
+      "id": "item.air_use_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "use",
+      "signatureContains": [
+        "InteractionHand hand"
+      ],
+      "texts": [
+        "if (player.isShiftKeyDown())",
+        "PersistentMirrorManager.openMirrorMenu(serverPlayer, stack)",
+        "if (ModDimensions.isAnyMirrorWorld(level.dimension()))",
+        "player.startUsingItem(hand)",
+        "return InteractionResultHolder.consume(stack)",
+        "return InteractionResultHolder.pass(stack)"
+      ]
+    },
+    {
+      "id": "item.finish_use_packet_scope",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "finishUsingItem",
+      "texts": [
+        "ModDimensions.isAnyMirrorWorld(level.dimension())",
+        "if (level.isClientSide)",
+        "new com.crabmods.instantworldmirror.network.TeleportToSpawnPacket()"
+      ]
+    },
+    {
+      "id": "item.cooldown_efficiency_only",
+      "adapter": "any",
+      "checks": [
+        {
+          "adapter": "method_contains_all",
+          "versions": [
+            "1.21.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "getEfficiencyLevel",
+          "texts": [
+            "Enchantments.EFFICIENCY"
+          ]
+        },
+        {
+          "adapter": "method_contains_all",
+          "versions": [
+            "1.20.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "getEfficiencyLevel",
+          "texts": [
+            "Enchantments.BLOCK_EFFICIENCY"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item.cooldown_ignores_permanence",
+      "adapter": "method_contains_none",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "getEfficiencyLevel",
+      "texts": [
+        "PERMANENCE",
+        "ModEnchantments"
+      ]
+    },
+    {
       "id": "session.persistent_access_field",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorSession.java",
       "text": "public boolean hasPersistentAccess()"
     },
     {
+      "id": "manager.create_session_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "createSession",
+      "signatureContains": [
+        "boolean persistentAccess"
+      ],
+      "texts": [
+        "if (purgeMode)",
+        "if (hasActiveSession(player.getUUID()))",
+        "boolean sourceInWater = isPositionInWater(sourceLevel, playerStandPos)",
+        "MirrorSession session = new MirrorSession(",
+        "persistentAccess",
+        "DimensionPool.allocateDimension(session.getSessionId(), session.getSourceDimension())",
+        "session.setDimensionIndex(dimIndex)",
+        "activeSessions.put(session.getSessionId(), session)",
+        "playerOwnedSession.put(player.getUUID(), session.getSessionId())"
+      ]
+    },
+    {
+      "id": "manager.teleport_session_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "teleportToMirrorWorld",
+      "texts": [
+        "if (session.isDestroyed())",
+        "if (playerToSession.containsKey(player.getUUID()))",
+        "playerOriginalPositions.put(player.getUUID(), player.blockPosition())",
+        "session.addPlayer(player.getUUID())",
+        "playerToSession.put(player.getUUID(), session.getSessionId())",
+        "persistentData.putUUID(SESSION_ID_KEY, session.getSessionId())",
+        "if (session.isSandboxMode())",
+        "savePlayerSnapshot(player, true)",
+        "prepareSandboxPlayer(player, session.hasPersistentAccess())",
+        "savePlayerInventory(player)",
+        "findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater)",
+        "player.teleportTo(",
+        "syncDimensionEffectsToPlayer(player, session)",
+        "spawnReturnPortal(mirrorWorld, player, safePos, session.getSessionId())"
+      ]
+    },
+    {
+      "id": "manager.return_temporary_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "returnToOverworld",
+      "texts": [
+        "if (PersistentMirrorManager.isInPersistentMirror(player))",
+        "restorePlayerInventory(player)",
+        "playersBeingTeleported.add(player.getUUID())",
+        "player.teleportTo(",
+        "playersBeingTeleported.remove(player.getUUID())",
+        "clearDimensionEffectsForPlayer(player, session.getDimensionIndex())",
+        "cleanupPlayerTrackingData(player.getUUID())",
+        "destroySession(session, server)"
+      ]
+    },
+    {
+      "id": "manager.heaven_return_origin_gate",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "returnToOverworldFromPosition",
+      "texts": [
+        "if (PersistentMirrorManager.isInPersistentMirror(player))",
+        "if (session != null && session.isSandboxMode())",
+        "!portalPos.closerThan(originalPos, 16.0)",
+        "message.instantworldmirror.heaven_return_restricted",
+        "return returnToOverworld(player)"
+      ]
+    },
+    {
       "id": "manager.save_requires_persistent_access",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
       "text": "if (!session.hasPersistentAccess())"
+    },
+    {
+      "id": "manager.save_persistent_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "saveCurrentTemporaryMirror",
+      "texts": [
+        "if (!canCreatePersistentMirror(player))",
+        "MirrorWorldManager.getPlayerCurrentSession(player.getUUID())",
+        "if (!session.hasPersistentAccess())",
+        "if (!session.isCopyComplete())",
+        "int dimensionIndex = data.allocateDimensionIndex()",
+        "server.getLevel(session.getMirrorDimension())",
+        "server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex))",
+        "MirrorKind kind = MirrorKind.fromSandboxMode(session.isSandboxMode())",
+        "PersistentMirrorRecord record = new PersistentMirrorRecord(",
+        "data.addRecord(record)",
+        "WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld)"
+      ]
     },
     {
       "id": "record.kind_saved_from_session",
@@ -255,16 +569,124 @@
       "text": "hasMatchingPermanenceMirror(player, record.kind())"
     },
     {
+      "id": "manager.enter_persistent_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "enterPersistentMirror",
+      "texts": [
+        "PersistentMirrorData.get(server).getRecord(recordId)",
+        "if (!record.ready())",
+        "if (!hasMatchingPermanenceMirror(player, record.kind()))",
+        "if (!canEnterRecord(player, record))",
+        "if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player))",
+        "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind().isSandbox(), true)",
+        "playerToPersistentMirror.put(player.getUUID(), record.id())",
+        "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
+        "player.teleportTo(",
+        "MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID())",
+        "MirrorWorldManager.syncMirrorEffectsForPlayer"
+      ]
+    },
+    {
+      "id": "manager.leave_persistent_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "leavePersistentMirror",
+      "signatureContains": [
+        "BlockPos portalPos"
+      ],
+      "texts": [
+        "Optional<PersistentMirrorRecord> recordOpt = getCurrentRecord(player)",
+        "if (portalPos != null && record.kind() == MirrorKind.DIMENSION",
+        "MirrorWorldManager.restorePlayerForMirrorExit(player)",
+        "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
+        "player.teleportTo(",
+        "MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID())",
+        "playerToPersistentMirror.remove(player.getUUID())",
+        "MirrorWorldManager.clearMirrorEffectsForPlayer"
+      ]
+    },
+    {
+      "id": "manager.delete_persistent_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "deleteRecord",
+      "texts": [
+        "PersistentMirrorData data = PersistentMirrorData.get(server)",
+        "data.getRecord(recordId)",
+        "if (!canManageRecord(player, record))",
+        "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
+        "leavePersistentMirror(other)",
+        "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition())",
+        "data.removeRecord(record.id())"
+      ]
+    },
+    {
       "id": "command.menu_uses_held_mirror",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
       "text": "PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player))"
     },
     {
+      "id": "events.respawn_restore_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerRespawn",
+      "texts": [
+        "if (MirrorWorldManager.diedInMirrorWorld(player))",
+        "MirrorWorldManager.handleMirrorDeathRespawn(player)",
+        "if (ModDimensions.isAnyMirrorWorld(player.level().dimension()))",
+        "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
+        "player.teleportTo(",
+        "MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID())",
+        "if (MirrorWorldManager.hasSavedInventory(player))",
+        "MirrorWorldManager.clearSavedData(player)"
+      ]
+    },
+    {
+      "id": "events.dimension_change_exit_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerChangeDimension",
+      "texts": [
+        "if (MirrorWorldManager.diedInMirrorWorld(player))",
+        "if (MirrorWorldManager.isBeingTeleportedByMod(player.getUUID()))",
+        "boolean leftMirrorWorld = ModDimensions.isAnyMirrorWorld(event.getFrom())",
+        "if (ModDimensions.isPersistentMirrorWorld(event.getFrom()) && leftMirrorWorld)",
+        "PersistentMirrorManager.handleExternalExit(player)",
+        "if (ModDimensions.isTemporaryMirrorWorld(event.getFrom()) && leftMirrorWorld)",
+        "MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent()",
+        "MirrorWorldManager.handleExternalExit(player, player.getServer())"
+      ]
+    },
+    {
+      "id": "events.logout_cleanup_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerLogout",
+      "texts": [
+        "DimensionMirrorItem.saveCooldown(player)",
+        "MirrorWorldManager.handlePlayerDisconnect(player, player.getServer())",
+        "lastTrackedChunkPos.remove(player.getUUID())"
+      ]
+    },
+    {
       "id": "dimensions.persistent_json_count",
       "adapter": "glob_count",
       "glob": "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_*.json",
       "count": 8
+    },
+    {
+      "id": "dimensions.persistent_json_values",
+      "adapter": "glob_json_values_equal",
+      "glob": "src/main/resources/data/instantworldmirror/dimension/persistent_mirror_world_*.json",
+      "count": 8,
+      "values": {
+        "type": "instantworldmirror:mirror_world",
+        "generator.type": "instantworldmirror:mirror_chunk_generator",
+        "generator.biome": "minecraft:plains"
+      }
     },
     {
       "id": "dimensions.separate_pool",
@@ -277,6 +699,40 @@
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "text": "persistentCopyQueue"
+    },
+    {
+      "id": "copy.persistent_queue_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "queuePersistentWorldCopy",
+      "texts": [
+        "int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get()",
+        "syncGameRules(sourceWorld, targetWorld)",
+        "CopyTask task = new CopyTask(",
+        "persistentCopyTasks.put(dimIndex, task)",
+        "if (!persistentCopyQueue.contains(dimIndex))",
+        "persistentCopyQueue.addLast(dimIndex)",
+        "getPersistentCopyQueuePosition(dimIndex)"
+      ]
+    },
+    {
+      "id": "copy.persistent_completion_order",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "processPersistentCopyQueues",
+      "texts": [
+        "if (persistentCopyTasks.isEmpty()) return",
+        "currentDimIndex = persistentCopyQueue.peekFirst()",
+        "CopyTask task = persistentCopyTasks.get(currentDimIndex)",
+        "if (task.isCompleted())",
+        "persistentCopyTasks.remove(currentDimIndex)",
+        "persistentCopyQueue.removeFirstOccurrence(currentDimIndex)",
+        "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)",
+        "ServerLevel targetWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(currentDimIndex))",
+        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1])",
+        "if (task.isCompleted())",
+        "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)"
+      ]
     },
     {
       "id": "copy.no_portal_entity_copy",
