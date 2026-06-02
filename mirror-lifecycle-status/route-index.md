@@ -86,6 +86,14 @@ runClient smoke verification is reproducible from repo infra
 
 - `script`: covered - Smoke script launches runClient, waits for render/audio evidence, and cleans temporary processes/logs
 
+## runtime.gametest_lifecycle - covered
+
+GameTest server verifies mirror lifecycle behavior at runtime
+
+- `registration`: covered - Mirror lifecycle tests are registered in the mod namespace with a reusable empty template
+- `coverage`: covered - Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior
+- `script`: covered - Smoke script runs Gradle's GameTest server entrypoint
+
 ## packaging_lifecycle - covered
 
 Built jars contain mirror lifecycle classes and resources

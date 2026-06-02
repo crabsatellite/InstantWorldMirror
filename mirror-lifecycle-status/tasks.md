@@ -36,6 +36,10 @@
 - [x] `manager.save_requires_persistent_access` - found text
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `record.kind_saved_from_session` - found text
+- [x] `runtime.gametest_behavior_coverage` - all text found
+- [x] `runtime.gametest_empty_template` - all text found
+- [x] `runtime.gametest_smoke_script` - all text found
+- [x] `runtime.gametest_source_registered` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.prep_receives_persistent_access` - found text

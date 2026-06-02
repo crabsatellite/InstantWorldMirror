@@ -247,6 +247,31 @@
     },
     {
       "checks": [
+        "runtime.gametest_source_registered",
+        "runtime.gametest_empty_template"
+      ],
+      "route": "runtime.gametest_lifecycle",
+      "stage": "registration",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "runtime.gametest_behavior_coverage"
+      ],
+      "route": "runtime.gametest_lifecycle",
+      "stage": "coverage",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "runtime.gametest_smoke_script"
+      ],
+      "route": "runtime.gametest_lifecycle",
+      "stage": "script",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "build.verify_mirror_jar_contents"
       ],
       "route": "packaging_lifecycle",
