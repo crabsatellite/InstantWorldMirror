@@ -9,6 +9,7 @@ import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.ModDimensions;
+import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
@@ -90,5 +91,6 @@ public class InstantWorldMirror {
         ModDimensions.updatePoolSizeFromConfig();
         // Use server-aware initialization to restore cleanup states from persistent storage
         DimensionPool.initializeWithServer(event.getServer());
+        PersistentMirrorManager.recoverUnreadyPersistentMirrors(event.getServer());
     }
 }

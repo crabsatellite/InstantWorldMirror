@@ -506,7 +506,7 @@ public class ModEvents {
     }
 
     /**
-     * Player login event - if player logs in to mirror world, teleport back to overworld and restore inventory
+     * Player login event - if player logs in to mirror world, teleport back to the saved origin and restore inventory
      * Also restores any saved item cooldowns
      */
     @SubscribeEvent
@@ -531,19 +531,25 @@ public class ModEvents {
             if (MirrorWorldManager.hasSavedInventory(player)) {
                 // Player has saved data, restore inventory
                 player.getServer().execute(() -> {
-                    // If in mirror world, teleport back to overworld first
+                    // If in mirror world, teleport back to the saved origin first
                     if (ModDimensions.isAnyMirrorWorld(player.level().dimension())) {
-                        ServerLevel overworld = player.getServer().overworld();
-                        BlockPos spawnPos = overworld.getSharedSpawnPos();
+                        ServerLevel targetLevel = MirrorWorldManager.getSavedOriginalLevel(player, player.getServer());
+                        BlockPos targetPos = MirrorWorldManager.getSavedOriginalPosition(player);
+                        if (targetLevel == null) {
+                            targetLevel = player.getServer().overworld();
+                        }
+                        if (targetPos == null) {
+                            targetPos = targetLevel.getSharedSpawnPos();
+                        }
                         
                         // Use whitelist to bypass dimension travel block
                         MirrorWorldManager.markPlayerBeingTeleported(player.getUUID());
                         try {
                             player.teleportTo(
-                                    overworld,
-                                    spawnPos.getX() + 0.5,
-                                    spawnPos.getY(),
-                                    spawnPos.getZ() + 0.5,
+                                    targetLevel,
+                                    targetPos.getX() + 0.5,
+                                    targetPos.getY(),
+                                    targetPos.getZ() + 0.5,
                                     player.getYRot(),
                                     player.getXRot()
                             );
@@ -553,7 +559,7 @@ public class ModEvents {
                     }
                     // Directly restore inventory instead of calling forceReturn().
                     // forceReturn() -> returnToOverworld() -> isInMirrorWorld() would fail
-                    // because the player has already been teleported to the overworld above.
+                    // because the player has already been teleported out of the mirror world above.
                     MirrorWorldManager.restorePlayerInventoryOnLogin(player);
                     InstantWorldMirror.LOGGER.info("Player {} had saved inventory data, restored on login", 
                             player.getName().getString());

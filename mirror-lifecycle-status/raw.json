@@ -36,6 +36,12 @@
       "message": "found text",
       "passed": true
     },
+    "copy.persistent_cancel_task": {
+      "adapter": "method_contains_in_order",
+      "id": "copy.persistent_cancel_task",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "copy.persistent_completion_order": {
       "adapter": "method_contains_in_order",
       "id": "copy.persistent_completion_order",
@@ -51,6 +57,12 @@
     "copy.persistent_queue_order": {
       "adapter": "method_contains_in_order",
       "id": "copy.persistent_queue_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "data.remove_unready_records": {
+      "adapter": "method_contains_in_order",
+      "id": "data.remove_unready_records",
       "message": "method contains ordered text",
       "passed": true
     },
@@ -147,6 +159,12 @@
     "events.dimension_change_exit_order": {
       "adapter": "method_contains_in_order",
       "id": "events.dimension_change_exit_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "events.login_saved_origin_restore_order": {
+      "adapter": "method_contains_in_order",
+      "id": "events.login_saved_origin_restore_order",
       "message": "method contains ordered text",
       "passed": true
     },
@@ -299,6 +317,12 @@
       "message": "found text",
       "passed": true
     },
+    "manager.recover_unready_records": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.recover_unready_records",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.rename_record_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.rename_record_order",
@@ -401,6 +425,12 @@
       "message": "found text",
       "passed": true
     },
+    "startup.recover_unready_records": {
+      "adapter": "file_contains",
+      "id": "startup.recover_unready_records",
+      "message": "found text",
+      "passed": true
+    },
     "worldgen.structures_disabled": {
       "adapter": "file_contains",
       "id": "worldgen.structures_disabled",
@@ -409,11 +439,11 @@
     }
   },
   "completion": {
-    "checkCount": 56,
+    "checkCount": 61,
     "complete": true,
     "coveredRouteCount": 13,
     "failedChecks": [],
-    "passedCheckCount": 56,
+    "passedCheckCount": 61,
     "routeCount": 13
   },
   "minecraftVersion": "1.20.1",
@@ -610,6 +640,14 @@
         },
         {
           "checks": [
+            "events.login_saved_origin_restore_order"
+          ],
+          "id": "login",
+          "status": "covered",
+          "title": "Login recovery returns saved mirror state to the saved origin instead of overworld spawn"
+        },
+        {
+          "checks": [
             "events.logout_cleanup_order"
           ],
           "id": "logout",
@@ -618,7 +656,7 @@
         }
       ],
       "status": "covered",
-      "title": "Death, external dimension changes, and logout restore or clean mirror state without duplication"
+      "title": "Death, external dimension changes, login, and logout restore or clean mirror state without duplication"
     },
     {
       "id": "persistent.record_lifecycle",
@@ -663,11 +701,22 @@
         },
         {
           "checks": [
-            "manager.delete_persistent_order"
+            "manager.delete_persistent_order",
+            "copy.persistent_cancel_task"
           ],
           "id": "delete",
           "status": "covered",
-          "title": "Deleting a persistent mirror ejects players, cleans the persistent world, and removes the record"
+          "title": "Deleting a persistent mirror cancels queued copy work, ejects players, cleans the persistent world, and removes the record"
+        },
+        {
+          "checks": [
+            "manager.recover_unready_records",
+            "data.remove_unready_records",
+            "startup.recover_unready_records"
+          ],
+          "id": "recover_unready",
+          "status": "covered",
+          "title": "Interrupted persistent saves are removed on server start so they cannot occupy slots forever"
         }
       ],
       "status": "covered",

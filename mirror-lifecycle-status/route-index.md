@@ -49,10 +49,11 @@ Temporary mirror sessions save, enter, return, and clean up state in order
 
 ## death_external_logout_lifecycle - covered
 
-Death, external dimension changes, and logout restore or clean mirror state without duplication
+Death, external dimension changes, login, and logout restore or clean mirror state without duplication
 
 - `respawn`: covered - Mirror-world death restoration is deferred to respawn and forces overworld recovery
 - `external_exit`: covered - External dimension changes route persistent and temporary exits through the correct cleanup handlers
+- `login`: covered - Login recovery returns saved mirror state to the saved origin instead of overworld spawn
 - `logout`: covered - Logout saves cooldown before session cleanup and local tracking cleanup
 
 ## persistent.record_lifecycle - covered
@@ -63,7 +64,8 @@ Persistent mirror records save, enter, rename, leave, and delete through closed 
 - `enter`: covered - Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity
 - `rename`: covered - Renaming a persistent mirror resolves a player-facing selector and marks saved data dirty
 - `leave`: covered - Leaving a persistent mirror restores saved state before teleport cleanup and effect clearing
-- `delete`: covered - Deleting a persistent mirror ejects players, cleans the persistent world, and removes the record
+- `delete`: covered - Deleting a persistent mirror cancels queued copy work, ejects players, cleans the persistent world, and removes the record
+- `recover_unready`: covered - Interrupted persistent saves are removed on server start so they cannot occupy slots forever
 
 ## persistent.pool_lifecycle - covered
 
