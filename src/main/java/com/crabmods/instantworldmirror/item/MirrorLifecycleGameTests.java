@@ -22,6 +22,7 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 @GameTestHolder(InstantWorldMirror.MODID)
@@ -160,8 +161,48 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void persistentDataRemovesUnreadyRecords(GameTestHelper helper) {
+        PersistentMirrorData data = new PersistentMirrorData();
+        PersistentMirrorRecord unready = testRecord(UUID.randomUUID(), UUID.randomUUID(), 0, false);
+        PersistentMirrorRecord ready = testRecord(UUID.randomUUID(), UUID.randomUUID(), 1, true);
+
+        data.addRecord(unready);
+        data.addRecord(ready);
+
+        List<PersistentMirrorRecord> removed = data.removeUnreadyRecords();
+        helper.assertTrue(removed.size() == 1 && removed.get(0) == unready,
+                "Persistent data must return only unready records for recovery cleanup");
+        helper.assertFalse(data.getRecord(unready.id()).isPresent(),
+                "Interrupted persistent records must be removed from saved data");
+        helper.assertTrue(data.getRecord(ready.id()).orElseThrow() == ready,
+                "Ready persistent records must survive unready recovery cleanup");
+        helper.assertTrue(data.allocateDimensionIndex() == 0,
+                "Removing interrupted records must release their persistent slot");
+
+        helper.succeed();
+    }
+
     private static void addEfficiency(GameTestHelper helper, ItemStack stack, int level) {
         var enchantments = helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         stack.enchant(enchantments.getOrThrow(Enchantments.EFFICIENCY), level);
+    }
+
+    private static PersistentMirrorRecord testRecord(UUID recordId, UUID sourceSessionId, int dimensionIndex, boolean ready) {
+        BlockPos sourcePos = new BlockPos(dimensionIndex, 64, dimensionIndex);
+        return new PersistentMirrorRecord(
+                recordId,
+                UUID.randomUUID(),
+                sourceSessionId,
+                "record " + dimensionIndex,
+                MirrorKind.HEAVEN,
+                dimensionIndex,
+                Level.OVERWORLD,
+                sourcePos,
+                sourcePos.above(),
+                false,
+                dimensionIndex,
+                ready
+        );
     }
 }

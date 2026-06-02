@@ -302,6 +302,18 @@ public class WorldCopyService {
         modifiedChunks.remove(dimensionIndex);
         pendingSave.remove(dimensionIndex);
     }
+
+    public static void cancelPersistentCopyTask(int dimensionIndex) {
+        CopyTask task = persistentCopyTasks.remove(dimensionIndex);
+        if (task != null && !task.isCompleted()) {
+            task.cancel();
+            InstantWorldMirror.LOGGER.info("Cancelled persistent copy task for dimension {}", dimensionIndex);
+        }
+
+        synchronized (persistentCopyQueue) {
+            persistentCopyQueue.removeFirstOccurrence(dimensionIndex);
+        }
+    }
     
     public static class CleanupTask {
         public final int dimensionIndex;

@@ -6,9 +6,11 @@
 - [x] `command.persistent_rename_command` - all text found
 - [x] `command.persistent_uses_selector` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
+- [x] `copy.persistent_cancel_task` - method contains ordered text
 - [x] `copy.persistent_completion_order` - method contains ordered text
 - [x] `copy.persistent_queue` - found text
 - [x] `copy.persistent_queue_order` - method contains ordered text
+- [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text
 - [x] `data.source_session_lookup` - method contains all text
 - [x] `dimensions.persistent_json_count` - 8 matched, expected 8
@@ -18,6 +20,7 @@
 - [x] `enchantment.mirror_item_support` - composite passed
 - [x] `enchantment.version_registration` - composite passed
 - [x] `events.dimension_change_exit_order` - method contains ordered text
+- [x] `events.login_saved_origin_restore_order` - method contains ordered text
 - [x] `events.logout_cleanup_order` - method contains ordered text
 - [x] `events.respawn_restore_order` - method contains ordered text
 - [x] `item.air_use_order` - method contains ordered text
@@ -38,6 +41,7 @@
 - [x] `manager.leave_persistent_order` - method contains ordered text
 - [x] `manager.menu_uses_selectors` - all text found
 - [x] `manager.persistent_enter_passes_access` - found text
+- [x] `manager.recover_unready_records` - method contains ordered text
 - [x] `manager.rename_record_order` - method contains ordered text
 - [x] `manager.return_temporary_order` - method contains ordered text
 - [x] `manager.save_persistent_order` - method contains ordered text
@@ -55,4 +59,5 @@
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.prep_receives_persistent_access` - found text
 - [x] `session.persistent_access_field` - found text
+- [x] `startup.recover_unready_records` - found text
 - [x] `worldgen.structures_disabled` - found text

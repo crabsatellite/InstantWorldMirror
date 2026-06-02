@@ -14,9 +14,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -335,6 +335,28 @@ public class PersistentMirrorManager {
         InstantWorldMirror.LOGGER.info("Persistent mirror {} saved in slot {}", record.id(), record.dimensionIndex());
     }
 
+    public static void recoverUnreadyPersistentMirrors(MinecraftServer server) {
+        PersistentMirrorData data = PersistentMirrorData.get(server);
+        List<PersistentMirrorRecord> unreadyRecords = data.removeUnreadyRecords();
+        if (unreadyRecords.isEmpty()) {
+            return;
+        }
+
+        for (PersistentMirrorRecord record : unreadyRecords) {
+            pendingCopyCreators.remove(record.id());
+            WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
+
+            ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
+            if (persistentLevel != null) {
+                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition());
+            }
+
+            InstantWorldMirror.LOGGER.warn(
+                    "Removed incomplete persistent mirror {} from slot {} after server restart or interrupted copy",
+                    record.id(), record.dimensionIndex());
+        }
+    }
+
     public static boolean enterPersistentMirror(ServerPlayer player, UUID recordId) {
         MinecraftServer server = player.getServer();
         if (server == null) {
@@ -524,6 +546,8 @@ public class PersistentMirrorManager {
         }
 
         ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
+        pendingCopyCreators.remove(record.id());
+        WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
         if (persistentLevel != null) {
             for (ServerPlayer other : persistentLevel.players().toArray(ServerPlayer[]::new)) {
                 leavePersistentMirror(other);

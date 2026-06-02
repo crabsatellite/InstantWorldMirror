@@ -58,6 +58,20 @@ public class PersistentMirrorData extends SavedData {
                 .findFirst();
     }
 
+    public List<PersistentMirrorRecord> removeUnreadyRecords() {
+        List<PersistentMirrorRecord> unreadyRecords = records.values().stream()
+                .filter(record -> !record.ready())
+                .sorted(Comparator.comparingLong(PersistentMirrorRecord::createdAt))
+                .toList();
+        if (!unreadyRecords.isEmpty()) {
+            for (PersistentMirrorRecord record : unreadyRecords) {
+                records.remove(record.id());
+            }
+            setDirty();
+        }
+        return unreadyRecords;
+    }
+
     public Optional<PersistentMirrorRecord> getRecordBySelector(String selector, Predicate<PersistentMirrorRecord> filter) {
         if (selector == null || selector.isBlank()) {
             return Optional.empty();

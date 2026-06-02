@@ -146,6 +146,14 @@
     },
     {
       "checks": [
+        "events.login_saved_origin_restore_order"
+      ],
+      "route": "death_external_logout_lifecycle",
+      "stage": "login",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "events.logout_cleanup_order"
       ],
       "route": "death_external_logout_lifecycle",
@@ -192,10 +200,21 @@
     },
     {
       "checks": [
-        "manager.delete_persistent_order"
+        "manager.delete_persistent_order",
+        "copy.persistent_cancel_task"
       ],
       "route": "persistent.record_lifecycle",
       "stage": "delete",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.recover_unready_records",
+        "data.remove_unready_records",
+        "startup.recover_unready_records"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "recover_unready",
       "status": "covered"
     },
     {
