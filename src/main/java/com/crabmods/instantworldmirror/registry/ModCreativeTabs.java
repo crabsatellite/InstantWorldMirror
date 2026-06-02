@@ -25,6 +25,7 @@ public class ModCreativeTabs {
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.DIMENSION_MIRROR.get());
                         output.accept(ModItems.HEAVEN_MIRROR.get());
+                        output.accept(ModItems.FIRST_DREAM_MIRROR.get());
                     })
                     .build()
     );

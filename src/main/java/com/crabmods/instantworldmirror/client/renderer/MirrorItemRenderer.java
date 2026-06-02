@@ -3,7 +3,8 @@ package com.crabmods.instantworldmirror.client.renderer;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
-import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -45,7 +46,8 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
     @Override
     public void renderByItem(ItemStack stack, ItemDisplayContext displayContext, PoseStack poseStack,
                              MultiBufferSource buffer, int packedLight, int packedOverlay) {
-        boolean isHeavenMirror = stack.is(ModItems.HEAVEN_MIRROR.get());
+        MirrorKind kind = DimensionMirrorItem.getMirrorKind(stack);
+        boolean isHeavenMirror = kind.usesHeavenVisuals();
 
         poseStack.pushPose();
         applyItemTransform(displayContext, poseStack, isHeavenMirror);

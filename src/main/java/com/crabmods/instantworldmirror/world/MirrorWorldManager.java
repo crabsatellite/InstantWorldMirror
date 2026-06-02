@@ -194,6 +194,11 @@ public class MirrorWorldManager {
 
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, boolean sandboxMode,
                                                         boolean persistentAccess) {
+        return createSession(player, sourcePos, MirrorKind.fromSandboxMode(sandboxMode), persistentAccess);
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
+                                                        boolean persistentAccess) {
         // Check if purge mode is active
         if (purgeMode) {
             InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
@@ -230,7 +235,7 @@ public class MirrorWorldManager {
                     sourcePos,
                     player.level().dimension(),
                     sourceInWater,
-                    sandboxMode,
+                    kind,
                     persistentAccess
             );
 
@@ -477,7 +482,7 @@ public class MirrorWorldManager {
 
         if (session.isSandboxMode()) {
             savePlayerSnapshot(player, true);
-            prepareSandboxPlayer(player, session.hasPersistentAccess());
+            prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess());
         } else {
             savePlayerInventory(player);
         }
@@ -1715,12 +1720,16 @@ public class MirrorWorldManager {
     }
 
     public static void preparePlayerForMirrorEntry(ServerPlayer player, boolean sandboxMode, boolean persistentAccess) {
+        preparePlayerForMirrorEntry(player, MirrorKind.fromSandboxMode(sandboxMode), persistentAccess);
+    }
+
+    public static void preparePlayerForMirrorEntry(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
         playerOriginalPositions.put(player.getUUID(), player.blockPosition());
         playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
 
-        if (sandboxMode) {
+        if (kind.isSandbox()) {
             savePlayerSnapshot(player, true);
-            prepareSandboxPlayer(player, persistentAccess);
+            prepareSandboxPlayer(player, kind, persistentAccess);
         } else {
             savePlayerInventory(player);
         }
@@ -1980,7 +1989,7 @@ public class MirrorWorldManager {
         persistentData.put(SAVED_EFFECTS_KEY, effects);
     }
 
-    private static void prepareSandboxPlayer(ServerPlayer player, boolean persistentAccess) {
+    private static void prepareSandboxPlayer(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
         player.getInventory().clearContent();
         player.getEnderChestInventory().clearContent();
         player.removeAllEffects();
@@ -1995,14 +2004,14 @@ public class MirrorWorldManager {
         player.experienceLevel = 0;
         player.totalExperience = 0;
         player.setGameMode(GameType.CREATIVE);
-        giveSandboxHeavenMirror(player, persistentAccess);
+        giveSandboxMirror(player, kind, persistentAccess);
         player.inventoryMenu.broadcastChanges();
         player.containerMenu.broadcastChanges();
     }
 
-    private static void giveSandboxHeavenMirror(ServerPlayer player, boolean persistentAccess) {
+    private static void giveSandboxMirror(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
         player.getInventory().selected = 0;
-        ItemStack mirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
+        ItemStack mirror = new ItemStack(ModItems.mirrorItem(kind));
         if (persistentAccess) {
             ModEnchantments.applyPermanence(player.level(), mirror);
         }

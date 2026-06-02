@@ -46,6 +46,30 @@
       ]
     },
     {
+      "id": "temporary.first_dream_mirror",
+      "title": "Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary",
+      "stages": [
+        {
+          "id": "kind",
+          "title": "First Dream Mirror is a distinct sandbox mirror kind",
+          "checks": [
+            "item.kind_from_stack",
+            "kind.first_dream_present",
+            "kind.first_dream_pristine"
+          ]
+        },
+        {
+          "id": "copy",
+          "title": "Temporary first dream sessions use source generator columns instead of current chunks",
+          "checks": [
+            "session.kind_field",
+            "copy.pristine_task_flag",
+            "copy.pristine_generator_columns"
+          ]
+        }
+      ]
+    },
+    {
       "id": "permanent.dimension_mirror",
       "title": "Permanence enchanted Dimensional Mirror can use persistent worlds",
       "stages": [
@@ -494,6 +518,7 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
       "method": "createSession",
       "signatureContains": [
+        "MirrorKind kind",
         "boolean persistentAccess"
       ],
       "texts": [
@@ -501,6 +526,7 @@
         "if (hasActiveSession(player.getUUID()))",
         "boolean sourceInWater = isPositionInWater(sourceLevel, playerStandPos)",
         "MirrorSession session = new MirrorSession(",
+        "kind",
         "persistentAccess",
         "DimensionPool.allocateDimension(session.getSessionId(), session.getSourceDimension())",
         "session.setDimensionIndex(dimIndex)",
@@ -522,7 +548,7 @@
         "persistentData.putUUID(SESSION_ID_KEY, session.getSessionId())",
         "if (session.isSandboxMode())",
         "savePlayerSnapshot(player, true)",
-        "prepareSandboxPlayer(player, session.hasPersistentAccess())",
+        "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess())",
         "savePlayerInventory(player)",
         "findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater)",
         "player.teleportTo(",
@@ -579,7 +605,7 @@
         "int dimensionIndex = data.allocateDimensionIndex()",
         "server.getLevel(session.getMirrorDimension())",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex))",
-        "MirrorKind kind = MirrorKind.fromSandboxMode(session.isSandboxMode())",
+        "MirrorKind kind = session.getKind()",
         "PersistentMirrorRecord record = new PersistentMirrorRecord(",
         "data.addRecord(record)",
         "WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld)"
@@ -644,13 +670,23 @@
       "id": "record.kind_saved_from_session",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
-      "text": "MirrorKind kind = MirrorKind.fromSandboxMode(session.isSandboxMode())"
+      "text": "MirrorKind kind = session.getKind()"
+    },
+    {
+      "id": "session.kind_field",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorSession.java",
+      "texts": [
+        "private final MirrorKind kind",
+        "public MirrorKind getKind()",
+        "public boolean usesPristineTerrain()"
+      ]
     },
     {
       "id": "sandbox.prep_receives_persistent_access",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
-      "text": "prepareSandboxPlayer(player, session.hasPersistentAccess())"
+      "text": "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess())"
     },
     {
       "id": "sandbox.applies_permanence_to_hotbar_mirror",
@@ -662,7 +698,25 @@
       "id": "manager.persistent_enter_passes_access",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
-      "text": "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind().isSandbox(), true)"
+      "text": "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true)"
+    },
+    {
+      "id": "kind.first_dream_present",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorKind.java",
+      "texts": [
+        "FIRST_DREAM(\"first_dream\"",
+        "item.instantworldmirror.first_dream_mirror"
+      ]
+    },
+    {
+      "id": "kind.first_dream_pristine",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorKind.java",
+      "texts": [
+        "usesPristineTerrain()",
+        "return this == FIRST_DREAM"
+      ]
     },
     {
       "id": "enchantment.helper_present",
@@ -730,7 +784,7 @@
         "if (!canEnterRecord(player, record))",
         "if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player))",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
-        "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind().isSandbox(), true)",
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true)",
         "playerToPersistentMirror.put(player.getUUID(), record.id())",
         "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
         "player.teleportTo(",
@@ -1030,9 +1084,34 @@
         "persistentCopyQueue.removeFirstOccurrence(currentDimIndex)",
         "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)",
         "ServerLevel targetWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(currentDimIndex))",
-        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1])",
+        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain)",
         "if (task.isCompleted())",
         "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)"
+      ]
+    },
+    {
+      "id": "copy.pristine_task_flag",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "texts": [
+        "public final boolean pristineTerrain",
+        "session.usesPristineTerrain()",
+        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain)"
+      ]
+    },
+    {
+      "id": "copy.pristine_generator_columns",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "copyPristineTerrainChunk",
+      "texts": [
+        "ChunkGenerator generator = sourceWorld.getChunkSource().getGenerator()",
+        "RandomState randomState = sourceWorld.getChunkSource().randomState()",
+        "generator.getBaseColumn(worldX, worldZ, sourceWorld, randomState)",
+        "column.getBlock(y)",
+        "targetSection.setBlockState",
+        "copyChunkBiomes(sourceChunk, targetChunk)",
+        "relightChunk(mirrorWorld, targetChunk)"
       ]
     },
     {
@@ -1091,6 +1170,9 @@
         "DimensionMirrorItem.findMirrorStack(player)",
         "DimensionMirrorItem.calculateCooldownSeconds",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
+        "MirrorKind.FIRST_DREAM.usesPristineTerrain()",
+        "ModItems.FIRST_DREAM_MIRROR",
         "data.getRecordBySourceSession(sourceSessionId)",
         "data.removeUnreadyRecords()",
         "data.allocateDimensionIndex() == 0",

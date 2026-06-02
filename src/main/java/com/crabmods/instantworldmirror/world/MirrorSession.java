@@ -50,8 +50,8 @@ public class MirrorSession {
     // If true, water positions are considered safe (player is doing underwater exploration)
     private final boolean sourceInWater;
 
-    // Whether this session is a sandbox session.
-    private final boolean sandboxMode;
+    // Mirror behavior kind controls sandbox entry rules and copy mode.
+    private final MirrorKind kind;
 
     // Whether this session was opened with a mirror carrying the permanence enchantment.
     private final boolean persistentAccess;
@@ -70,12 +70,18 @@ public class MirrorSession {
 
     public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
                          boolean sourceInWater, boolean sandboxMode, boolean persistentAccess) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater,
+                MirrorKind.fromSandboxMode(sandboxMode), persistentAccess);
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, MirrorKind kind, boolean persistentAccess) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
         this.sourceDimension = sourceDimension;
         this.sourceInWater = sourceInWater;
-        this.sandboxMode = sandboxMode;
+        this.kind = kind;
         this.persistentAccess = persistentAccess;
         this.createdAt = System.currentTimeMillis();
     }
@@ -132,7 +138,15 @@ public class MirrorSession {
     }
 
     public boolean isSandboxMode() {
-        return sandboxMode;
+        return kind.isSandbox();
+    }
+
+    public MirrorKind getKind() {
+        return kind;
+    }
+
+    public boolean usesPristineTerrain() {
+        return kind.usesPristineTerrain();
     }
 
     public boolean hasPersistentAccess() {
@@ -249,7 +263,7 @@ public class MirrorSession {
                 ", sourcePosition=" + sourcePosition +
                 ", playerCount=" + playersInSession.size() +
                 ", destroyed=" + destroyed +
-                ", sandboxMode=" + sandboxMode +
+                ", kind=" + kind +
                 '}';
     }
 }

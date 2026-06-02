@@ -41,11 +41,18 @@ public final class MirrorLifecycleGameTests {
     public static void mirrorKindsAndPermanenceEnchanting(GameTestHelper helper) {
         ItemStack dimensionMirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
+        ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
 
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(dimensionMirror) == MirrorKind.DIMENSION,
                 "Dimensional mirror stack must resolve to the dimension mirror kind");
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(heavenMirror) == MirrorKind.HEAVEN,
                 "Heaven mirror stack must resolve to the heaven mirror kind");
+        helper.assertTrue(DimensionMirrorItem.getMirrorKind(firstDreamMirror) == MirrorKind.FIRST_DREAM,
+                "First dream mirror stack must resolve to the first dream mirror kind");
+        helper.assertTrue(MirrorKind.FIRST_DREAM.isSandbox(),
+                "First dream mirror must use sandbox player state");
+        helper.assertTrue(MirrorKind.FIRST_DREAM.usesPristineTerrain(),
+                "First dream mirror must request pristine generated terrain");
         helper.assertFalse(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Fresh heaven mirror must not start permanent");
 
@@ -108,6 +115,16 @@ public final class MirrorLifecycleGameTests {
                 "Sandbox entry must clear normal inventory items");
         helper.assertTrue(player.getEnderChestInventory().getItem(0).isEmpty(),
                 "Sandbox entry must clear vanilla ender chest items");
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true);
+
+        ItemStack firstDreamHotbarMirror = player.getInventory().items.get(0);
+        helper.assertTrue(firstDreamHotbarMirror.getItem() == ModItems.FIRST_DREAM_MIRROR.get(),
+                "First dream sandbox entry must leave a first dream mirror in hotbar slot 0");
+        helper.assertTrue(DimensionMirrorItem.hasPermanence(helper.getLevel(), firstDreamHotbarMirror),
+                "Persistent first dream sandbox entry must preserve Permanence on the hotbar mirror");
 
         MirrorWorldManager.restorePlayerForMirrorExit(player);
         helper.succeed();

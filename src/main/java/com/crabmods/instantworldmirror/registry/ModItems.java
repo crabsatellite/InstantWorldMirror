@@ -2,7 +2,9 @@ package com.crabmods.instantworldmirror.registry;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
+import com.crabmods.instantworldmirror.item.FirstDreamMirrorItem;
 import com.crabmods.instantworldmirror.item.HeavenMirrorItem;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.registries.DeferredRegister;
@@ -31,4 +33,20 @@ public class ModItems {
                     .rarity(Rarity.EPIC)
             )
     );
+
+    public static final RegistryObject<FirstDreamMirrorItem> FIRST_DREAM_MIRROR = ITEMS.register(
+            "first_dream_mirror",
+            () -> new FirstDreamMirrorItem(new Item.Properties()
+                    .stacksTo(1)
+                    .rarity(Rarity.EPIC)
+            )
+    );
+
+    public static Item mirrorItem(MirrorKind kind) {
+        return switch (kind) {
+            case HEAVEN -> HEAVEN_MIRROR.get();
+            case FIRST_DREAM -> FIRST_DREAM_MIRROR.get();
+            case DIMENSION -> DIMENSION_MIRROR.get();
+        };
+    }
 }

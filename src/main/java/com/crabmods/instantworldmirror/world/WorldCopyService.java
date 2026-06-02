@@ -12,16 +12,19 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 
@@ -167,6 +170,7 @@ public class WorldCopyService {
         public final int chunkRadius;
         public final ResourceKey<Level> sourceDimension;
         public final int targetDimensionIndex;
+        public final boolean pristineTerrain;
         
         private int currentChunkX;
         private int currentChunkZ;
@@ -181,12 +185,13 @@ public class WorldCopyService {
         private static final int PRELOAD_AHEAD = 8; // Preload 8 chunks ahead
 
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius, 
-                        ResourceKey<Level> sourceDimension, int targetDimensionIndex) {
+                        ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain) {
             this.sessionId = sessionId;
             this.centerPos = centerPos;
             this.chunkRadius = chunkRadius;
             this.sourceDimension = sourceDimension;
             this.targetDimensionIndex = targetDimensionIndex;
+            this.pristineTerrain = pristineTerrain;
             
             int centerChunkX = centerPos.getX() >> 4;
             int centerChunkZ = centerPos.getZ() >> 4;
@@ -212,9 +217,11 @@ public class WorldCopyService {
             int chunksToPreload = PRELOAD_AHEAD;
             
             while (chunksToPreload > 0) {
-                // Request source chunk async load
-                ChunkPos sourcePos = new ChunkPos(preloadX, preloadZ);
-                sourceWorld.getChunkSource().addRegionTicket(MIRROR_PRELOAD_TICKET, sourcePos, 0, sourcePos);
+                if (!pristineTerrain) {
+                    // Request source chunk async load
+                    ChunkPos sourcePos = new ChunkPos(preloadX, preloadZ);
+                    sourceWorld.getChunkSource().addRegionTicket(MIRROR_PRELOAD_TICKET, sourcePos, 0, sourcePos);
+                }
                 
                 // Request target chunk async creation (mirror world generation is fast/void)
                 ChunkPos targetPos = new ChunkPos(preloadX, preloadZ);
@@ -993,7 +1000,8 @@ public class WorldCopyService {
                 session.getSourcePosition(),
                 chunkRadius,
                 sourceWorld.dimension(),
-                dimIndex
+                dimIndex,
+                session.usesPristineTerrain()
         );
         
         copyTasks.put(dimIndex, task);
@@ -1029,7 +1037,8 @@ public class WorldCopyService {
                 record.sourcePosition(),
                 chunkRadius,
                 sourceWorld.dimension(),
-                dimIndex
+                dimIndex,
+                false
         );
 
         persistentCopyTasks.put(dimIndex, task);
@@ -1154,7 +1163,7 @@ public class WorldCopyService {
         for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
             int[] chunkCoords = task.getNextChunk();
             if (chunkCoords != null) {
-                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain);
                 task.addBlocksCopied(blocksCopied);
                 
                 // Track this chunk as modified for cleanup later
@@ -1228,7 +1237,7 @@ public class WorldCopyService {
         for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
             int[] chunkCoords = task.getNextChunk();
             if (chunkCoords != null) {
-                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1]);
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain);
                 task.addBlocksCopied(blocksCopied);
                 task.preloadChunksAsync(sourceWorld, targetWorld);
             }
@@ -1274,7 +1283,16 @@ public class WorldCopyService {
     }
 
     private static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                  int chunkX, int chunkZ) {
+                                  int chunkX, int chunkZ, boolean pristineTerrain) {
+        if (pristineTerrain) {
+            return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+        }
+
+        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+    }
+
+    private static int copyCurrentChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
+                                        int chunkX, int chunkZ) {
         int blocksCopied = 0;
         
         try {
@@ -1457,6 +1475,73 @@ public class WorldCopyService {
         return blocksCopied;
     }
 
+    private static int copyPristineTerrainChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
+                                                int chunkX, int chunkZ) {
+        int blocksCopied = 0;
+
+        try {
+            LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
+            ChunkGenerator generator = sourceWorld.getChunkSource().getGenerator();
+            RandomState randomState = sourceWorld.getChunkSource().randomState();
+            int minY = Math.max(sourceWorld.getMinBuildHeight(), mirrorWorld.getMinBuildHeight());
+            int maxY = Math.min(sourceWorld.getMaxBuildHeight(), mirrorWorld.getMaxBuildHeight());
+            int targetMinSectionY = targetChunk.getMinSection();
+
+            for (int localZ = 0; localZ < 16; localZ++) {
+                int worldZ = chunkZ * 16 + localZ;
+
+                for (int localX = 0; localX < 16; localX++) {
+                    int worldX = chunkX * 16 + localX;
+                    NoiseColumn column = generator.getBaseColumn(worldX, worldZ, sourceWorld, randomState);
+
+                    for (int y = minY; y < maxY; y++) {
+                        BlockState state = column.getBlock(y);
+                        if (state == null || state.isAir() || isPortalBlock(state)) {
+                            continue;
+                        }
+
+                        int sectionY = y >> 4;
+                        int targetRelativeSectionIndex = sectionY - targetMinSectionY;
+                        if (targetRelativeSectionIndex < 0
+                                || targetRelativeSectionIndex >= targetChunk.getSectionsCount()) {
+                            continue;
+                        }
+
+                        LevelChunkSection targetSection = targetChunk.getSection(targetRelativeSectionIndex);
+                        if (targetSection != null) {
+                            targetSection.setBlockState(localX, y & 15, localZ, state, false);
+                        } else {
+                            mirrorWorld.setBlock(new BlockPos(worldX, y, worldZ), state, 2 | 16);
+                        }
+                        blocksCopied++;
+                    }
+                }
+            }
+
+            targetChunk.setUnsaved(true);
+
+            if (MirrorConfig.COPY_BIOMES.get()) {
+                LevelChunk sourceChunk = sourceWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+                if (sourceChunk != null) {
+                    copyChunkBiomes(sourceChunk, targetChunk);
+                }
+            }
+
+            if (MirrorConfig.COPY_HEIGHTMAPS.get()) {
+                regenerateHeightmaps(targetChunk);
+            }
+
+            targetChunk.initializeLightSources();
+            relightChunk(mirrorWorld, targetChunk);
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Failed to generate pristine mirror chunk ({}, {}): {}",
+                    chunkX, chunkZ, errorMsg);
+        }
+
+        return blocksCopied;
+    }
+
     /**
      * Get the maximum height with blocks in a chunk using heightmap
      */
@@ -1581,7 +1666,7 @@ public class WorldCopyService {
 
                     if (newEntity != null) {
                         // Use a fresh CompoundTag per entity to prevent state leakage
-                        // NOTE: Do NOT reuse tags with getAllKeys().clear() — that corrupts
+                        // NOTE: Do NOT reuse tags with getAllKeys().clear() 鈥?that corrupts
                         // the tag's internal map and causes data from previous entities to
                         // bleed into subsequent ones, breaking Container inventory save/load
                         net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
@@ -2568,7 +2653,7 @@ public class WorldCopyService {
         modifiedChunks.clear();
         pendingSave.clear();
         saveTickCounter = 0;
-        
+
         InstantWorldMirror.LOGGER.debug("All tasks cleared");
     }
 }
