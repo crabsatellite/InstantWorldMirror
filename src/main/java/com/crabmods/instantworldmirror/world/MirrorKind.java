@@ -39,7 +39,7 @@ public enum MirrorKind {
     }
 
     public boolean usesHeavenVisuals() {
-        return this == HEAVEN || this == FIRST_DREAM;
+        return this == HEAVEN;
     }
 
     public static MirrorKind fromSandboxMode(boolean sandboxMode) {

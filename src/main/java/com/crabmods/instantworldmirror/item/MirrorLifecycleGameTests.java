@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.item;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.MirrorKind;
@@ -53,8 +54,17 @@ public final class MirrorLifecycleGameTests {
                 "First dream mirror must use default player state");
         helper.assertTrue(MirrorKind.FIRST_DREAM.usesPristineTerrain(),
                 "First dream mirror must request pristine generated terrain");
+        helper.assertFalse(MirrorKind.FIRST_DREAM.usesHeavenVisuals(),
+                "First dream mirror must not reuse heaven mirror visuals");
         helper.assertFalse(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Fresh heaven mirror must not start permanent");
+
+        MirrorPortalEntity firstDreamPortal = new MirrorPortalEntity(
+                helper.getLevel(), 0, 0, 0, UUID.randomUUID(), true, false, null, MirrorKind.FIRST_DREAM);
+        helper.assertTrue(firstDreamPortal.getMirrorKind() == MirrorKind.FIRST_DREAM,
+                "First dream portals must sync the first dream mirror kind");
+        helper.assertFalse(firstDreamPortal.isHeavenPortal(),
+                "First dream portals must not render as heaven portals");
 
         DimensionMirrorItem dimensionMirrorItem = (DimensionMirrorItem) dimensionMirror.getItem();
         helper.assertTrue(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.PERMANENCE.get()),

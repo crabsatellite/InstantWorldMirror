@@ -2,8 +2,10 @@ package com.crabmods.instantworldmirror.client.renderer;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
+import com.crabmods.instantworldmirror.client.model.FirstDreamMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -29,14 +31,18 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
             InstantWorldMirror.MODID, "textures/item/dimension_mirror.png");
     private static final ResourceLocation HEAVEN_MIRROR_TEXTURE = new ResourceLocation(
             InstantWorldMirror.MODID, "textures/item/heaven_mirror.png");
+    private static final ResourceLocation FIRST_DREAM_MIRROR_TEXTURE = new ResourceLocation(
+            InstantWorldMirror.MODID, "textures/item/first_dream_mirror.png");
     
     private final DimensionMirrorItemModel dimensionMirrorModel;
     private final HeavenMirrorItemModel heavenMirrorModel;
+    private final FirstDreamMirrorItemModel firstDreamMirrorModel;
 
     public MirrorPortalRenderer(EntityRendererProvider.Context context) {
         super(context);
         this.dimensionMirrorModel = new DimensionMirrorItemModel(DimensionMirrorItemModel.createBodyLayer().bakeRoot());
         this.heavenMirrorModel = new HeavenMirrorItemModel(HeavenMirrorItemModel.createBodyLayer().bakeRoot());
+        this.firstDreamMirrorModel = new FirstDreamMirrorItemModel(FirstDreamMirrorItemModel.createBodyLayer().bakeRoot());
     }
 
     @Override
@@ -80,8 +86,9 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         // Use full brightness for magical effect
         int fullBright = LightTexture.FULL_BRIGHT;
         
-        ResourceLocation texture = getTextureLocation(entity);
-        EntityModel<Entity> model = entity.isHeavenPortal() ? heavenMirrorModel : dimensionMirrorModel;
+        MirrorKind kind = entity.getMirrorKind();
+        ResourceLocation texture = textureFor(kind);
+        EntityModel<Entity> model = modelFor(kind);
         RenderType renderType = alpha < 1.0F
                 ? RenderType.entityTranslucent(texture)
                 : RenderType.entityCutoutNoCull(texture);
@@ -101,6 +108,22 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
 
     @Override
     public ResourceLocation getTextureLocation(MirrorPortalEntity entity) {
-        return entity.isHeavenPortal() ? HEAVEN_MIRROR_TEXTURE : DIMENSION_MIRROR_TEXTURE;
+        return textureFor(entity.getMirrorKind());
+    }
+
+    private EntityModel<Entity> modelFor(MirrorKind kind) {
+        return switch (kind) {
+            case HEAVEN -> heavenMirrorModel;
+            case FIRST_DREAM -> firstDreamMirrorModel;
+            case DIMENSION -> dimensionMirrorModel;
+        };
+    }
+
+    private static ResourceLocation textureFor(MirrorKind kind) {
+        return switch (kind) {
+            case HEAVEN -> HEAVEN_MIRROR_TEXTURE;
+            case FIRST_DREAM -> FIRST_DREAM_MIRROR_TEXTURE;
+            case DIMENSION -> DIMENSION_MIRROR_TEXTURE;
+        };
     }
 }

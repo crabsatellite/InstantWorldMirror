@@ -470,7 +470,7 @@ public class DimensionMirrorItem extends Item {
 
         // Spawn return portal using the unified factory method
         // pos is the clicked solid block, factory method handles pos.above() internally
-        MirrorPortalEntity.spawnReturnPortal(level, pos, player.getUUID(), false, null);
+        MirrorPortalEntity.spawnReturnPortal(level, pos, player.getUUID(), false, null, kind);
 
         player.displayClientMessage(
                 Component.translatable("message.instantworldmirror.return_portal_created"),
