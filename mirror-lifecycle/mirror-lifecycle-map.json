@@ -284,6 +284,19 @@
           ]
         }
       ]
+    },
+    {
+      "id": "packaging_lifecycle",
+      "title": "Built jars contain mirror lifecycle classes and resources",
+      "stages": [
+        {
+          "id": "jar_contents",
+          "title": "Gradle build verifies persistent mirror classes, dimensions, and version-specific enchantment resources are packaged",
+          "checks": [
+            "build.verify_mirror_jar_contents"
+          ]
+        }
+      ]
     }
   ],
   "checks": [
@@ -769,6 +782,22 @@
         "Created: .*minecraft:textures/atlas|OpenAL initialized|Sound engine started|Narrator library",
         "Stop-ProcessTree",
         "Remove-Item -LiteralPath $stdoutLog, $stderrLog"
+      ]
+    },
+    {
+      "id": "build.verify_mirror_jar_contents",
+      "adapter": "file_contains_all",
+      "file": "build.gradle",
+      "texts": [
+        "verifyMirrorJarContents",
+        "mirrorJarRequiredEntries",
+        "mirrorJarOutput",
+        "dependsOn tasks.named('assemble')",
+        "ModEnchantments.class",
+        "persistent_mirror_world_${index}.json",
+        "requiredEntry = entry.toString()",
+        "JarFile(jarFile)",
+        "Jar missing required mirror lifecycle entry"
       ]
     }
   ]
