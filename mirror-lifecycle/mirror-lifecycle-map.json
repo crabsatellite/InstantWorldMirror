@@ -286,6 +286,34 @@
       ]
     },
     {
+      "id": "runtime.gametest_lifecycle",
+      "title": "GameTest server verifies mirror lifecycle behavior at runtime",
+      "stages": [
+        {
+          "id": "registration",
+          "title": "Mirror lifecycle tests are registered in the mod namespace with a reusable empty template",
+          "checks": [
+            "runtime.gametest_source_registered",
+            "runtime.gametest_empty_template"
+          ]
+        },
+        {
+          "id": "coverage",
+          "title": "Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior",
+          "checks": [
+            "runtime.gametest_behavior_coverage"
+          ]
+        },
+        {
+          "id": "script",
+          "title": "Smoke script runs Gradle's GameTest server entrypoint",
+          "checks": [
+            "runtime.gametest_smoke_script"
+          ]
+        }
+      ]
+    },
+    {
       "id": "packaging_lifecycle",
       "title": "Built jars contain mirror lifecycle classes and resources",
       "stages": [
@@ -782,6 +810,50 @@
         "Created: .*minecraft:textures/atlas|OpenAL initialized|Sound engine started|Narrator library",
         "Stop-ProcessTree",
         "Remove-Item -LiteralPath $stdoutLog, $stderrLog"
+      ]
+    },
+    {
+      "id": "runtime.gametest_source_registered",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "@GameTestHolder(InstantWorldMirror.MODID)",
+        "@PrefixGameTestTemplate(false)",
+        "@GameTest(template = TEMPLATE"
+      ]
+    },
+    {
+      "id": "runtime.gametest_empty_template",
+      "adapter": "file_contains_all",
+      "file": "gameteststructures/mirror_lifecycle_empty.snbt",
+      "texts": [
+        "size:[1,1,1]",
+        "minecraft:air"
+      ]
+    },
+    {
+      "id": "runtime.gametest_behavior_coverage",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "mirrorKindsAndPermanenceEnchanting",
+        "permanenceDoesNotResetEfficiencyCooldown",
+        "heavenSandboxKeepsPermanenceMirror",
+        "DimensionMirrorItem.findMirrorStack(player)",
+        "DimensionMirrorItem.calculateCooldownSeconds",
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)"
+      ]
+    },
+    {
+      "id": "runtime.gametest_smoke_script",
+      "adapter": "file_contains_all",
+      "file": "scripts/run_gametest_smoke.ps1",
+      "texts": [
+        "runGameTestServer",
+        "GAMETEST_SMOKE_OK",
+        "runGameTestServer failed",
+        "run\\gameteststructures",
+        "Copy-Item"
       ]
     },
     {

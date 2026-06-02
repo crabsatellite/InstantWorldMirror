@@ -269,6 +269,30 @@
       "message": "found text",
       "passed": true
     },
+    "runtime.gametest_behavior_coverage": {
+      "adapter": "file_contains_all",
+      "id": "runtime.gametest_behavior_coverage",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.gametest_empty_template": {
+      "adapter": "file_contains_all",
+      "id": "runtime.gametest_empty_template",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.gametest_smoke_script": {
+      "adapter": "file_contains_all",
+      "id": "runtime.gametest_smoke_script",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.gametest_source_registered": {
+      "adapter": "file_contains_all",
+      "id": "runtime.gametest_source_registered",
+      "message": "all text found",
+      "passed": true
+    },
     "runtime.runclient_smoke_script": {
       "adapter": "file_contains_all",
       "id": "runtime.runclient_smoke_script",
@@ -301,12 +325,12 @@
     }
   },
   "completion": {
-    "checkCount": 41,
+    "checkCount": 45,
     "complete": true,
-    "coveredRouteCount": 12,
+    "coveredRouteCount": 13,
     "failedChecks": [],
-    "passedCheckCount": 41,
-    "routeCount": 12
+    "passedCheckCount": 45,
+    "routeCount": 13
   },
   "minecraftVersion": "1.20.1",
   "project": "InstantWorldMirror",
@@ -632,6 +656,38 @@
       ],
       "status": "covered",
       "title": "runClient smoke verification is reproducible from repo infra"
+    },
+    {
+      "id": "runtime.gametest_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "runtime.gametest_source_registered",
+            "runtime.gametest_empty_template"
+          ],
+          "id": "registration",
+          "status": "covered",
+          "title": "Mirror lifecycle tests are registered in the mod namespace with a reusable empty template"
+        },
+        {
+          "checks": [
+            "runtime.gametest_behavior_coverage"
+          ],
+          "id": "coverage",
+          "status": "covered",
+          "title": "Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior"
+        },
+        {
+          "checks": [
+            "runtime.gametest_smoke_script"
+          ],
+          "id": "script",
+          "status": "covered",
+          "title": "Smoke script runs Gradle's GameTest server entrypoint"
+        }
+      ],
+      "status": "covered",
+      "title": "GameTest server verifies mirror lifecycle behavior at runtime"
     },
     {
       "id": "packaging_lifecycle",

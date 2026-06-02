@@ -31,4 +31,7 @@
 | `command_bypass_guards` | `save` | `covered` | `manager.save_requires_persistent_access` |
 | `command_bypass_guards` | `enter` | `covered` | `manager.enter_requires_matching_permanence` |
 | `runtime_smoke_infra` | `script` | `covered` | `runtime.runclient_smoke_script` |
+| `runtime.gametest_lifecycle` | `registration` | `covered` | `runtime.gametest_source_registered`, `runtime.gametest_empty_template` |
+| `runtime.gametest_lifecycle` | `coverage` | `covered` | `runtime.gametest_behavior_coverage` |
+| `runtime.gametest_lifecycle` | `script` | `covered` | `runtime.gametest_smoke_script` |
 | `packaging_lifecycle` | `jar_contents` | `covered` | `build.verify_mirror_jar_contents` |

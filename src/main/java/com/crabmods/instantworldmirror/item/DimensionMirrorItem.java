@@ -352,7 +352,7 @@ public class DimensionMirrorItem extends Item {
         return MirrorKind.fromSandboxMode(sandboxMode);
     }
 
-    private static int calculateCooldownSeconds(Level level, ItemStack stack) {
+    static int calculateCooldownSeconds(Level level, ItemStack stack) {
         int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
         int efficiencyLevel = getEfficiencyLevel(level, stack);
 
