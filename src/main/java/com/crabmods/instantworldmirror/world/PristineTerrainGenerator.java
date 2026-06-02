@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.world;
 
 import com.mojang.datafixers.util.Either;
 import net.minecraft.Util;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
@@ -33,50 +34,56 @@ final class PristineTerrainGenerator {
     }
 
     static ChunkAccess generateChunk(ServerLevel sourceWorld, int chunkX, int chunkZ) {
-        GenerationCache cache = new GenerationCache(sourceWorld, chunkX, chunkZ, STRUCTURE_RADIUS);
-
-        cache.generateStep(ChunkStatus.STRUCTURE_STARTS, STRUCTURE_RADIUS);
-        cache.generateStep(ChunkStatus.STRUCTURE_REFERENCES, BIOME_RADIUS);
-        cache.generateStep(ChunkStatus.BIOMES, BIOME_RADIUS);
-        cache.generateStep(ChunkStatus.NOISE, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.SURFACE, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.CARVERS, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.FEATURES, 0);
-
-        return cache.center();
+        return openRegion(sourceWorld, new BlockPos(chunkX << 4, 0, chunkZ << 4), 0)
+                .generateChunk(chunkX, chunkZ);
     }
 
-    private static final class GenerationCache {
+    static Region openRegion(ServerLevel sourceWorld, BlockPos centerPos, int copyRadius) {
+        int centerChunkX = centerPos.getX() >> 4;
+        int centerChunkZ = centerPos.getZ() >> 4;
+        return new Region(sourceWorld, centerChunkX, centerChunkZ, copyRadius + STRUCTURE_RADIUS);
+    }
+
+    static final class Region {
         private final ServerLevel sourceWorld;
         private final ChunkGenerator generator;
-        private final int centerX;
-        private final int centerZ;
+        private final int regionCenterX;
+        private final int regionCenterZ;
         private final int radius;
         private final ProtoChunk[][] chunks;
 
-        GenerationCache(ServerLevel sourceWorld, int centerX, int centerZ, int radius) {
+        Region(ServerLevel sourceWorld, int regionCenterX, int regionCenterZ, int radius) {
             this.sourceWorld = sourceWorld;
             this.generator = sourceWorld.getChunkSource().getGenerator();
-            this.centerX = centerX;
-            this.centerZ = centerZ;
+            this.regionCenterX = regionCenterX;
+            this.regionCenterZ = regionCenterZ;
             this.radius = radius;
             int size = radius * 2 + 1;
             this.chunks = new ProtoChunk[size][size];
 
-            for (int x = centerX - radius; x <= centerX + radius; x++) {
-                for (int z = centerZ - radius; z <= centerZ + radius; z++) {
-                    chunks[x - (centerX - radius)][z - (centerZ - radius)] = createChunk(x, z);
+            for (int x = minX(); x <= maxX(); x++) {
+                for (int z = minZ(); z <= maxZ(); z++) {
+                    chunks[x - minX()][z - minZ()] = createChunk(x, z);
                 }
             }
         }
 
-        ChunkAccess center() {
-            return chunkAt(centerX, centerZ);
+        ChunkAccess generateChunk(int chunkX, int chunkZ) {
+            ensureWithin(chunkX, chunkZ, STRUCTURE_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.STRUCTURE_STARTS, STRUCTURE_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.STRUCTURE_REFERENCES, BIOME_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.BIOMES, BIOME_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.NOISE, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.SURFACE, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.CARVERS, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.FEATURES, 0);
+            return chunkAt(chunkX, chunkZ);
         }
 
-        void generateStep(ChunkStatus status, int generationRadius) {
-            for (int x = centerX - generationRadius; x <= centerX + generationRadius; x++) {
-                for (int z = centerZ - generationRadius; z <= centerZ + generationRadius; z++) {
+        private void generateStep(int chunkX, int chunkZ, ChunkStatus status, int generationRadius) {
+            ensureWithin(chunkX, chunkZ, generationRadius);
+            for (int x = chunkX - generationRadius; x <= chunkX + generationRadius; x++) {
+                for (int z = chunkZ - generationRadius; z <= chunkZ + generationRadius; z++) {
                     ProtoChunk chunk = chunkAt(x, z);
                     if (!chunk.getStatus().isOrAfter(status)) {
                         generateStatus(chunk, status);
@@ -122,7 +129,33 @@ final class PristineTerrainGenerator {
         }
 
         private ProtoChunk chunkAt(int x, int z) {
-            return chunks[x - (centerX - radius)][z - (centerZ - radius)];
+            return chunks[x - minX()][z - minZ()];
+        }
+
+        private void ensureWithin(int chunkX, int chunkZ, int generationRadius) {
+            if (chunkX - generationRadius < minX()
+                    || chunkX + generationRadius > maxX()
+                    || chunkZ - generationRadius < minZ()
+                    || chunkZ + generationRadius > maxZ()) {
+                throw new IllegalArgumentException("Pristine generation request outside cached region: "
+                        + chunkX + ", " + chunkZ);
+            }
+        }
+
+        private int minX() {
+            return regionCenterX - radius;
+        }
+
+        private int maxX() {
+            return regionCenterX + radius;
+        }
+
+        private int minZ() {
+            return regionCenterZ - radius;
+        }
+
+        private int maxZ() {
+            return regionCenterZ + radius;
         }
     }
 }

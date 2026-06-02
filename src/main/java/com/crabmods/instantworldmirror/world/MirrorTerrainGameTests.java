@@ -36,4 +36,28 @@ public final class MirrorTerrainGameTests {
 
         helper.succeed();
     }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 120)
+    public static void firstDreamRegionGeneratorCoversCopyEdges(GameTestHelper helper) {
+        BlockPos centerPos = helper.absolutePos(BlockPos.ZERO);
+        int centerChunkX = centerPos.getX() >> 4;
+        int centerChunkZ = centerPos.getZ() >> 4;
+        int edgeChunkX = centerChunkX + 1;
+        int edgeChunkZ = centerChunkZ + 1;
+        BlockPos editedEdgePos = new BlockPos((edgeChunkX << 4) + 1, 96, (edgeChunkZ << 4) + 1);
+        helper.getLevel().setBlock(editedEdgePos, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+
+        PristineTerrainGenerator.Region region = PristineTerrainGenerator.openRegion(helper.getLevel(), centerPos, 1);
+        ChunkAccess centerChunk = region.generateChunk(centerChunkX, centerChunkZ);
+        ChunkAccess edgeChunk = region.generateChunk(edgeChunkX, edgeChunkZ);
+
+        helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
+                "First dream region generation must complete the center chunk");
+        helper.assertTrue(edgeChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
+                "First dream region generation must complete edge chunks in one shared copy region");
+        helper.assertFalse(edgeChunk.getBlockState(editedEdgePos).is(Blocks.GOLD_BLOCK),
+                "First dream shared region terrain must not copy player edits from edge chunks");
+
+        helper.succeed();
+    }
 }

@@ -181,6 +181,7 @@ public class WorldCopyService {
         private boolean preloadingStarted = false;
         private int preloadedChunks = 0;
         private static final int PRELOAD_AHEAD = 8; // Preload 8 chunks ahead
+        private PristineTerrainGenerator.Region pristineRegion;
 
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius, 
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain) {
@@ -281,6 +282,12 @@ public class WorldCopyService {
         public void cancel() { cancelled = true; completed = true; }
         public int getTotalBlocksCopied() { return totalBlocksCopied; }
         public boolean isPreloadingStarted() { return preloadingStarted; }
+        public ChunkAccess generatePristineChunk(ServerLevel sourceWorld, int chunkX, int chunkZ) {
+            if (pristineRegion == null) {
+                pristineRegion = PristineTerrainGenerator.openRegion(sourceWorld, centerPos, chunkRadius);
+            }
+            return pristineRegion.generateChunk(chunkX, chunkZ);
+        }
         
         private boolean cancelled = false;
     }
@@ -1161,7 +1168,7 @@ public class WorldCopyService {
         for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
             int[] chunkCoords = task.getNextChunk();
             if (chunkCoords != null) {
-                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain);
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task);
                 task.addBlocksCopied(blocksCopied);
                 
                 // Track this chunk as modified for cleanup later
@@ -1235,7 +1242,7 @@ public class WorldCopyService {
         for (int i = 0; i < chunksPerTick && !task.isCompleted(); i++) {
             int[] chunkCoords = task.getNextChunk();
             if (chunkCoords != null) {
-                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain);
+                int blocksCopied = copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task);
                 task.addBlocksCopied(blocksCopied);
                 task.preloadChunksAsync(sourceWorld, targetWorld);
             }
@@ -1281,9 +1288,9 @@ public class WorldCopyService {
     }
 
     private static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                  int chunkX, int chunkZ, boolean pristineTerrain) {
-        if (pristineTerrain) {
-            return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+                                  int chunkX, int chunkZ, CopyTask task) {
+        if (task.pristineTerrain) {
+            return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
         }
 
         return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
@@ -1474,12 +1481,12 @@ public class WorldCopyService {
     }
 
     private static int copyPristineTerrainChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                                int chunkX, int chunkZ) {
+                                                int chunkX, int chunkZ, CopyTask task) {
         int blocksCopied = 0;
 
         try {
             LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
-            ChunkAccess generatedChunk = PristineTerrainGenerator.generateChunk(sourceWorld, chunkX, chunkZ);
+            ChunkAccess generatedChunk = task.generatePristineChunk(sourceWorld, chunkX, chunkZ);
             clearChunkForPristineCopy(mirrorWorld, targetChunk);
 
             int sourceMinSectionY = generatedChunk.getMinSection();
