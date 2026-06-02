@@ -271,6 +271,19 @@
           ]
         }
       ]
+    },
+    {
+      "id": "runtime_smoke_infra",
+      "title": "runClient smoke verification is reproducible from repo infra",
+      "stages": [
+        {
+          "id": "script",
+          "title": "Smoke script launches runClient, waits for render/audio evidence, and cleans temporary processes/logs",
+          "checks": [
+            "runtime.runclient_smoke_script"
+          ]
+        }
+      ]
     }
   ],
   "checks": [
@@ -745,6 +758,18 @@
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/gen/MirrorChunkGenerator.java",
       "text": "Prevent villages, mod structures, and other generated structures outside the copied area."
+    },
+    {
+      "id": "runtime.runclient_smoke_script",
+      "adapter": "file_contains_all",
+      "file": "scripts/runclient_smoke.ps1",
+      "texts": [
+        "runClient",
+        "RUNCLIENT_SMOKE_OK",
+        "Created: .*minecraft:textures/atlas|OpenAL initialized|Sound engine started|Narrator library",
+        "Stop-ProcessTree",
+        "Remove-Item -LiteralPath $stdoutLog, $stderrLog"
+      ]
     }
   ]
 }

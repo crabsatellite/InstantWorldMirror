@@ -263,6 +263,12 @@
       "message": "found text",
       "passed": true
     },
+    "runtime.runclient_smoke_script": {
+      "adapter": "file_contains_all",
+      "id": "runtime.runclient_smoke_script",
+      "message": "all text found",
+      "passed": true
+    },
     "sandbox.applies_permanence_to_hotbar_mirror": {
       "adapter": "file_contains",
       "id": "sandbox.applies_permanence_to_hotbar_mirror",
@@ -289,12 +295,12 @@
     }
   },
   "completion": {
-    "checkCount": 39,
+    "checkCount": 40,
     "complete": true,
-    "coveredRouteCount": 10,
+    "coveredRouteCount": 11,
     "failedChecks": [],
-    "passedCheckCount": 39,
-    "routeCount": 10
+    "passedCheckCount": 40,
+    "routeCount": 11
   },
   "minecraftVersion": "1.21.1",
   "project": "InstantWorldMirror",
@@ -605,6 +611,21 @@
       ],
       "status": "covered",
       "title": "Commands cannot bypass the enchanted-mirror lifecycle"
+    },
+    {
+      "id": "runtime_smoke_infra",
+      "stages": [
+        {
+          "checks": [
+            "runtime.runclient_smoke_script"
+          ],
+          "id": "script",
+          "status": "covered",
+          "title": "Smoke script launches runClient, waits for render/audio evidence, and cleans temporary processes/logs"
+        }
+      ],
+      "status": "covered",
+      "title": "runClient smoke verification is reproducible from repo infra"
     }
   ],
   "schemaVersion": 1,

@@ -236,6 +236,14 @@
       "route": "command_bypass_guards",
       "stage": "enter",
       "status": "covered"
+    },
+    {
+      "checks": [
+        "runtime.runclient_smoke_script"
+      ],
+      "route": "runtime_smoke_infra",
+      "stage": "script",
+      "status": "covered"
     }
   ]
 }
