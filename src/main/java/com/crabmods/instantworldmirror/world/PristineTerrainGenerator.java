@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror.world;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.GenerationChunkHolder;
 import net.minecraft.server.level.ServerLevel;
@@ -27,30 +28,27 @@ final class PristineTerrainGenerator {
     }
 
     static ChunkAccess generateChunk(ServerLevel sourceWorld, int chunkX, int chunkZ) {
-        GenerationCache cache = new GenerationCache(sourceWorld, chunkX, chunkZ, STRUCTURE_RADIUS);
-
-        cache.generateStructureStarts();
-        cache.generateStep(ChunkStatus.STRUCTURE_REFERENCES, BIOME_RADIUS);
-        cache.generateStep(ChunkStatus.BIOMES, BIOME_RADIUS);
-        cache.generateStep(ChunkStatus.NOISE, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.SURFACE, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.CARVERS, TERRAIN_RADIUS);
-        cache.generateStep(ChunkStatus.FEATURES, 0);
-
-        return cache.center();
+        return openRegion(sourceWorld, new BlockPos(chunkX << 4, 0, chunkZ << 4), 0)
+                .generateChunk(chunkX, chunkZ);
     }
 
-    private static final class GenerationCache {
+    static Region openRegion(ServerLevel sourceWorld, BlockPos centerPos, int copyRadius) {
+        int centerChunkX = centerPos.getX() >> 4;
+        int centerChunkZ = centerPos.getZ() >> 4;
+        return new Region(sourceWorld, centerChunkX, centerChunkZ, copyRadius + STRUCTURE_RADIUS);
+    }
+
+    static final class Region {
         private final ServerLevel sourceWorld;
         private final ChunkGenerator generator;
         private final WorldGenContext context;
-        private final int centerX;
-        private final int centerZ;
+        private final int regionCenterX;
+        private final int regionCenterZ;
         private final int radius;
         private final StaticCache2D<GenerationChunkHolder> holders;
         private final MemoryGenerationChunkHolder[][] holderGrid;
 
-        GenerationCache(ServerLevel sourceWorld, int centerX, int centerZ, int radius) {
+        Region(ServerLevel sourceWorld, int regionCenterX, int regionCenterZ, int radius) {
             this.sourceWorld = sourceWorld;
             this.generator = sourceWorld.getChunkSource().getGenerator();
             this.context = new WorldGenContext(
@@ -60,20 +58,28 @@ final class PristineTerrainGenerator {
                     sourceWorld.getChunkSource().getLightEngine(),
                     null
             );
-            this.centerX = centerX;
-            this.centerZ = centerZ;
+            this.regionCenterX = regionCenterX;
+            this.regionCenterZ = regionCenterZ;
             this.radius = radius;
             int size = radius * 2 + 1;
             this.holderGrid = new MemoryGenerationChunkHolder[size][size];
-            this.holders = StaticCache2D.create(centerX, centerZ, radius, this::createHolder);
+            this.holders = StaticCache2D.create(regionCenterX, regionCenterZ, radius, this::createHolder);
         }
 
-        ChunkAccess center() {
-            return holderAt(centerX, centerZ).chunk;
+        ChunkAccess generateChunk(int chunkX, int chunkZ) {
+            ensureWithin(chunkX, chunkZ, STRUCTURE_RADIUS);
+            generateStructureStarts(chunkX, chunkZ);
+            generateStep(chunkX, chunkZ, ChunkStatus.STRUCTURE_REFERENCES, BIOME_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.BIOMES, BIOME_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.NOISE, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.SURFACE, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.CARVERS, TERRAIN_RADIUS);
+            generateStep(chunkX, chunkZ, ChunkStatus.FEATURES, 0);
+            return holderAt(chunkX, chunkZ).chunk;
         }
 
-        void generateStructureStarts() {
-            generateWithin(STRUCTURE_RADIUS, holder -> {
+        private void generateStructureStarts(int chunkX, int chunkZ) {
+            generateWithin(chunkX, chunkZ, STRUCTURE_RADIUS, holder -> {
                 if (!holder.chunk.getPersistedStatus().isBefore(ChunkStatus.STRUCTURE_STARTS)) {
                     return;
                 }
@@ -91,14 +97,20 @@ final class PristineTerrainGenerator {
             });
         }
 
-        void generateStep(ChunkStatus status, int generationRadius) {
+        private void generateStep(int chunkX, int chunkZ, ChunkStatus status, int generationRadius) {
+            ensureWithin(chunkX, chunkZ, generationRadius);
             ChunkStep step = ChunkPyramid.GENERATION_PYRAMID.getStepTo(status);
-            generateWithin(generationRadius, holder -> step.apply(context, holders, holder.chunk).join());
+            generateWithin(chunkX, chunkZ, generationRadius, holder -> {
+                if (holder.chunk.getPersistedStatus().isBefore(status)) {
+                    step.apply(context, holders, holder.chunk).join();
+                }
+            });
         }
 
-        private void generateWithin(int generationRadius, java.util.function.Consumer<MemoryGenerationChunkHolder> action) {
-            for (int x = centerX - generationRadius; x <= centerX + generationRadius; x++) {
-                for (int z = centerZ - generationRadius; z <= centerZ + generationRadius; z++) {
+        private void generateWithin(int chunkX, int chunkZ, int generationRadius,
+                                    java.util.function.Consumer<MemoryGenerationChunkHolder> action) {
+            for (int x = chunkX - generationRadius; x <= chunkX + generationRadius; x++) {
+                for (int z = chunkZ - generationRadius; z <= chunkZ + generationRadius; z++) {
                     action.accept(holderAt(x, z));
                 }
             }
@@ -113,12 +125,38 @@ final class PristineTerrainGenerator {
                     null
             );
             MemoryGenerationChunkHolder holder = new MemoryGenerationChunkHolder(chunk);
-            holderGrid[x - (centerX - radius)][z - (centerZ - radius)] = holder;
+            holderGrid[x - minX()][z - minZ()] = holder;
             return holder;
         }
 
         private MemoryGenerationChunkHolder holderAt(int x, int z) {
-            return holderGrid[x - (centerX - radius)][z - (centerZ - radius)];
+            return holderGrid[x - minX()][z - minZ()];
+        }
+
+        private void ensureWithin(int chunkX, int chunkZ, int generationRadius) {
+            if (chunkX - generationRadius < minX()
+                    || chunkX + generationRadius > maxX()
+                    || chunkZ - generationRadius < minZ()
+                    || chunkZ + generationRadius > maxZ()) {
+                throw new IllegalArgumentException("Pristine generation request outside cached region: "
+                        + chunkX + ", " + chunkZ);
+            }
+        }
+
+        private int minX() {
+            return regionCenterX - radius;
+        }
+
+        private int maxX() {
+            return regionCenterX + radius;
+        }
+
+        private int minZ() {
+            return regionCenterZ - radius;
+        }
+
+        private int maxZ() {
+            return regionCenterZ + radius;
         }
     }
 

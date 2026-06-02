@@ -1096,7 +1096,7 @@
         "persistentCopyQueue.removeFirstOccurrence(currentDimIndex)",
         "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)",
         "ServerLevel targetWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(currentDimIndex))",
-        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain)",
+        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task)",
         "if (task.isCompleted())",
         "PersistentMirrorManager.handlePersistentCopyComplete(task.sessionId, server)"
       ]
@@ -1108,7 +1108,9 @@
       "texts": [
         "public final boolean pristineTerrain",
         "session.usesPristineTerrain()",
-        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task.pristineTerrain)"
+        "private PristineTerrainGenerator.Region pristineRegion",
+        "PristineTerrainGenerator.openRegion(sourceWorld, centerPos, chunkRadius)",
+        "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task)"
       ]
     },
     {
@@ -1116,7 +1118,7 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "PristineTerrainGenerator.generateChunk(sourceWorld, chunkX, chunkZ)",
+        "task.generatePristineChunk(sourceWorld, chunkX, chunkZ)",
         "clearChunkForPristineCopy(mirrorWorld, targetChunk)",
         "targetSection.setBlockState",
         "copyChunkBiomes(generatedChunk, targetChunk)",
