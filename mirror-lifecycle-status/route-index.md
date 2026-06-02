@@ -85,3 +85,9 @@ Commands cannot bypass the enchanted-mirror lifecycle
 runClient smoke verification is reproducible from repo infra
 
 - `script`: covered - Smoke script launches runClient, waits for render/audio evidence, and cleans temporary processes/logs
+
+## packaging_lifecycle - covered
+
+Built jars contain mirror lifecycle classes and resources
+
+- `jar_contents`: covered - Gradle build verifies persistent mirror classes, dimensions, and version-specific enchantment resources are packaged

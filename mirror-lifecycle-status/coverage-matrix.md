@@ -31,3 +31,4 @@
 | `command_bypass_guards` | `save` | `covered` | `manager.save_requires_persistent_access` |
 | `command_bypass_guards` | `enter` | `covered` | `manager.enter_requires_matching_permanence` |
 | `runtime_smoke_infra` | `script` | `covered` | `runtime.runclient_smoke_script` |
+| `packaging_lifecycle` | `jar_contents` | `covered` | `build.verify_mirror_jar_contents` |

@@ -1,5 +1,11 @@
 {
   "checks": {
+    "build.verify_mirror_jar_contents": {
+      "adapter": "file_contains_all",
+      "id": "build.verify_mirror_jar_contents",
+      "message": "all text found",
+      "passed": true
+    },
     "command.menu_uses_held_mirror": {
       "adapter": "file_contains",
       "id": "command.menu_uses_held_mirror",
@@ -295,12 +301,12 @@
     }
   },
   "completion": {
-    "checkCount": 40,
+    "checkCount": 41,
     "complete": true,
-    "coveredRouteCount": 11,
+    "coveredRouteCount": 12,
     "failedChecks": [],
-    "passedCheckCount": 40,
-    "routeCount": 11
+    "passedCheckCount": 41,
+    "routeCount": 12
   },
   "minecraftVersion": "1.20.1",
   "project": "InstantWorldMirror",
@@ -626,6 +632,21 @@
       ],
       "status": "covered",
       "title": "runClient smoke verification is reproducible from repo infra"
+    },
+    {
+      "id": "packaging_lifecycle",
+      "stages": [
+        {
+          "checks": [
+            "build.verify_mirror_jar_contents"
+          ],
+          "id": "jar_contents",
+          "status": "covered",
+          "title": "Gradle build verifies persistent mirror classes, dimensions, and version-specific enchantment resources are packaged"
+        }
+      ],
+      "status": "covered",
+      "title": "Built jars contain mirror lifecycle classes and resources"
     }
   ],
   "schemaVersion": 1,

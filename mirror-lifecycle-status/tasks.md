@@ -1,5 +1,6 @@
 # Mirror lifecycle generated tasks
 
+- [x] `build.verify_mirror_jar_contents` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_completion_order` - method contains ordered text

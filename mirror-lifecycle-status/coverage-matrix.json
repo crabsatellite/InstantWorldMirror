@@ -244,6 +244,14 @@
       "route": "runtime_smoke_infra",
       "stage": "script",
       "status": "covered"
+    },
+    {
+      "checks": [
+        "build.verify_mirror_jar_contents"
+      ],
+      "route": "packaging_lifecycle",
+      "stage": "jar_contents",
+      "status": "covered"
     }
   ]
 }

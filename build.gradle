@@ -218,10 +218,60 @@ tasks.register('persistentMirrorStaticTest') {
     }
 }
 
+def mirrorJarRequiredEntries = [
+        'com/crabmods/instantworldmirror/registry/ModEnchantments.class',
+        'com/crabmods/instantworldmirror/world/MirrorKind.class',
+        'com/crabmods/instantworldmirror/world/PersistentMirrorData.class',
+        'com/crabmods/instantworldmirror/world/PersistentMirrorManager.class',
+        'com/crabmods/instantworldmirror/world/PersistentMirrorRecord.class'
+]
+(0..<8).each { index ->
+    mirrorJarRequiredEntries.add("data/instantworldmirror/dimension/persistent_mirror_world_${index}.json")
+}
+if (minecraft_version == '1.21.1') {
+    mirrorJarRequiredEntries.addAll([
+            'data/instantworldmirror/enchantment/permanence.json',
+            'data/instantworldmirror/tags/item/mirror_enchantable.json',
+            'data/minecraft/tags/enchantment/in_enchanting_table.json',
+            'data/minecraft/tags/enchantment/non_treasure.json',
+            'data/minecraft/tags/enchantment/tooltip_order.json',
+            'data/minecraft/tags/enchantment/tradeable.json'
+    ])
+}
+if (minecraft_version == '1.20.1') {
+    mirrorJarRequiredEntries.add('com/crabmods/instantworldmirror/registry/ModEnchantments$PermanentMirrorEnchantment.class')
+}
+def mirrorJarOutput = layout.buildDirectory.file("libs/${mod_id}-${minecraft_version}-${mod_version}.jar")
+
+tasks.register('verifyMirrorJarContents') {
+    group = 'verification'
+    description = 'Verifies the built jar contains mirror lifecycle classes and resources.'
+    dependsOn tasks.named('assemble')
+    inputs.file(mirrorJarOutput)
+
+    doLast {
+        def jarFile = mirrorJarOutput.get().asFile
+        assert jarFile.isFile(): "Missing jar output: ${jarFile}"
+
+        def entries = new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+            jar.entries().collect { it.name }.toSet()
+        }
+
+        mirrorJarRequiredEntries.each { entry ->
+            def requiredEntry = entry.toString()
+            assert entries.contains(requiredEntry): "Jar missing required mirror lifecycle entry: ${requiredEntry}"
+        }
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('testMirrorLifecycleStatusGenerator')
     dependsOn tasks.named('checkMirrorLifecycleCoverage')
     dependsOn tasks.named('persistentMirrorStaticTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('verifyMirrorJarContents')
 }
 
 idea {
