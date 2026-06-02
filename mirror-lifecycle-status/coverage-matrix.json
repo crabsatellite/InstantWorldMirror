@@ -38,6 +38,7 @@
       "checks": [
         "item.kind_from_stack",
         "kind.first_dream_present",
+        "kind.first_dream_not_sandbox",
         "kind.first_dream_pristine"
       ],
       "route": "temporary.first_dream_mirror",
@@ -48,7 +49,8 @@
       "checks": [
         "session.kind_field",
         "copy.pristine_task_flag",
-        "copy.pristine_generator_columns"
+        "copy.pristine_generator_features",
+        "copy.pristine_generator_pipeline"
       ],
       "route": "temporary.first_dream_mirror",
       "stage": "copy",
@@ -320,7 +322,8 @@
     },
     {
       "checks": [
-        "runtime.gametest_behavior_coverage"
+        "runtime.gametest_behavior_coverage",
+        "runtime.gametest_pristine_terrain_coverage"
       ],
       "route": "runtime.gametest_lifecycle",
       "stage": "coverage",

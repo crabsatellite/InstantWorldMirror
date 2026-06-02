@@ -20,8 +20,8 @@ Unenchanted Heaven Mirror stays temporary
 
 Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary
 
-- `kind`: covered - First Dream Mirror is a distinct sandbox mirror kind
-- `copy`: covered - Temporary first dream sessions use source generator columns instead of current chunks
+- `kind`: covered - First Dream Mirror is a distinct default-state mirror kind
+- `copy`: covered - Temporary first dream sessions regenerate pristine terrain instead of copying current chunks
 
 ## permanent.dimension_mirror - covered
 
@@ -102,7 +102,7 @@ runClient smoke verification is reproducible from repo infra
 GameTest server verifies mirror lifecycle behavior at runtime
 
 - `registration`: covered - Mirror lifecycle tests are registered in the mod namespace with a reusable empty template
-- `coverage`: covered - Runtime tests cover mirror kind, permanence, cooldown, and heaven sandbox hotbar behavior
+- `coverage`: covered - Runtime tests cover mirror kind, permanence, cooldown, sandbox hotbar, default player state, and pristine terrain behavior
 - `script`: covered - Smoke script runs Gradle's GameTest server entrypoint
 
 ## packaging_lifecycle - covered

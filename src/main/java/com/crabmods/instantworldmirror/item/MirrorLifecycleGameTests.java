@@ -48,8 +48,8 @@ public final class MirrorLifecycleGameTests {
                 "Heaven mirror stack must resolve to the heaven mirror kind");
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(firstDreamMirror) == MirrorKind.FIRST_DREAM,
                 "First dream mirror stack must resolve to the first dream mirror kind");
-        helper.assertTrue(MirrorKind.FIRST_DREAM.isSandbox(),
-                "First dream mirror must use sandbox player state");
+        helper.assertFalse(MirrorKind.FIRST_DREAM.isSandbox(),
+                "First dream mirror must use default player state");
         helper.assertTrue(MirrorKind.FIRST_DREAM.usesPristineTerrain(),
                 "First dream mirror must request pristine generated terrain");
         helper.assertFalse(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
@@ -116,14 +116,38 @@ public final class MirrorLifecycleGameTests {
                 "Sandbox entry must clear vanilla ender chest items");
 
         MirrorWorldManager.restorePlayerForMirrorExit(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamUsesDefaultPlayerState(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.getInventory().items.set(3, new ItemStack(Items.DIAMOND, 2));
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
 
         MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true);
 
-        ItemStack firstDreamHotbarMirror = player.getInventory().items.get(0);
-        helper.assertTrue(firstDreamHotbarMirror.is(ModItems.FIRST_DREAM_MIRROR.get()),
-                "First dream sandbox entry must leave a first dream mirror in hotbar slot 0");
-        helper.assertTrue(DimensionMirrorItem.hasPermanence(helper.getLevel(), firstDreamHotbarMirror),
-                "Persistent first dream sandbox entry must preserve Permanence on the hotbar mirror");
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "First dream entry must keep survival mode");
+        helper.assertTrue(player.getInventory().items.get(0).isEmpty(),
+                "First dream entry must not inject a sandbox mirror into hotbar slot 0");
+        helper.assertTrue(player.getInventory().items.get(3).is(Items.DIAMOND),
+                "First dream entry must keep vanilla inventory items in place");
+        helper.assertTrue(player.getEnderChestInventory().getItem(0).is(Items.EMERALD),
+                "First dream entry must keep vanilla ender chest items in place");
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        player.setGameMode(GameType.CREATIVE);
+        player.getInventory().items.set(0, new ItemStack(Items.REDSTONE));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, false);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.CREATIVE,
+                "First dream entry must keep creative mode");
+        helper.assertTrue(player.getInventory().items.get(0).is(Items.REDSTONE),
+                "First dream creative entry must not clear the player's hotbar");
 
         MirrorWorldManager.restorePlayerForMirrorExit(player);
         helper.succeed();

@@ -31,7 +31,7 @@ public enum MirrorKind {
     }
 
     public boolean isSandbox() {
-        return this == HEAVEN || this == FIRST_DREAM;
+        return this == HEAVEN;
     }
 
     public boolean usesPristineTerrain() {
