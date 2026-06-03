@@ -295,6 +295,10 @@ public class WorldCopyService {
         public void cancel() { cancelled = true; completed = true; }
         public int getTotalBlocksCopied() { return totalBlocksCopied; }
         public boolean isPreloadingStarted() { return preloadingStarted; }
+        boolean shouldCopyLiveGeneratedContentFromSource() {
+            return generatedContentRefresh && !pristineTerrain;
+        }
+
         public boolean preparePristineRegion(ServerLevel sourceWorld, int maxChunks) {
             if (!pristineTerrain || pristineRegionPrepared) {
                 return true;
@@ -1359,7 +1363,8 @@ public class WorldCopyService {
             return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
         }
 
-        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task.generatedContentRefresh);
+        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
+                task.shouldCopyLiveGeneratedContentFromSource());
     }
 
     private static int copyCurrentChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
@@ -1604,10 +1609,8 @@ public class WorldCopyService {
             if (task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()) {
                 copyGeneratedEntitiesFromChunk(generatedChunk, mirrorWorld);
             }
-            if (task.generatedContentRefresh) {
-                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
-                        false, false, true);
-            }
+            // Do not also copy live source entities here. Renewal must use regenerated
+            // chunk entities, otherwise dimension-controller bosses can be duplicated.
 
             targetChunk.initializeLightSources();
             relightChunk(mirrorWorld, targetChunk);

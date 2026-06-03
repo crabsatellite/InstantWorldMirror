@@ -138,6 +138,24 @@ public final class MirrorTerrainGameTests {
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamRefreshDoesNotCopyLiveSourceEntities(GameTestHelper helper) {
+        WorldCopyService.CopyTask firstDreamRefreshTask = new WorldCopyService.CopyTask(
+                UUID.randomUUID(),
+                helper.absolutePos(BlockPos.ZERO),
+                1,
+                helper.getLevel().dimension(),
+                0,
+                true,
+                true
+        );
+
+        helper.assertFalse(firstDreamRefreshTask.shouldCopyLiveGeneratedContentFromSource(),
+                "First dream refresh must use regenerated chunk entities instead of copying live source entities");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void generatedBossBarFallbackOnlyCoversBossesWithoutNativeBars(GameTestHelper helper) {
         EnderDragon dragon = EntityType.ENDER_DRAGON.create(helper.getLevel());
         WitherBoss wither = EntityType.WITHER.create(helper.getLevel());

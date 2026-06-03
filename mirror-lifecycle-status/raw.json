@@ -76,9 +76,9 @@
       "message": "method contains all text",
       "passed": true
     },
-    "copy.generated_content_refresh_copies_source_mobs": {
+    "copy.generated_content_refresh_skips_live_source_mobs": {
       "adapter": "file_contains_all",
-      "id": "copy.generated_content_refresh_copies_source_mobs",
+      "id": "copy.generated_content_refresh_skips_live_source_mobs",
       "message": "all text found",
       "passed": true
     },

@@ -11,7 +11,7 @@
 - [x] `command.purge_temporary_pool_only` - composite passed
 - [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
-- [x] `copy.generated_content_refresh_copies_source_mobs` - all text found
+- [x] `copy.generated_content_refresh_skips_live_source_mobs` - all text found
 - [x] `copy.generated_content_refresh_task_flag` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_cancel_task` - method contains ordered text
