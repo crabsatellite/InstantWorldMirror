@@ -42,6 +42,28 @@
       "message": "all text found",
       "passed": true
     },
+    "command.purge_temporary_pool_only": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "method contains all text",
+          "passed": true
+        },
+        {
+          "message": "method forbidden text absent",
+          "passed": true
+        }
+      ],
+      "id": "command.purge_temporary_pool_only",
+      "message": "composite passed",
+      "passed": true
+    },
+    "command.repair_scans_dead_data_only": {
+      "adapter": "method_contains_all",
+      "id": "command.repair_scans_dead_data_only",
+      "message": "method contains all text",
+      "passed": true
+    },
     "command.status_includes_persistent_pool": {
       "adapter": "method_contains_all",
       "id": "command.status_includes_persistent_pool",
@@ -364,6 +386,30 @@
       "message": "composite passed",
       "passed": true
     },
+    "lang.repair_messages": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "lang.repair_messages",
+      "message": "composite passed",
+      "passed": true
+    },
     "lang.status_persistent_messages": {
       "adapter": "all",
       "children": [
@@ -464,6 +510,12 @@
       "adapter": "method_contains_in_order",
       "id": "manager.rename_record_order",
       "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.repair_dead_persistent_records_only": {
+      "adapter": "method_contains_all",
+      "id": "manager.repair_dead_persistent_records_only",
+      "message": "method contains all text",
       "passed": true
     },
     "manager.return_temporary_order": {
@@ -592,6 +644,12 @@
       "message": "found text",
       "passed": true
     },
+    "worldcopy.persistent_copy_query": {
+      "adapter": "method_contains_all",
+      "id": "worldcopy.persistent_copy_query",
+      "message": "method contains all text",
+      "passed": true
+    },
     "worldgen.structures_disabled": {
       "adapter": "file_contains",
       "id": "worldgen.structures_disabled",
@@ -600,11 +658,11 @@
     }
   },
   "completion": {
-    "checkCount": 83,
+    "checkCount": 88,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 83,
+    "passedCheckCount": 88,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",
@@ -1008,6 +1066,11 @@
             "command.status_includes_persistent_pool",
             "command.persistent_name_suggestions_all_kinds",
             "command.mob_updates_persistent_worlds",
+            "command.repair_scans_dead_data_only",
+            "command.purge_temporary_pool_only",
+            "manager.repair_dead_persistent_records_only",
+            "worldcopy.persistent_copy_query",
+            "lang.repair_messages",
             "lang.status_persistent_messages"
           ],
           "id": "admin_visibility",

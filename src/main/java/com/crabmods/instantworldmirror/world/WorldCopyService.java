@@ -2638,6 +2638,10 @@ public class WorldCopyService {
     public static boolean hasPendingCopy(int dimIndex) {
         return copyTasks.containsKey(dimIndex);
     }
+
+    public static boolean hasPendingPersistentCopy(int dimIndex) {
+        return persistentCopyTasks.containsKey(dimIndex);
+    }
     
     /**
      * Cancel a pending cleanup task for a dimension

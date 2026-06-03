@@ -7,6 +7,8 @@
 - [x] `command.persistent_record_suggestions` - all text found
 - [x] `command.persistent_rename_command` - all text found
 - [x] `command.persistent_uses_selector` - all text found
+- [x] `command.purge_temporary_pool_only` - composite passed
+- [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_cancel_task` - method contains ordered text
@@ -47,6 +49,7 @@
 - [x] `kind.first_dream_present` - all text found
 - [x] `kind.first_dream_pristine` - all text found
 - [x] `lang.persistent_messages` - composite passed
+- [x] `lang.repair_messages` - composite passed
 - [x] `lang.status_persistent_messages` - composite passed
 - [x] `manager.copy_completion_releases_temporary_source` - method contains ordered text
 - [x] `manager.create_session_order` - method contains ordered text
@@ -61,6 +64,7 @@
 - [x] `manager.recover_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.recover_unready_records` - method contains ordered text
 - [x] `manager.rename_record_order` - method contains ordered text
+- [x] `manager.repair_dead_persistent_records_only` - method contains all text
 - [x] `manager.return_temporary_order` - method contains ordered text
 - [x] `manager.save_persistent_order` - method contains ordered text
 - [x] `manager.save_rejects_duplicate_session` - method contains ordered text
@@ -82,4 +86,5 @@
 - [x] `session.kind_field` - all text found
 - [x] `session.persistent_access_field` - found text
 - [x] `startup.recover_unready_records` - found text
+- [x] `worldcopy.persistent_copy_query` - method contains all text
 - [x] `worldgen.structures_disabled` - found text

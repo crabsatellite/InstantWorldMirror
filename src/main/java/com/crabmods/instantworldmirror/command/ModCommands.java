@@ -12,6 +12,7 @@ import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorData;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
+import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -179,7 +180,12 @@ public class ModCommands {
                                         .executes(ModCommands::forceClearCommand)
                                 )
                         )
-                        // /iwm purge - Completely delete mirror world save files (requires restart)
+                        // /iwm repair - Safe dead-data scan without targeting live player data
+                        .then(Commands.literal("repair")
+                                .requires(source -> source.hasPermission(3))
+                                .executes(ModCommands::repairCommand)
+                        )
+                        // /iwm purge - Completely delete temporary mirror world save files (requires restart)
                         .then(Commands.literal("purge")
                                 .requires(source -> source.hasPermission(3))
                                 .executes(ModCommands::purgeCommand)
@@ -560,16 +566,65 @@ public class ModCommands {
             return 0;
         }
     }
+
+    private static int repairCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+
+        if (server == null) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
+            return 0;
+        }
+
+        int temporaryCleanupsRequeued = 0;
+        int liveStatesSkipped = 0;
+        for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
+            DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
+            if (state != DimensionPool.DimensionState.CLEANING || WorldCopyService.hasPendingCleanup(dimIndex)) {
+                continue;
+            }
+
+            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
+            int playerCount = mirrorWorld != null ? mirrorWorld.players().size() : 0;
+            if (mirrorWorld == null || playerCount > 0) {
+                liveStatesSkipped++;
+                continue;
+            }
+
+            WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
+            temporaryCleanupsRequeued++;
+        }
+
+        PersistentMirrorManager.DeadDataRepairResult persistentResult =
+                PersistentMirrorManager.repairDeadPersistentData(server);
+        int skipped = liveStatesSkipped + persistentResult.liveRecordsSkipped();
+        int repaired = temporaryCleanupsRequeued
+                + persistentResult.recordsRemoved()
+                + persistentResult.worldsCleaned();
+        final int finalTemporaryCleanupsRequeued = temporaryCleanupsRequeued;
+        final int finalSkipped = skipped;
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.instantworldmirror.repair.success",
+                finalTemporaryCleanupsRequeued,
+                persistentResult.recordsRemoved(),
+                persistentResult.worldsCleaned(),
+                finalSkipped
+        ), true);
+
+        return repaired > 0 ? 1 : 0;
+    }
     
     /**
-     * /iwm purge - Completely delete all mirror world save files
-     * This marks them for deletion and requires a server restart to take effect
+     * /iwm purge - Completely delete temporary mirror world save files.
+     * Persistent mirrors are never touched here; interrupted persistent data is handled by /iwm repair.
+     * This marks temporary worlds for deletion and requires a server restart to take effect
      * Requires permission level 3 or above
      * 
      * Process:
      * 1. Enable purge mode to prevent new mirror sessions
      * 2. Force return all players in mirror worlds to overworld spawn
-     * 3. Delete all mirror world save directories
+     * 3. Delete temporary mirror world save directories
      * 4. Notify that restart is required
      */
     private static int purgeCommand(CommandContext<CommandSourceStack> context) {
@@ -609,14 +664,14 @@ public class ModCommands {
             ), true);
         }
         
-        // Step 4: Delete all mirror world save directories
+        // Step 4: Delete temporary mirror world save directories
         Path worldPath = server.getWorldPath(LevelResource.ROOT);
         Path dimensionsPath = worldPath.resolve("dimensions").resolve(InstantWorldMirror.MODID);
         
         int deletedCount = 0;
         int failedCount = 0;
         
-        // Delete all mirror world directories
+        // Delete temporary mirror world directories only; persistent worlds are live player data.
         for (int i = 0; i < ModDimensions.MAX_MIRROR_WORLD_POOL_SIZE; i++) {
             Path mirrorWorldPath = dimensionsPath.resolve("mirror_world_" + i);
             if (Files.exists(mirrorWorldPath)) {

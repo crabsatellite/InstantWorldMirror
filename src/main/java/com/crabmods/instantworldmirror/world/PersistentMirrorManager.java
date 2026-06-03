@@ -57,6 +57,46 @@ public class PersistentMirrorManager {
         pendingCopySourceSessions.clear();
     }
 
+    public record DeadDataRepairResult(int recordsRemoved, int worldsCleaned, int liveRecordsSkipped) {
+    }
+
+    public static DeadDataRepairResult repairDeadPersistentData(MinecraftServer server) {
+        PersistentMirrorData data = PersistentMirrorData.get(server);
+        int recordsRemoved = 0;
+        int worldsCleaned = 0;
+        int liveRecordsSkipped = 0;
+
+        for (PersistentMirrorRecord record : List.copyOf(data.records())) {
+            if (record.ready()) {
+                continue;
+            }
+
+            ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
+            int playerCount = persistentLevel != null ? persistentLevel.players().size() : 0;
+            if (playerCount > 0 || WorldCopyService.hasPendingPersistentCopy(record.dimensionIndex())) {
+                liveRecordsSkipped++;
+                continue;
+            }
+
+            pendingCopyCreators.remove(record.id());
+            UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
+            if (sourceSessionId == null) {
+                sourceSessionId = record.sourceSessionId();
+            }
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
+            data.removeRecord(record.id());
+            recordsRemoved++;
+
+            if (persistentLevel != null) {
+                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition());
+                worldsCleaned++;
+            }
+        }
+
+        return new DeadDataRepairResult(recordsRemoved, worldsCleaned, liveRecordsSkipped);
+    }
+
     public static boolean isPlayerInSandboxMirror(ServerPlayer player) {
         Optional<PersistentMirrorRecord> record = getCurrentRecord(player);
         return record.map(value -> value.kind().isSandbox()).orElse(false);
