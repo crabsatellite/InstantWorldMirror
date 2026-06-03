@@ -6,6 +6,7 @@ import com.crabmods.instantworldmirror.command.ModCommands;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorBossBarManager;
+import com.crabmods.instantworldmirror.world.MirrorEndDragonRewardManager;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
@@ -18,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -61,6 +63,11 @@ public class ModEvents {
      */
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
+        if (event.getEntity() instanceof EnderDragon dragon && dragon.level() instanceof ServerLevel serverLevel) {
+            MirrorEndDragonRewardManager.tryHandleGeneratedMirrorDragonDeath(serverLevel, dragon, event.getSource());
+            return;
+        }
+
         if (event.getEntity() instanceof ServerPlayer player) {
             boolean inMirrorWorld = MirrorWorldManager.isInMirrorWorld(player);
             boolean hasActiveSession = MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent();

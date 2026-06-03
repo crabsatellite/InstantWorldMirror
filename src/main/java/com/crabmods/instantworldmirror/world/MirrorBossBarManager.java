@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -8,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -27,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class MirrorBossBarManager {
     private static final String GENERATED_CONTENT_ENTITY_TAG = InstantWorldMirror.MODID + ":generated_content_entity";
     private static final double BOSS_BAR_RANGE_SQR = 192.0 * 192.0;
+    private static final double ENDER_DRAGON_FIGHT_CENTER_Y_OFFSET = 128.0;
     private static final float FALLBACK_BOSS_HEALTH_THRESHOLD = 80.0F;
     private static final Map<UUID, ManagedBossBar> FALLBACK_BARS = new ConcurrentHashMap<>();
 
@@ -35,6 +38,10 @@ public final class MirrorBossBarManager {
 
     public static void markGeneratedContentEntity(Entity entity) {
         entity.getPersistentData().putBoolean(GENERATED_CONTENT_ENTITY_TAG, true);
+    }
+
+    public static boolean isGeneratedContentEntity(Entity entity) {
+        return entity.getPersistentData().getBoolean(GENERATED_CONTENT_ENTITY_TAG);
     }
 
     public static void tick(ServerLevel level) {
@@ -73,7 +80,7 @@ public final class MirrorBossBarManager {
                 && !(entity instanceof Player)
                 && entity instanceof Enemy
                 && entity.getMaxHealth() >= FALLBACK_BOSS_HEALTH_THRESHOLD
-                && entity.getPersistentData().getBoolean(GENERATED_CONTENT_ENTITY_TAG)
+                && isGeneratedContentEntity(entity)
                 && !hasNativePlayerVisibilityHook(entity);
     }
 
@@ -102,7 +109,7 @@ public final class MirrorBossBarManager {
 
         Set<ServerPlayer> visiblePlayers = new HashSet<>();
         for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(entity) <= BOSS_BAR_RANGE_SQR) {
+            if (shouldShowFallbackBarToPlayer(entity, player)) {
                 visiblePlayers.add(player);
                 bar.addPlayer(player);
             }
@@ -113,6 +120,21 @@ public final class MirrorBossBarManager {
                 bar.removePlayer(player);
             }
         }
+    }
+
+    static boolean shouldShowFallbackBarToPlayer(LivingEntity entity, ServerPlayer player) {
+        if (entity instanceof EnderDragon dragon) {
+            BlockPos origin = dragon.getFightOrigin();
+            if (origin == null) {
+                origin = BlockPos.ZERO;
+            }
+            double dx = player.getX() - origin.getX();
+            double dy = player.getY() - (origin.getY() + ENDER_DRAGON_FIGHT_CENTER_Y_OFFSET);
+            double dz = player.getZ() - origin.getZ();
+            return dx * dx + dy * dy + dz * dz <= BOSS_BAR_RANGE_SQR;
+        }
+
+        return player.distanceToSqr(entity) <= BOSS_BAR_RANGE_SQR;
     }
 
     private static boolean hasNativePlayerVisibilityHook(Entity entity) {
