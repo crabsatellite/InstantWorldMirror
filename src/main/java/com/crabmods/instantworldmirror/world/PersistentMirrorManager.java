@@ -2,18 +2,17 @@ package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
+import com.crabmods.instantworldmirror.network.PersistentMirrorMenuPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Collection;
 import java.util.List;
@@ -147,146 +146,80 @@ public class PersistentMirrorManager {
             return;
         }
 
-        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.menu.header")
-                .withStyle(ChatFormatting.GOLD));
-
         Optional<MirrorSession> temporarySession = MirrorWorldManager.getPlayerCurrentSession(player.getUUID());
         if (temporarySession.isPresent()) {
-            showTemporaryMirrorMenu(player, temporarySession.get(), heldKind, heldHasPermanence);
+            sendTemporaryMirrorMenu(player, temporarySession.get(), heldKind, heldHasPermanence);
             return;
         }
 
         Optional<PersistentMirrorRecord> currentPersistent = getCurrentRecord(player);
         if (currentPersistent.isPresent()) {
-            showPersistentInsideMenu(player, currentPersistent.get());
+            sendPersistentInsideMenu(player, currentPersistent.get());
             return;
         }
 
-        showPersistentListMenu(player, heldKind, PersistentMirrorData.get(server).records());
+        sendPersistentListMenu(player, heldKind, PersistentMirrorData.get(server).records());
     }
 
-    private static void showTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,
+    private static void sendTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,
                                                 boolean heldHasPermanence) {
-        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.temporary.current",
-                        labelComponentFor(session.getKind()))
-                .withStyle(ChatFormatting.GRAY));
-
-        if (!session.isCopyComplete()) {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.copy_running")
-                    .withStyle(ChatFormatting.YELLOW));
-            return;
-        }
-
         MirrorKind sessionKind = session.getKind();
-        if (!heldHasPermanence) {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.permanence_required")
-                    .withStyle(ChatFormatting.RED));
+        String statusKey = "";
+        boolean showSaveButton = false;
+        boolean showReturnButton = false;
+        if (!session.isCopyComplete()) {
+            statusKey = "message.instantworldmirror.persistent.copy_running";
+        } else if (!heldHasPermanence) {
+            statusKey = "message.instantworldmirror.permanence_required";
         } else if (heldKind != sessionKind) {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.permanent_type_mismatch")
-                    .withStyle(ChatFormatting.RED));
+            statusKey = "message.instantworldmirror.permanent_type_mismatch";
         } else if (hasSavedPersistentRecord(player, session.getSessionId())) {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.already_saved")
-                    .withStyle(ChatFormatting.YELLOW));
+            statusKey = "message.instantworldmirror.persistent.already_saved";
         } else if (canCreatePersistentMirror(player)) {
-            player.sendSystemMessage(button(
-                    Component.translatable("message.instantworldmirror.persistent.button.save"),
-                    "/iwm persistent save",
-                    Component.translatable("message.instantworldmirror.persistent.hover.save"),
-                    ChatFormatting.GREEN
-            ));
+            showSaveButton = true;
         } else {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.save.requires_grant")
-                    .withStyle(ChatFormatting.RED));
+            statusKey = "message.instantworldmirror.persistent.save.requires_grant";
         }
 
-        player.sendSystemMessage(button(
-                Component.translatable("message.instantworldmirror.persistent.button.return"),
-                "/iwm return",
-                Component.translatable("message.instantworldmirror.persistent.hover.return"),
-                ChatFormatting.AQUA
+        if (session.isCopyComplete()) {
+            showReturnButton = true;
+        }
+
+        PacketDistributor.sendToPlayer(player, PersistentMirrorMenuPacket.temporary(
+                session.getKind().translationKey(),
+                statusKey,
+                showSaveButton,
+                showReturnButton
         ));
     }
 
-    private static void showPersistentInsideMenu(ServerPlayer player, PersistentMirrorRecord record) {
-        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.inside.current", record.name())
-                .withStyle(ChatFormatting.GRAY));
-        player.sendSystemMessage(button(
-                Component.translatable("message.instantworldmirror.persistent.button.leave"),
-                "/iwm persistent leave",
-                Component.translatable("message.instantworldmirror.persistent.hover.leave"),
-                ChatFormatting.AQUA
+    private static void sendPersistentInsideMenu(ServerPlayer player, PersistentMirrorRecord record) {
+        boolean canManage = canManageRecord(player, record);
+        PacketDistributor.sendToPlayer(player, PersistentMirrorMenuPacket.inside(
+                record.name(),
+                record.selector(),
+                canManage,
+                canManage
         ));
-
-        if (canManageRecord(player, record)) {
-            String selector = record.selector();
-            player.sendSystemMessage(button(
-                    Component.translatable("message.instantworldmirror.persistent.button.rename"),
-                    "/iwm persistent rename " + selector + " ",
-                    Component.translatable("message.instantworldmirror.persistent.hover.rename"),
-                    ChatFormatting.YELLOW,
-                    ClickEvent.Action.SUGGEST_COMMAND
-            ));
-            player.sendSystemMessage(button(
-                    Component.translatable("message.instantworldmirror.persistent.button.delete"),
-                    "/iwm persistent delete " + selector,
-                    Component.translatable("message.instantworldmirror.persistent.hover.delete", selector),
-                    ChatFormatting.RED
-            ));
-        }
     }
 
-    private static void showPersistentListMenu(ServerPlayer player, MirrorKind heldKind,
+    private static void sendPersistentListMenu(ServerPlayer player, MirrorKind heldKind,
                                                Collection<PersistentMirrorRecord> records) {
-        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.list.header",
-                        labelComponentFor(heldKind))
-                .withStyle(ChatFormatting.GRAY));
-
-        int shown = 0;
+        List<PersistentMirrorMenuPacket.Entry> entries = new java.util.ArrayList<>();
         for (PersistentMirrorRecord record : records) {
             if (record.kind() != heldKind || !canEnterRecord(player, record)) {
                 continue;
             }
 
-            ChatFormatting color = record.ready() ? ChatFormatting.GREEN : ChatFormatting.YELLOW;
-            String selector = record.selector();
-            MutableComponent label = Component.literal("[" + record.name());
-            if (!record.ready()) {
-                label.append(Component.translatable("message.instantworldmirror.persistent.status.copying"));
-            }
-            label.append("]");
-
-            MutableComponent line = Component.empty().append(button(
-                    label,
-                    "/iwm persistent enter " + selector,
-                    Component.translatable("message.instantworldmirror.persistent.hover.enter", selector),
-                    color
+            entries.add(new PersistentMirrorMenuPacket.Entry(
+                    record.name(),
+                    record.selector(),
+                    record.ready(),
+                    canManageRecord(player, record)
             ));
-            if (canManageRecord(player, record)) {
-                line.append(Component.literal(" ")).append(button(
-                        Component.translatable("message.instantworldmirror.persistent.button.rename"),
-                        "/iwm persistent rename " + selector + " ",
-                        Component.translatable("message.instantworldmirror.persistent.hover.rename"),
-                        ChatFormatting.YELLOW,
-                        ClickEvent.Action.SUGGEST_COMMAND
-                ));
-                line.append(Component.literal(" ")).append(button(
-                        Component.translatable("message.instantworldmirror.persistent.button.delete"),
-                        "/iwm persistent delete " + selector,
-                        Component.translatable("message.instantworldmirror.persistent.hover.delete", selector),
-                        ChatFormatting.RED
-                ));
-            }
-            player.sendSystemMessage(line);
-            shown++;
         }
 
-        if (shown == 0) {
-            player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.no_accessible")
-                    .withStyle(ChatFormatting.YELLOW));
-        }
-
-        player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.create_hint")
-                .withStyle(ChatFormatting.DARK_GRAY));
+        PacketDistributor.sendToPlayer(player, PersistentMirrorMenuPacket.list(heldKind.translationKey(), entries));
     }
 
     public static boolean saveCurrentTemporaryMirror(ServerPlayer player, String requestedName) {
@@ -745,18 +678,6 @@ public class PersistentMirrorManager {
     private static boolean hasSavedPersistentRecord(ServerPlayer player, UUID sourceSessionId) {
         MinecraftServer server = player.getServer();
         return server != null && PersistentMirrorData.get(server).getRecordBySourceSession(sourceSessionId).isPresent();
-    }
-
-    private static Component button(Component label, String command, Component hover, ChatFormatting color) {
-        return button(label, command, hover, color, ClickEvent.Action.RUN_COMMAND);
-    }
-
-    private static Component button(Component label, String command, Component hover, ChatFormatting color,
-                                    ClickEvent.Action clickAction) {
-        return Component.empty().append(label).withStyle(style -> style
-                .withColor(color)
-                .withClickEvent(new ClickEvent(clickAction, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover)));
     }
 
     private static String sanitizeName(String requestedName, String fallback) {

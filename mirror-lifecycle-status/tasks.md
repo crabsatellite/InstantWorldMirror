@@ -1,6 +1,7 @@
 # Mirror lifecycle generated tasks
 
 - [x] `build.verify_mirror_jar_contents` - all text found
+- [x] `client.persistent_popup_controls` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
 - [x] `command.mob_updates_persistent_worlds` - method contains all text
 - [x] `command.persistent_name_suggestions_all_kinds` - all text found
@@ -66,7 +67,7 @@
 - [x] `manager.enter_requires_matching_permanence` - found text
 - [x] `manager.heaven_return_origin_gate` - method contains ordered text
 - [x] `manager.leave_persistent_order` - method contains ordered text
-- [x] `manager.menu_uses_selectors` - all text found
+- [x] `manager.menu_uses_selectors` - composite passed
 - [x] `manager.persistent_enter_passes_access` - found text
 - [x] `manager.recover_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.recover_unready_records` - method contains ordered text

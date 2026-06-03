@@ -37,6 +37,12 @@ public class ModNetworking {
                 SyncCooldownPacket.STREAM_CODEC,
                 SyncCooldownPacket::handle
         );
+
+        registrar.playToClient(
+                PersistentMirrorMenuPacket.TYPE,
+                PersistentMirrorMenuPacket.STREAM_CODEC,
+                PersistentMirrorMenuPacket::handle
+        );
         
         // Register server-bound packets
         registrar.playToServer(
