@@ -79,6 +79,11 @@ final class PristineTerrainGenerator {
             return holderAt(chunkX, chunkZ).chunk;
         }
 
+        ChunkAccess getChunk(int chunkX, int chunkZ) {
+            ensureWithin(chunkX, chunkZ, 0);
+            return holderAt(chunkX, chunkZ).chunk;
+        }
+
         private void generateStructureStarts(int chunkX, int chunkZ) {
             generateWithin(chunkX, chunkZ, STRUCTURE_RADIUS, holder -> {
                 if (!holder.chunk.getPersistedStatus().isBefore(ChunkStatus.STRUCTURE_STARTS)) {
@@ -125,6 +130,7 @@ final class PristineTerrainGenerator {
                     sourceWorld.registryAccess().registryOrThrow(Registries.BIOME),
                     null
             );
+            chunk.setLightEngine(sourceWorld.getChunkSource().getLightEngine());
             MemoryGenerationChunkHolder holder = new MemoryGenerationChunkHolder(chunk);
             holderGrid[x - minX()][z - minZ()] = holder;
             return holder;
