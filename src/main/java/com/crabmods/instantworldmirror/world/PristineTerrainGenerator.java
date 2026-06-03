@@ -52,6 +52,7 @@ import java.util.UUID;
 final class PristineTerrainGenerator {
     private static final String SCRATCH_LEVEL_ID = "instantworldmirror_scratch";
     private static final int NATURAL_SPAWN_PASSES = 8;
+    private static final double NATURAL_SPAWN_CHUNK_DISTANCE_SQ = 128.0D * 128.0D;
     private static final ChunkProgressListener NOOP_CHUNK_PROGRESS = new ChunkProgressListener() {
         @Override
         public void updateSpawnPos(ChunkPos center) {
@@ -229,6 +230,16 @@ final class PristineTerrainGenerator {
                 return;
             }
 
+            List<LevelChunk> spawnableChunks = new ArrayList<>();
+            for (LevelChunk chunk : generatedChunks.values()) {
+                if (isWithinVanillaNaturalSpawnDistance(chunk.getPos(), scratchPlayer)) {
+                    spawnableChunks.add(chunk);
+                }
+            }
+            if (spawnableChunks.isEmpty()) {
+                return;
+            }
+
             NaturalSpawner.ChunkGetter chunkGetter = (chunkPos, consumer) -> {
                 LevelChunk chunk = generatedChunks.get(chunkPos);
                 if (chunk != null) {
@@ -238,13 +249,13 @@ final class PristineTerrainGenerator {
 
             for (int pass = 0; pass < NATURAL_SPAWN_PASSES; pass++) {
                 NaturalSpawner.SpawnState spawnState = NaturalSpawner.createState(
-                        generatedChunks.size(),
+                        spawnableChunks.size(),
                         scratchWorld.getAllEntities(),
                         chunkGetter,
                         new LocalMobCapCalculator(scratchWorld.getChunkSource().chunkMap)
                 );
 
-                for (LevelChunk chunk : generatedChunks.values()) {
+                for (LevelChunk chunk : spawnableChunks) {
                     NaturalSpawner.spawnForChunk(scratchWorld, chunk, spawnState, true, true, false);
                 }
             }
@@ -368,6 +379,7 @@ final class PristineTerrainGenerator {
 
             try {
                 storageAccess.deleteLevel();
+                deleteScratchRootBestEffort();
             } catch (IOException e) {
                 try {
                     storageAccess.close();
@@ -375,11 +387,11 @@ final class PristineTerrainGenerator {
                     e.addSuppressed(closeError);
                 }
                 InstantWorldMirror.LOGGER.debug("Failed to delete scratch first-dream level through storage access: {}", e.getMessage());
-                deleteScratchRootFallback();
+                deleteScratchRootBestEffort();
             }
         }
 
-        private void deleteScratchRootFallback() {
+        private void deleteScratchRootBestEffort() {
             try (java.util.stream.Stream<Path> paths = Files.walk(scratchRoot)) {
                 paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
                     try {
@@ -392,5 +404,13 @@ final class PristineTerrainGenerator {
                 // Best-effort cleanup.
             }
         }
+    }
+
+    static boolean isWithinVanillaNaturalSpawnDistance(ChunkPos chunkPos, Entity entity) {
+        double chunkCenterX = (double) (chunkPos.x * 16 + 8);
+        double chunkCenterZ = (double) (chunkPos.z * 16 + 8);
+        double dx = chunkCenterX - entity.getX();
+        double dz = chunkCenterZ - entity.getZ();
+        return dx * dx + dz * dz < NATURAL_SPAWN_CHUNK_DISTANCE_SQ;
     }
 }
