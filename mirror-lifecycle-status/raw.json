@@ -76,6 +76,12 @@
       "message": "method contains all text",
       "passed": true
     },
+    "copy.generated_content_refresh_copies_source_mobs": {
+      "adapter": "file_contains_all",
+      "id": "copy.generated_content_refresh_copies_source_mobs",
+      "message": "all text found",
+      "passed": true
+    },
     "copy.generated_content_refresh_task_flag": {
       "adapter": "file_contains_all",
       "id": "copy.generated_content_refresh_task_flag",
@@ -110,6 +116,12 @@
       "adapter": "method_contains_in_order",
       "id": "copy.persistent_queue_order",
       "message": "method contains ordered text",
+      "passed": true
+    },
+    "copy.pristine_generated_entities_use_mob_rules": {
+      "adapter": "file_contains_all",
+      "id": "copy.pristine_generated_entities_use_mob_rules",
+      "message": "all text found",
       "passed": true
     },
     "copy.pristine_generator_features": {
@@ -751,11 +763,11 @@
     }
   },
   "completion": {
-    "checkCount": 100,
+    "checkCount": 102,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 100,
+    "passedCheckCount": 102,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",

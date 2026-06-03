@@ -416,12 +416,14 @@
           ]
         },
         {
-          "label": "loot refresh preservation",
+          "label": "generated content refresh",
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
           "texts": [
             "filterGeneratedLootTagForConfig",
             "generatedContentRefresh",
+            "copyGeneratedEntitiesFromChunk",
+            "isGeneratedContentEntity",
             "copy.remove(\"LootTable\")"
           ]
         }
