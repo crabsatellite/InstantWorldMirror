@@ -327,6 +327,12 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "events.mirror_game_mode_change_sync": {
+      "adapter": "method_contains_in_order",
+      "id": "events.mirror_game_mode_change_sync",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "events.respawn_restore_order": {
       "adapter": "method_contains_in_order",
       "id": "events.respawn_restore_order",
@@ -554,6 +560,12 @@
       "message": "found text",
       "passed": true
     },
+    "manager.forceclear_restores_player_state": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.forceclear_restores_player_state",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.heaven_return_origin_gate": {
       "adapter": "method_contains_in_order",
       "id": "manager.heaven_return_origin_gate",
@@ -580,6 +592,12 @@
       ],
       "id": "manager.menu_uses_selectors",
       "message": "composite passed",
+      "passed": true
+    },
+    "manager.non_sandbox_game_mode_state": {
+      "adapter": "file_contains_all",
+      "id": "manager.non_sandbox_game_mode_state",
+      "message": "all text found",
       "passed": true
     },
     "manager.persistent_enter_passes_access": {
@@ -758,11 +776,11 @@
     }
   },
   "completion": {
-    "checkCount": 103,
+    "checkCount": 106,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 103,
+    "passedCheckCount": 106,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -960,7 +978,9 @@
         },
         {
           "checks": [
-            "manager.return_temporary_order"
+            "manager.return_temporary_order",
+            "manager.non_sandbox_game_mode_state",
+            "events.mirror_game_mode_change_sync"
           ],
           "id": "return",
           "status": "covered",
@@ -1181,6 +1201,7 @@
             "command.repair_scans_dead_data_only",
             "command.purge_temporary_pool_only",
             "manager.repair_dead_persistent_records_only",
+            "manager.forceclear_restores_player_state",
             "worldcopy.persistent_copy_query",
             "lang.repair_messages",
             "lang.status_persistent_messages"

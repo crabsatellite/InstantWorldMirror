@@ -177,7 +177,9 @@
           "id": "return",
           "title": "Temporary return restores inventory, bypasses own teleport guards, and destroys finished sessions",
           "checks": [
-            "manager.return_temporary_order"
+            "manager.return_temporary_order",
+            "manager.non_sandbox_game_mode_state",
+            "events.mirror_game_mode_change_sync"
           ]
         },
         {
@@ -374,6 +376,7 @@
             "command.repair_scans_dead_data_only",
             "command.purge_temporary_pool_only",
             "manager.repair_dead_persistent_records_only",
+            "manager.forceclear_restores_player_state",
             "worldcopy.persistent_copy_query",
             "lang.repair_messages",
             "lang.status_persistent_messages"
@@ -663,13 +666,25 @@
       "method": "returnToOverworld",
       "texts": [
         "if (PersistentMirrorManager.isInPersistentMirror(player))",
-        "restorePlayerInventory(player)",
+        "finishPlayerMirrorState(player, allowItemTransfer)",
         "playersBeingTeleported.add(player.getUUID())",
         "player.teleportTo(",
         "playersBeingTeleported.remove(player.getUUID())",
         "clearDimensionEffectsForPlayer(player, session.getDimensionIndex())",
         "cleanupPlayerTrackingData(player.getUUID())",
         "destroySession(session, server)"
+      ]
+    },
+    {
+      "id": "manager.non_sandbox_game_mode_state",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "texts": [
+        "SAVED_GAME_MODE_PRESENT_KEY",
+        "saveMirrorEntryState(player)",
+        "restoreSavedGameMode(player, persistentData)",
+        "finishPlayerMirrorState(player, allowItemTransfer)",
+        "syncPlayerAbilitiesToGameMode(player)"
       ]
     },
     {
@@ -1248,6 +1263,18 @@
       ]
     },
     {
+      "id": "manager.forceclear_restores_player_state",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "forceClearDimension",
+      "texts": [
+        "player.teleportTo(targetLevel,",
+        "boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false)",
+        "finishPlayerMirrorState(player, allowItemTransfer)",
+        "cleanupPlayerTrackingData(playerId)"
+      ]
+    },
+    {
       "id": "worldcopy.persistent_copy_query",
       "adapter": "method_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
@@ -1364,7 +1391,7 @@
         "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
         "player.teleportTo(",
         "MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID())",
-        "if (MirrorWorldManager.hasSavedInventory(player))",
+        "if (MirrorWorldManager.hasSavedMirrorState(player))",
         "MirrorWorldManager.clearSavedData(player)"
       ]
     },
@@ -1375,7 +1402,7 @@
       "method": "onPlayerLogin",
       "texts": [
         "DimensionMirrorItem.restoreCooldown(player)",
-        "if (MirrorWorldManager.hasSavedInventory(player))",
+        "if (MirrorWorldManager.hasSavedMirrorState(player))",
         "MirrorWorldManager.getSavedOriginalLevel(player, player.getServer())",
         "MirrorWorldManager.getSavedOriginalPosition(player)",
         "if (targetPos == null)",
@@ -1409,6 +1436,19 @@
         "if (ModDimensions.isTemporaryMirrorWorld(event.getFrom()) && leftMirrorWorld)",
         "MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent()",
         "MirrorWorldManager.handleExternalExit(player, player.getServer())"
+      ]
+    },
+    {
+      "id": "events.mirror_game_mode_change_sync",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerChangeGameMode",
+      "texts": [
+        "if (!(event.getEntity() instanceof ServerPlayer player))",
+        "if (!ModDimensions.isAnyMirrorWorld(player.level().dimension()))",
+        "GameType requestedGameMode = event.getNewGameMode()",
+        "player.getServer().execute(() ->",
+        "MirrorWorldManager.syncPlayerAbilitiesToGameMode(player)"
       ]
     },
     {
@@ -1729,6 +1769,8 @@
         "permanenceDoesNotResetEfficiencyCooldown",
         "heavenSandboxKeepsPermanenceMirror",
         "firstDreamUsesDefaultPlayerState",
+        "nonSandboxExitRestoresCreativeModeAfterMirrorModeChange",
+        "nonSandboxInventoryRestoreIgnoresTemporaryMirrorMode",
         "persistentRecordsTrackSourceSession",
         "persistentDataRemovesUnreadyRecords",
         "repairDeadDataSkipsReadyPersistentRecords",
@@ -1747,6 +1789,9 @@
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",
         "First dream entry must keep creative mode",
+        "MirrorWorldManager.syncPlayerAbilitiesToGameMode(player)",
+        "Restored creative mode must restore creative instabuild",
+        "Default mirror must restore survival inventory even after a temporary creative change",
         "data.getRecordBySourceSession(sourceSessionId)",
         "data.removeUnreadyRecords()",
         "PersistentMirrorManager.repairDeadPersistentData(player.getServer())",

@@ -58,6 +58,7 @@ public class MirrorWorldManager {
     private static final String SESSION_ID_KEY = InstantWorldMirror.MODID + "_session_id";
     private static final String DIED_IN_MIRROR_KEY = InstantWorldMirror.MODID + "_died_in_mirror";
     private static final String SANDBOX_SESSION_KEY = InstantWorldMirror.MODID + "_sandbox_session";
+    private static final String SAVED_GAME_MODE_PRESENT_KEY = InstantWorldMirror.MODID + "_saved_game_mode_present";
     private static final String SAVED_GAME_MODE_KEY = InstantWorldMirror.MODID + "_saved_game_mode";
     private static final String SAVED_HEALTH_KEY = InstantWorldMirror.MODID + "_saved_health";
     private static final String SAVED_ABSORPTION_KEY = InstantWorldMirror.MODID + "_saved_absorption";
@@ -571,6 +572,7 @@ public class MirrorWorldManager {
         // Save session ID to player's persistent data (for server restart recovery)
         CompoundTag persistentData = player.getPersistentData();
         persistentData.putUUID(SESSION_ID_KEY, session.getSessionId());
+        saveMirrorEntryState(player);
 
         if (session.isSandboxMode()) {
             savePlayerSnapshot(player, true);
@@ -707,11 +709,7 @@ public class MirrorWorldManager {
 
         // Phase 3: Handle inventory (no lock needed, operates on player data)
         boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
-        if (allowItemTransfer) {
-            clearSavedData(player);
-        } else {
-            restorePlayerInventory(player);
-        }
+        finishPlayerMirrorState(player, allowItemTransfer);
 
         // Phase 4: Execute teleportation (no lock needed)
         playersBeingTeleported.add(player.getUUID());
@@ -888,11 +886,7 @@ public class MirrorWorldManager {
 
             // Handle inventory
             boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
-            if (allowItemTransfer) {
-                clearSavedData(player);
-            } else {
-                restorePlayerInventory(player);
-            }
+            finishPlayerMirrorState(player, allowItemTransfer);
 
             // Mark player as being teleported by the mod
             playersBeingTeleported.add(player.getUUID());
@@ -1723,11 +1717,7 @@ public class MirrorWorldManager {
                     
                     // Restore inventory (external exit should restore items like normal return)
                     boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false);
-                    if (allowItemTransfer) {
-                        clearSavedData(player);
-                    } else {
-                        restorePlayerInventory(player);
-                    }
+                    finishPlayerMirrorState(player, allowItemTransfer);
                     
                     boolean sessionNowEmpty = session.removePlayer(playerId);
                     if (sessionNowEmpty) {
@@ -1826,6 +1816,7 @@ public class MirrorWorldManager {
     public static void preparePlayerForMirrorEntry(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
         playerOriginalPositions.put(player.getUUID(), player.blockPosition());
         playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
+        saveMirrorEntryState(player);
 
         if (kind.isSandbox()) {
             savePlayerSnapshot(player, true);
@@ -1837,11 +1828,7 @@ public class MirrorWorldManager {
 
     public static void restorePlayerForMirrorExit(ServerPlayer player) {
         boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
-        if (allowItemTransfer) {
-            clearSavedData(player);
-        } else {
-            restorePlayerInventory(player);
-        }
+        finishPlayerMirrorState(player, allowItemTransfer);
         cleanupPlayerTrackingData(player.getUUID());
     }
 
@@ -1980,7 +1967,7 @@ public class MirrorWorldManager {
 
     /**
      * Save player inventory and state to persistent data.
-     * Normal sessions preserve the old survival-only behavior; sandbox sessions always save full state.
+     * Normal sessions preserve the old survival-only inventory behavior; sandbox sessions always save full state.
      */
     private static void savePlayerSnapshot(ServerPlayer player, boolean sandboxMode) {
         if (!sandboxMode && !player.gameMode.isSurvival()) {
@@ -2018,18 +2005,10 @@ public class MirrorWorldManager {
 
     /**
      * Restore inventory and ender chest from player's persistent data
-     * Only restores for survival mode players
      */
     private static void restorePlayerInventory(ServerPlayer player) {
         CompoundTag persistentData = player.getPersistentData();
         boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY);
-
-        if (!sandboxMode && !player.gameMode.isSurvival()) {
-            InstantWorldMirror.LOGGER.info("Skipping inventory restore for non-survival player {}",
-                    player.getName().getString());
-            clearSavedData(player);
-            return;
-        }
 
         if (persistentData.contains(SAVED_INVENTORY_KEY)) {
             // Restore inventory
@@ -2054,6 +2033,8 @@ public class MirrorWorldManager {
 
             if (sandboxMode) {
                 restoreSandboxState(player, persistentData);
+            } else {
+                restoreSavedGameMode(player, persistentData);
             }
 
             player.inventoryMenu.broadcastChanges();
@@ -2063,7 +2044,30 @@ public class MirrorWorldManager {
         } else {
             InstantWorldMirror.LOGGER.warn("No saved inventory found in persistent data for player {}",
                     player.getName().getString());
+            restoreSavedGameMode(player, persistentData);
+            clearSavedData(player);
         }
+    }
+
+    private static void finishPlayerMirrorState(ServerPlayer player, boolean allowItemTransfer) {
+        if (allowItemTransfer) {
+            restoreSavedGameMode(player, player.getPersistentData());
+            clearSavedData(player);
+        } else {
+            restorePlayerInventory(player);
+        }
+    }
+
+    private static void saveMirrorEntryState(ServerPlayer player) {
+        CompoundTag persistentData = player.getPersistentData();
+        persistentData.putBoolean(SAVED_GAME_MODE_PRESENT_KEY, true);
+        persistentData.putInt(SAVED_GAME_MODE_KEY, player.gameMode.getGameModeForPlayer().getId());
+
+        BlockPos pos = player.blockPosition();
+        persistentData.putInt(ORIGINAL_POS_KEY + "_x", pos.getX());
+        persistentData.putInt(ORIGINAL_POS_KEY + "_y", pos.getY());
+        persistentData.putInt(ORIGINAL_POS_KEY + "_z", pos.getZ());
+        persistentData.putString(ORIGINAL_DIM_KEY, player.level().dimension().location().toString());
     }
 
     private static void saveSandboxState(ServerPlayer player, CompoundTag persistentData) {
@@ -2125,6 +2129,7 @@ public class MirrorWorldManager {
                 player.setGameMode(gameType);
             }
         }
+        syncPlayerAbilitiesToGameMode(player);
 
         if (persistentData.contains(SAVED_HEALTH_KEY)) {
             player.setHealth(Math.min(persistentData.getFloat(SAVED_HEALTH_KEY), player.getMaxHealth()));
@@ -2169,11 +2174,34 @@ public class MirrorWorldManager {
         }
     }
 
+    private static void restoreSavedGameMode(ServerPlayer player, CompoundTag persistentData) {
+        if (persistentData.getBoolean(SAVED_GAME_MODE_PRESENT_KEY) || persistentData.contains(SAVED_GAME_MODE_KEY)) {
+            GameType gameType = GameType.byId(persistentData.getInt(SAVED_GAME_MODE_KEY));
+            if (gameType != null) {
+                player.setGameMode(gameType);
+            }
+        }
+        syncPlayerAbilitiesToGameMode(player);
+    }
+
+    public static void syncPlayerAbilitiesToGameMode(ServerPlayer player) {
+        player.gameMode.getGameModeForPlayer().updatePlayerAbilities(player.getAbilities());
+        player.onUpdateAbilities();
+    }
+
     /**
      * Check if player has saved inventory data
      */
     public static boolean hasSavedInventory(ServerPlayer player) {
         return player.getPersistentData().contains(SAVED_INVENTORY_KEY);
+    }
+
+    public static boolean hasSavedMirrorState(ServerPlayer player) {
+        CompoundTag persistentData = player.getPersistentData();
+        return persistentData.contains(SAVED_INVENTORY_KEY)
+                || persistentData.getBoolean(SAVED_GAME_MODE_PRESENT_KEY)
+                || persistentData.contains(SAVED_GAME_MODE_KEY)
+                || persistentData.contains(ORIGINAL_DIM_KEY);
     }
 
     /**
@@ -2184,6 +2212,7 @@ public class MirrorWorldManager {
         persistentData.remove(SAVED_INVENTORY_KEY);
         persistentData.remove(SAVED_ENDERCHEST_KEY);
         persistentData.remove(SANDBOX_SESSION_KEY);
+        persistentData.remove(SAVED_GAME_MODE_PRESENT_KEY);
         persistentData.remove(SAVED_GAME_MODE_KEY);
         persistentData.remove(SAVED_HEALTH_KEY);
         persistentData.remove(SAVED_ABSORPTION_KEY);
@@ -2329,8 +2358,9 @@ public class MirrorWorldManager {
                         playersBeingTeleported.remove(playerId);
                     }
                     
-                    // Clear their saved data
-                    clearSavedData(player);
+                    // Restore or clear their saved mirror state using the same rules as a normal return.
+                    boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false);
+                    finishPlayerMirrorState(player, allowItemTransfer);
                     
                     // Remove from tracking maps
                     cleanupPlayerTrackingData(playerId);

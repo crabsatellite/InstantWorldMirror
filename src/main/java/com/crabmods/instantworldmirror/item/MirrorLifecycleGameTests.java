@@ -251,6 +251,61 @@ public final class MirrorLifecycleGameTests {
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void nonSandboxExitRestoresCreativeModeAfterMirrorModeChange(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        player.setGameMode(GameType.CREATIVE);
+        player.getInventory().items.set(0, new ItemStack(Items.REDSTONE));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, false);
+
+        player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.syncPlayerAbilitiesToGameMode(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "Mirror-local game mode change must switch the player to survival");
+        helper.assertTrue(player.getAbilities().mayBuild,
+                "Mirror-local survival mode must keep block breaking permission");
+        helper.assertFalse(player.getAbilities().instabuild,
+                "Mirror-local survival mode must clear creative instabuild");
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.CREATIVE,
+                "Leaving first dream mirror must restore the original creative mode");
+        helper.assertTrue(player.getAbilities().mayBuild,
+                "Restored creative mode must keep block breaking permission");
+        helper.assertTrue(player.getAbilities().instabuild,
+                "Restored creative mode must restore creative instabuild");
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void nonSandboxInventoryRestoreIgnoresTemporaryMirrorMode(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        player.setGameMode(GameType.SURVIVAL);
+        player.getInventory().items.set(4, new ItemStack(Items.DIAMOND, 2));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
+
+        player.setGameMode(GameType.CREATIVE);
+        player.getInventory().items.set(4, new ItemStack(Items.DIRT));
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "Leaving default mirror must restore the original survival mode");
+        helper.assertTrue(player.getInventory().items.get(4).is(Items.DIAMOND),
+                "Default mirror must restore survival inventory even after a temporary creative change");
+        helper.assertTrue(player.getInventory().items.get(4).getCount() == 2,
+                "Default mirror must restore the saved stack count");
+        helper.assertTrue(player.getAbilities().mayBuild,
+                "Restored survival mode must keep block breaking permission");
+        helper.assertFalse(player.getAbilities().instabuild,
+                "Restored survival mode must clear creative instabuild");
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
         UUID recordId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
