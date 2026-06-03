@@ -5,7 +5,7 @@
   "routes": [
     {
       "id": "temporary.dimension_mirror",
-      "title": "Unenchanted Dimensional Mirror stays temporary",
+      "title": "Unenchanted World Reflection Mirror stays temporary",
       "stages": [
         {
           "id": "entry",
@@ -79,7 +79,7 @@
     },
     {
       "id": "permanent.dimension_mirror",
-      "title": "Permanence enchanted Dimensional Mirror can use persistent worlds",
+      "title": "Permanence enchanted World Reflection Mirror can use persistent worlds",
       "stages": [
         {
           "id": "enchantment",

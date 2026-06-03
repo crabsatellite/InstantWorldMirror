@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Dimensional Mirror - Used to open a portal to the Mirror World
+ * World Reflection Mirror - Used to open a portal to the Mirror World
  * 
  * In Overworld: Creates a session and entry portal (anyone can use)
  * In Mirror World: Creates a return portal (only owner can use)

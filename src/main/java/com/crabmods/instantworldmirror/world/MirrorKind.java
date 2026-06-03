@@ -4,7 +4,7 @@ package com.crabmods.instantworldmirror.world;
  * Server-side mirror behavior type.
  */
 public enum MirrorKind {
-    DIMENSION("dimension", "item.instantworldmirror.dimension_mirror", "Dimensional Mirror"),
+    DIMENSION("dimension", "item.instantworldmirror.dimension_mirror", "World Reflection Mirror"),
     HEAVEN("heaven", "item.instantworldmirror.heaven_mirror", "Heaven Mirror"),
     FIRST_DREAM("first_dream", "item.instantworldmirror.first_dream_mirror", "First Dream Mirror");
 

@@ -37,7 +37,7 @@ import java.util.UUID;
  * Displays as a placed mirror model, lasts 5 seconds before disappearing
  * 
  * Entry Portal (Overworld):
- * - Created by a player using the Dimensional Mirror item
+ * - Created by a player using the World Reflection Mirror item
  * - Bound to a MirrorSession
  * - Anyone can enter through this portal (joins the session)
  * 

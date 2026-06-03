@@ -16,7 +16,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(InstantWorldMirror.MODID);
 
-    // Dimensional Mirror
+    // World Reflection Mirror
     public static final DeferredItem<DimensionMirrorItem> DIMENSION_MIRROR = ITEMS.register(
             "dimension_mirror",
             () -> new DimensionMirrorItem(new Item.Properties()
