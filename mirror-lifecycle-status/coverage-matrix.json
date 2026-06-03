@@ -325,6 +325,11 @@
         "command.status_includes_persistent_pool",
         "command.persistent_name_suggestions_all_kinds",
         "command.mob_updates_persistent_worlds",
+        "command.repair_scans_dead_data_only",
+        "command.purge_temporary_pool_only",
+        "manager.repair_dead_persistent_records_only",
+        "worldcopy.persistent_copy_query",
+        "lang.repair_messages",
         "lang.status_persistent_messages"
       ],
       "route": "command_bypass_guards",

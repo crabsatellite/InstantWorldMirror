@@ -359,6 +359,11 @@
             "command.status_includes_persistent_pool",
             "command.persistent_name_suggestions_all_kinds",
             "command.mob_updates_persistent_worlds",
+            "command.repair_scans_dead_data_only",
+            "command.purge_temporary_pool_only",
+            "manager.repair_dead_persistent_records_only",
+            "worldcopy.persistent_copy_query",
+            "lang.repair_messages",
             "lang.status_persistent_messages"
           ]
         }
@@ -1047,6 +1052,93 @@
       ]
     },
     {
+      "id": "command.repair_scans_dead_data_only",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "method": "repairCommand",
+      "texts": [
+        "DimensionPool.DimensionState.CLEANING",
+        "WorldCopyService.hasPendingCleanup(dimIndex)",
+        "mirrorWorld.players().size()",
+        "PersistentMirrorManager.repairDeadPersistentData(server)",
+        "command.instantworldmirror.repair.success"
+      ]
+    },
+    {
+      "id": "command.purge_temporary_pool_only",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "purgeCommand",
+          "texts": [
+            "dimensionsPath.resolve(\"mirror_world_\" + i)",
+            "deleteDirectoryRecursively(mirrorWorldPath)",
+            "temporary mirror world directories only"
+          ]
+        },
+        {
+          "adapter": "method_contains_none",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "purgeCommand",
+          "texts": [
+            "persistent_mirror_world_"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "manager.repair_dead_persistent_records_only",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "repairDeadPersistentData",
+      "texts": [
+        "if (record.ready())",
+        "WorldCopyService.hasPendingPersistentCopy(record.dimensionIndex())",
+        "playerCount > 0",
+        "data.removeRecord(record.id())",
+        "WorldCopyService.cleanupPersistentMirrorWorld"
+      ]
+    },
+    {
+      "id": "worldcopy.persistent_copy_query",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "hasPendingPersistentCopy",
+      "texts": [
+        "persistentCopyTasks.containsKey(dimIndex)"
+      ]
+    },
+    {
+      "id": "lang.repair_messages",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json"
+        },
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json"
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json",
+          "texts": [
+            "command.instantworldmirror.repair.success"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json",
+          "texts": [
+            "command.instantworldmirror.repair.success"
+          ]
+        }
+      ]
+    },
+    {
       "id": "lang.status_persistent_messages",
       "adapter": "all",
       "checks": [
@@ -1435,6 +1527,7 @@
         "firstDreamUsesDefaultPlayerState",
         "persistentRecordsTrackSourceSession",
         "persistentDataRemovesUnreadyRecords",
+        "repairDeadDataSkipsReadyPersistentRecords",
         "persistentSaveSourceAndShutdownCleanupDoNotLeaveDeadDimensions",
         "DimensionMirrorItem.findMirrorStack(player)",
         "DimensionMirrorItem.calculateCooldownSeconds",
@@ -1444,6 +1537,8 @@
         "First dream entry must keep creative mode",
         "data.getRecordBySourceSession(sourceSessionId)",
         "data.removeUnreadyRecords()",
+        "PersistentMirrorManager.repairDeadPersistentData(player.getServer())",
+        "Repair must not remove ready persistent records",
         "data.allocateDimensionIndex() == 0",
         "loaded.selector().equals(\"slot_1\")",
         "data.getRecordBySelector(\"slot_1\", candidate -> true)",

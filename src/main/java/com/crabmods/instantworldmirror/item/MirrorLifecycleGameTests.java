@@ -11,6 +11,7 @@ import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorData;
+import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.authlib.GameProfile;
@@ -236,6 +237,34 @@ public final class MirrorLifecycleGameTests {
         helper.assertTrue(data.allocateDimensionIndex() == 0,
                 "Removing interrupted records must release their persistent slot");
 
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void repairDeadDataSkipsReadyPersistentRecords(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        PersistentMirrorData data = PersistentMirrorData.get(player.getServer());
+        for (PersistentMirrorRecord record : List.copyOf(data.records())) {
+            data.removeRecord(record.id());
+        }
+
+        PersistentMirrorRecord interrupted = testRecord(UUID.randomUUID(), UUID.randomUUID(), 6, false);
+        PersistentMirrorRecord ready = testRecord(UUID.randomUUID(), UUID.randomUUID(), 7, true);
+        data.addRecord(interrupted);
+        data.addRecord(ready);
+
+        PersistentMirrorManager.DeadDataRepairResult result =
+                PersistentMirrorManager.repairDeadPersistentData(player.getServer());
+
+        helper.assertTrue(result.recordsRemoved() == 1,
+                "Repair must remove exactly one interrupted persistent record");
+        helper.assertFalse(data.getRecord(interrupted.id()).isPresent(),
+                "Repair must remove interrupted persistent records with no live task or player");
+        helper.assertTrue(data.getRecord(ready.id()).isPresent(),
+                "Repair must not remove ready persistent records");
+
+        data.removeRecord(ready.id());
+        WorldCopyService.clearAllTasks();
         helper.succeed();
     }
 
