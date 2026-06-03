@@ -5,6 +5,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.EnchantedBookItem;
+import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
@@ -26,6 +28,10 @@ public class ModCreativeTabs {
                         output.accept(ModItems.DIMENSION_MIRROR.get());
                         output.accept(ModItems.HEAVEN_MIRROR.get());
                         output.accept(ModItems.FIRST_DREAM_MIRROR.get());
+                        output.accept(EnchantedBookItem.createForEnchantment(
+                                new EnchantmentInstance(ModEnchantments.PERMANENCE.get(), 1)));
+                        output.accept(EnchantedBookItem.createForEnchantment(
+                                new EnchantmentInstance(ModEnchantments.RENEWAL.get(), 1)));
                     })
                     .build()
     );

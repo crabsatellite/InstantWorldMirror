@@ -17,6 +17,10 @@ out
 build
 .gradle
 
+# python
+__pycache__/
+*.py[cod]
+
 # other
 eclipse
 run

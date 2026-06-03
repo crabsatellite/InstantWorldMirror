@@ -2,10 +2,16 @@ package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
@@ -231,5 +237,85 @@ public final class MirrorTerrainGameTests {
                 "Entities with native boss bar tracking must not get duplicate mirror fallback bars");
 
         helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void generatedEndDragonBossBarUsesFightOriginVisibility(GameTestHelper helper) {
+        EnderDragon dragon = EntityType.ENDER_DRAGON.create(helper.getLevel());
+        WitherBoss wither = EntityType.WITHER.create(helper.getLevel());
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+
+        helper.assertTrue(dragon != null, "Ender dragon test entity must be creatable");
+        helper.assertTrue(wither != null, "Wither test entity must be creatable");
+
+        BlockPos origin = helper.absolutePos(new BlockPos(6, 0, 6));
+        dragon.setFightOrigin(new BlockPos(origin.getX(), 0, origin.getZ()));
+        dragon.moveTo(origin.getX() + 256.0D, 80.0D, origin.getZ() + 256.0D, 0.0F, 0.0F);
+        player.moveTo(origin.getX() + 0.5D, 128.0D, origin.getZ() + 0.5D, 0.0F, 0.0F);
+
+        helper.assertTrue(MirrorBossBarManager.shouldShowFallbackBarToPlayer(dragon, player),
+                "Generated end dragon fallback bars must use the vanilla fight-origin visibility range");
+
+        wither.moveTo(origin.getX() + 256.0D, 80.0D, origin.getZ() + 256.0D, 0.0F, 0.0F);
+        helper.assertFalse(MirrorBossBarManager.shouldShowFallbackBarToPlayer(wither, player),
+                "Non-dragon fallback bars must stay entity-distance based");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void generatedEndDragonDeathPlacesDragonEggOnce(GameTestHelper helper) {
+        EnderDragon dragon = EntityType.ENDER_DRAGON.create(helper.getLevel());
+        helper.assertTrue(dragon != null, "Ender dragon test entity must be creatable");
+
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 0, 3));
+        dragon.setFightOrigin(new BlockPos(origin.getX(), 0, origin.getZ()));
+        helper.getLevel().setBlock(helper.absolutePos(new BlockPos(3, 1, 3)),
+                Blocks.END_STONE.defaultBlockState(), 3);
+
+        helper.assertFalse(MirrorEndDragonRewardManager.placeDragonEggForGeneratedContent(helper.getLevel(), dragon),
+                "Unmarked end dragons must not receive mirror dragon egg fallback");
+
+        MirrorBossBarManager.markGeneratedContentEntity(dragon);
+        BlockPos eggPos = MirrorEndDragonRewardManager.resolveDragonEggPos(helper.getLevel(), dragon);
+        helper.assertTrue(MirrorEndDragonRewardManager.placeDragonEggForGeneratedContent(helper.getLevel(), dragon),
+                "Generated end dragons must place the vanilla dragon egg fallback");
+
+        helper.assertTrue(helper.getLevel().getBlockState(eggPos).is(Blocks.DRAGON_EGG),
+                "Generated end dragon death must leave a dragon egg at the vanilla podium position");
+        helper.assertFalse(MirrorEndDragonRewardManager.placeDragonEggForGeneratedContent(helper.getLevel(), dragon),
+                "The same generated end dragon must not place duplicate dragon eggs");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void generatedEndDragonDeathAwardsVanillaAdvancement(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+
+        helper.assertTrue(MirrorEndDragonRewardManager.awardVanillaEndDragonAdvancement(player),
+                "Generated mirror end dragon deaths must award the vanilla End dragon advancement");
+
+        var advancement = player.getServer().getAdvancements()
+                .getAdvancement(new ResourceLocation("minecraft", "end/kill_dragon"));
+        helper.assertTrue(advancement != null, "Vanilla end dragon advancement must be registered");
+        helper.assertTrue(player.getAdvancements().getOrStartProgress(advancement).isDone(),
+                "Generated mirror end dragon deaths must complete the vanilla end dragon advancement");
+        helper.assertFalse(MirrorEndDragonRewardManager.awardVanillaEndDragonAdvancement(player),
+                "Already-awarded mirror end dragon advancements must not be granted twice");
+
+        helper.succeed();
+    }
+
+    private static ServerPlayer makeConnectedServerPlayer(GameTestHelper helper) {
+        ServerPlayer player = new ServerPlayer(
+                helper.getLevel().getServer(),
+                helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "terrain-test-player")
+        );
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player);
+        return player;
     }
 }
