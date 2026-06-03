@@ -53,6 +53,7 @@
         "copy.pristine_task_flag",
         "copy.pristine_generator_features",
         "copy.pristine_generator_pipeline",
+        "copy.pristine_scratch_world_skips_poi_updates",
         "copy.pristine_loot_uses_mob_spawn_config",
         "session.generated_content_refresh_field",
         "copy.generated_content_refresh_task_flag",

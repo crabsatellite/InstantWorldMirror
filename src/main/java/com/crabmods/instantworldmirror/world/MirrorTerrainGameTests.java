@@ -12,6 +12,7 @@ import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -88,16 +89,17 @@ public final class MirrorTerrainGameTests {
         BlockPos editedEdgePos = new BlockPos((edgeChunkX << 4) + 1, 96, (edgeChunkZ << 4) + 1);
         helper.getLevel().setBlock(editedEdgePos, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
 
-        PristineTerrainGenerator.Region region = PristineTerrainGenerator.openRegion(helper.getLevel(), centerPos, 1);
-        ChunkAccess centerChunk = region.generateChunk(centerChunkX, centerChunkZ);
-        ChunkAccess edgeChunk = region.generateChunk(edgeChunkX, edgeChunkZ);
+        try (PristineTerrainGenerator.Region region = PristineTerrainGenerator.openRegion(helper.getLevel(), centerPos, 1)) {
+            ChunkAccess centerChunk = region.generateChunk(centerChunkX, centerChunkZ);
+            ChunkAccess edgeChunk = region.generateChunk(edgeChunkX, edgeChunkZ);
 
-        helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
-                "First dream region generation must complete the center chunk");
-        helper.assertTrue(edgeChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
-                "First dream region generation must complete edge chunks in one shared copy region");
-        helper.assertFalse(edgeChunk.getBlockState(editedEdgePos).is(Blocks.GOLD_BLOCK),
-                "First dream shared region terrain must not copy player edits from edge chunks");
+            helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
+                    "First dream region generation must complete the center chunk");
+            helper.assertTrue(edgeChunk.getStatus().isOrAfter(ChunkStatus.FEATURES),
+                    "First dream region generation must complete edge chunks in one shared copy region");
+            helper.assertFalse(edgeChunk.getBlockState(editedEdgePos).is(Blocks.GOLD_BLOCK),
+                    "First dream shared region terrain must not copy player edits from edge chunks");
+        }
 
         helper.succeed();
     }
@@ -130,15 +132,21 @@ public final class MirrorTerrainGameTests {
         helper.assertTrue(task.preparePristineRegion(helper.getLevel(), 1),
                 "First dream region preparation must complete after the final copied chunk is generated");
 
-        ChunkAccess centerChunk = task.generatePristineChunk(helper.getLevel(), centerChunkX, centerChunkZ);
-        helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.SPAWN),
-                "Prepared first dream chunks must include generated entities before copying starts");
+        try {
+            ChunkAccess centerChunk = task.generatePristineChunk(helper.getLevel(), centerChunkX, centerChunkZ);
+            helper.assertTrue(centerChunk instanceof LevelChunk,
+                    "Prepared first dream chunks must come from a scratch ServerLevel lifecycle");
+            helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.FULL),
+                    "Prepared first dream chunks must be fully generated before copying starts");
+        } finally {
+            task.closePristineRegion();
+        }
 
         helper.succeed();
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
-    public static void firstDreamRefreshDoesNotCopyLiveSourceEntities(GameTestHelper helper) {
+    public static void firstDreamRefreshUsesScratchGeneratedContent(GameTestHelper helper) {
         WorldCopyService.CopyTask firstDreamRefreshTask = new WorldCopyService.CopyTask(
                 UUID.randomUUID(),
                 helper.absolutePos(BlockPos.ZERO),
@@ -149,8 +157,14 @@ public final class MirrorTerrainGameTests {
                 true
         );
 
-        helper.assertFalse(firstDreamRefreshTask.shouldCopyLiveGeneratedContentFromSource(),
-                "First dream refresh must use regenerated chunk entities instead of copying live source entities");
+        try {
+            helper.assertTrue(firstDreamRefreshTask.pristineTerrain,
+                    "First dream refresh must use pristine terrain generation");
+            helper.assertTrue(firstDreamRefreshTask.generatedContentRefresh,
+                    "First dream refresh must request generated content from the scratch world");
+        } finally {
+            firstDreamRefreshTask.closePristineRegion();
+        }
 
         helper.succeed();
     }

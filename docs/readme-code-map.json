@@ -241,14 +241,11 @@
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
           "texts": [
-            "sourceWorld.getChunkSource().getGenerator()",
-            "STRUCTURE_RADIUS",
-            "ChunkStatus.STRUCTURE_REFERENCES",
-            "ChunkStatus.BIOMES",
-            "ChunkStatus.NOISE",
-            "ChunkStatus.SURFACE",
-            "ChunkStatus.CARVERS",
-            "ChunkStatus.FEATURES"
+            "ServerLevel chunk lifecycle",
+            "LevelStorageSource.createDefault(scratchRoot)",
+            "new ServerLevel(",
+            "scratchWorld.getChunk(chunkX, chunkZ)",
+            "prepareGeneratedContentSnapshot"
           ]
         },
         {
@@ -422,10 +419,19 @@
           "texts": [
             "filterGeneratedLootTagForConfig",
             "generatedContentRefresh",
-            "shouldCopyLiveGeneratedContentFromSource",
-            "copyGeneratedEntitiesFromChunk",
-            "isGeneratedContentEntity",
+            "task.copyPristineGeneratedEntitiesToChunk",
             "copy.remove(\"LootTable\")"
+          ]
+        },
+        {
+          "label": "generated entity snapshot",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+          "texts": [
+            "snapshotGeneratedEntities()",
+            "NaturalSpawner.spawnForChunk",
+            "EntityType.loadEntityRecursive",
+            "FakePlayerFactory.get(scratchWorld"
           ]
         }
       ]

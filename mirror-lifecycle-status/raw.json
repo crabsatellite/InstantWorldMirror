@@ -76,15 +76,15 @@
       "message": "method contains all text",
       "passed": true
     },
-    "copy.generated_content_refresh_skips_live_source_mobs": {
-      "adapter": "file_contains_all",
-      "id": "copy.generated_content_refresh_skips_live_source_mobs",
-      "message": "all text found",
-      "passed": true
-    },
     "copy.generated_content_refresh_task_flag": {
       "adapter": "file_contains_all",
       "id": "copy.generated_content_refresh_task_flag",
+      "message": "all text found",
+      "passed": true
+    },
+    "copy.generated_content_refresh_uses_scratch_snapshot": {
+      "adapter": "file_contains_all",
+      "id": "copy.generated_content_refresh_uses_scratch_snapshot",
       "message": "all text found",
       "passed": true
     },
@@ -131,25 +131,20 @@
       "passed": true
     },
     "copy.pristine_generator_pipeline": {
-      "adapter": "any",
-      "children": [
-        {
-          "message": "skipped for 1.20.1",
-          "passed": true,
-          "skipped": true
-        },
-        {
-          "message": "all text found",
-          "passed": true
-        }
-      ],
+      "adapter": "file_contains_all",
       "id": "copy.pristine_generator_pipeline",
-      "message": "composite passed",
+      "message": "all text found",
       "passed": true
     },
     "copy.pristine_loot_uses_mob_spawn_config": {
       "adapter": "file_contains_all",
       "id": "copy.pristine_loot_uses_mob_spawn_config",
+      "message": "all text found",
+      "passed": true
+    },
+    "copy.pristine_scratch_world_skips_poi_updates": {
+      "adapter": "file_contains_all",
+      "id": "copy.pristine_scratch_world_skips_poi_updates",
       "message": "all text found",
       "passed": true
     },
@@ -763,11 +758,11 @@
     }
   },
   "completion": {
-    "checkCount": 102,
+    "checkCount": 103,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 102,
+    "passedCheckCount": 103,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -843,6 +838,7 @@
             "copy.pristine_task_flag",
             "copy.pristine_generator_features",
             "copy.pristine_generator_pipeline",
+            "copy.pristine_scratch_world_skips_poi_updates",
             "copy.pristine_loot_uses_mob_spawn_config",
             "session.generated_content_refresh_field",
             "copy.generated_content_refresh_task_flag",
