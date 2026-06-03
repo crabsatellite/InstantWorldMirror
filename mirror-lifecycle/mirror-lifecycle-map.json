@@ -1086,6 +1086,7 @@
         "extends Screen",
         "Button.builder(Component.literal(\"\\u00D7\")",
         ".bounds(panelLeft + panelWidth - 24, panelTop + 8, 16, 16)",
+        "public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick)",
         "public boolean shouldCloseOnEsc()",
         "return true;"
       ]
