@@ -529,16 +529,6 @@ public class WorldCopyService {
         }
         
         /**
-         * Get all chunks that were cleaned (for verification)
-         */
-        public java.util.List<long[]> getAllCleanedChunks() {
-            java.util.List<long[]> all = new java.util.ArrayList<>(chunksToClean);
-            all.addAll(auxiliaryChunks);
-            all.addAll(regionScanChunks);
-            return all;
-        }
-        
-        /**
          * Check if main cleanup phase is done (before auxiliary)
          */
         public boolean isMainCleanupDone() {
@@ -670,10 +660,6 @@ public class WorldCopyService {
                 InstantWorldMirror.LOGGER.debug("Skipping cleanup of chunk [{}, {}] after {} retries",
                         chunkX, chunkZ, MAX_RETRIES);
             }
-        }
-        
-        public int getSkippedChunks() {
-            return skippedChunks;
         }
         
         /**
@@ -1168,15 +1154,6 @@ public class WorldCopyService {
     }
     
     /**
-     * Get total number of tasks waiting in copy queue
-     */
-    public static int getCopyQueueSize() {
-        synchronized (copyQueue) {
-            return copyQueue.size();
-        }
-    }
-    
-    /**
      * Sync game rules from source world to mirror world
      * This ensures the mirror world has the same rules (mob spawning, daylight cycle, etc.)
      */
@@ -1367,19 +1344,6 @@ public class WorldCopyService {
                     return task == null || task.isCompleted();
                 })
                 .orElse(true);
-    }
-
-    /**
-     * Get copy progress for a session (0-100)
-     */
-    public static int getCopyProgress(UUID sessionId) {
-        return MirrorWorldManager.getSession(sessionId)
-                .map(session -> {
-                    CopyTask task = copyTasks.get(session.getDimensionIndex());
-                    if (task == null) return 100;
-                    return task.getProgressPercent();
-                })
-                .orElse(100);
     }
 
     private static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
@@ -1654,8 +1618,7 @@ public class WorldCopyService {
                 task.copyPristineGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld,
                         WorldCopyService::copyEntityDataWithFreshUuid);
             }
-            // Do not also copy live source entities here. Renewal must use the
-            // isolated generated snapshot to avoid duplicating moved bosses or pets.
+            // Generated entities for pristine terrain come only from the scratch snapshot.
 
             targetChunk.initializeLightSources();
             relightChunk(mirrorWorld, targetChunk);
@@ -2453,62 +2416,6 @@ public class WorldCopyService {
     }
     
     /**
-     * Count remaining non-air blocks in cleaned chunks of the mirror world.
-     * This is a verification pass to detect any missed blocks.
-     * Samples a subset of blocks to avoid performance issues.
-     */
-    private static int countRemainingBlocks(ServerLevel mirrorWorld, CleanupTask task) {
-        int totalBlocks = 0;
-        
-        try {
-            // Sample some chunks from the cleaned area to verify
-            java.util.Random random = new java.util.Random();
-            java.util.List<long[]> allChunks = task.getAllCleanedChunks();
-            int sampleSize = Math.min(10, allChunks.size());
-            
-            for (int i = 0; i < sampleSize; i++) {
-                int index = random.nextInt(allChunks.size());
-                long[] coords = allChunks.get(index);
-                int chunkX = (int) coords[0];
-                int chunkZ = (int) coords[1];
-                
-                try {
-                    // Use non-blocking chunk access
-                    LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
-                    if (chunk == null) {
-                        // Chunk not loaded, skip
-                        continue;
-                    }
-                    int sectionCount = chunk.getSectionsCount();
-                    
-                    for (int s = 0; s < sectionCount; s++) {
-                        LevelChunkSection section = chunk.getSection(s);
-                        if (section != null && !section.hasOnlyAir()) {
-                            // Count non-air blocks in this section (sample a few positions)
-                            for (int x = 0; x < 16; x += 4) {
-                                for (int y = 0; y < 16; y += 4) {
-                                    for (int z = 0; z < 16; z += 4) {
-                                        BlockState state = section.getBlockState(x, y, z);
-                                        if (state != null && !state.isAir()) {
-                                            totalBlocks++;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {
-                    // Chunk might not be loaded
-                }
-            }
-        } catch (Exception e) {
-            // Ignore errors during verification
-        }
-        
-        return totalBlocks;
-    }
-
-    /**
      * Clear a chunk with aggressive cleanup
      * Uses section-level processing for efficiency
      * IMPORTANT: Properly handles water/fluids by scanning all blocks
@@ -2618,51 +2525,6 @@ public class WorldCopyService {
                     section.setBlockState(x, y, z, airState, false);
                 }
             }
-        }
-    }
-    
-    /**
-     * OPTIMIZED: Clear entities incrementally to avoid blocking the server.
-     * Called during cleanup processing - clears a batch of entities per tick.
-     * 
-     * @param mirrorWorld The mirror world to clear entities from
-     * @param dimIndex The dimension index
-     * @param maxEntitiesPerTick Maximum entities to process per call
-     * @return true if more entities remain to clear, false if complete
-     */
-    private static boolean clearEntitiesIncrementally(ServerLevel mirrorWorld, int dimIndex, int maxEntitiesPerTick) {
-        try {
-            int removed = 0;
-            
-            // Get all currently loaded entities
-            Iterable<net.minecraft.world.entity.Entity> allEntities = mirrorWorld.getAllEntities();
-            
-            for (net.minecraft.world.entity.Entity entity : allEntities) {
-                // Skip players
-                if (entity instanceof net.minecraft.world.entity.player.Player) {
-                    continue;
-                }
-                
-                entity.discard();
-                removed++;
-                
-                // Stop after processing maxEntitiesPerTick to avoid lag
-                if (removed >= maxEntitiesPerTick) {
-                    InstantWorldMirror.LOGGER.debug("Incremental entity cleanup: removed {} entities, more remaining", removed);
-                    return true; // More to process
-                }
-            }
-            
-            // If we get here, we've processed all loaded entities
-            if (removed > 0) {
-                InstantWorldMirror.LOGGER.debug("Incremental entity cleanup: removed {} entities", removed);
-            }
-            return false; // Complete
-            
-        } catch (Exception e) {
-            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            InstantWorldMirror.LOGGER.debug("Error during incremental entity cleanup: {}", errorMsg);
-            return false;
         }
     }
     
@@ -2790,10 +2652,6 @@ public class WorldCopyService {
 
     public static boolean hasPendingCleanup(int dimIndex) {
         return cleanupTasks.containsKey(dimIndex);
-    }
-
-    public static boolean hasPendingCopy(int dimIndex) {
-        return copyTasks.containsKey(dimIndex);
     }
 
     public static boolean hasPendingPersistentCopy(int dimIndex) {
