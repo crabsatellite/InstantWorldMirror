@@ -17,6 +17,7 @@
 - [x] `copy.persistent_queue_order` - method contains ordered text
 - [x] `copy.pristine_generator_features` - all text found
 - [x] `copy.pristine_generator_pipeline` - composite passed
+- [x] `copy.pristine_loot_uses_mob_spawn_config` - all text found
 - [x] `copy.pristine_task_flag` - all text found
 - [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text

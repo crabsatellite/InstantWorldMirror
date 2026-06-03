@@ -66,7 +66,8 @@
             "session.kind_field",
             "copy.pristine_task_flag",
             "copy.pristine_generator_features",
-            "copy.pristine_generator_pipeline"
+            "copy.pristine_generator_pipeline",
+            "copy.pristine_loot_uses_mob_spawn_config"
           ]
         }
       ]
@@ -1474,6 +1475,18 @@
       ]
     },
     {
+      "id": "copy.pristine_loot_uses_mob_spawn_config",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "texts": [
+        "filterGeneratedLootTagForConfig(tag)",
+        "static CompoundTag filterGeneratedLootTagForConfig",
+        "MirrorConfig.isMobSpawningEnabled()",
+        "copy.remove(\"LootTable\")",
+        "copy.remove(\"LootTableSeed\")"
+      ]
+    },
+    {
       "id": "copy.no_portal_entity_copy",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
@@ -1560,6 +1573,9 @@
         "firstDreamTerrainIgnoresCurrentWorldEdits",
         "PristineTerrainGenerator.generateChunk",
         "ChunkStatus.FEATURES",
+        "firstDreamLootTablesUseMobSpawningConfig",
+        "WorldCopyService.filterGeneratedLootTagForConfig",
+        "MirrorConfig.setRuntimeMobSpawning(false)",
         "Blocks.GOLD_BLOCK",
         "must not copy player edits"
       ]
