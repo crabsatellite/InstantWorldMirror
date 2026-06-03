@@ -1646,12 +1646,13 @@
       ]
     },
     {
-      "id": "copy.generated_content_refresh_copies_source_mobs",
+      "id": "copy.generated_content_refresh_skips_live_source_mobs",
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,",
-        "false, false, true",
+        "shouldCopyLiveGeneratedContentFromSource()",
+        "return generatedContentRefresh && !pristineTerrain",
+        "Do not also copy live source entities here",
         "entityChunkX != chunkX || entityChunkZ != chunkZ",
         "copyGeneratedContent && isGeneratedContentEntity(entity)",
         "entity instanceof net.minecraft.world.entity.LivingEntity"
