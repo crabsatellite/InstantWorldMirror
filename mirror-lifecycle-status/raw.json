@@ -221,6 +221,12 @@
       "message": "found text",
       "passed": true
     },
+    "enchantment.helpers_scope_stacks": {
+      "adapter": "file_contains_all",
+      "id": "enchantment.helpers_scope_stacks",
+      "message": "all text found",
+      "passed": true
+    },
     "enchantment.mirror_item_support": {
       "adapter": "any",
       "children": [
@@ -733,11 +739,11 @@
     }
   },
   "completion": {
-    "checkCount": 97,
+    "checkCount": 98,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 97,
+    "passedCheckCount": 98,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",

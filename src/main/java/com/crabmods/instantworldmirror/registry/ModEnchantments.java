@@ -1,6 +1,8 @@
 package com.crabmods.instantworldmirror.registry;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
+import com.crabmods.instantworldmirror.item.FirstDreamMirrorItem;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -23,7 +25,7 @@ public final class ModEnchantments {
     }
 
     public static boolean hasPermanence(Level level, ItemStack stack) {
-        if (stack.isEmpty()) {
+        if (!canApplyPermanenceTo(stack)) {
             return false;
         }
 
@@ -32,7 +34,7 @@ public final class ModEnchantments {
     }
 
     public static void applyPermanence(Level level, ItemStack stack) {
-        if (stack.isEmpty() || hasPermanence(level, stack)) {
+        if (!canApplyPermanenceTo(stack) || hasPermanence(level, stack)) {
             return;
         }
 
@@ -45,7 +47,7 @@ public final class ModEnchantments {
     }
 
     public static boolean hasRenewal(Level level, ItemStack stack) {
-        if (stack.isEmpty()) {
+        if (!canApplyRenewalTo(stack)) {
             return false;
         }
 
@@ -54,7 +56,7 @@ public final class ModEnchantments {
     }
 
     public static void applyRenewal(Level level, ItemStack stack) {
-        if (stack.isEmpty() || hasRenewal(level, stack)) {
+        if (!canApplyRenewalTo(stack) || hasRenewal(level, stack)) {
             return;
         }
 
@@ -64,5 +66,13 @@ public final class ModEnchantments {
 
     public static boolean isRenewal(Holder<Enchantment> enchantment) {
         return enchantment.is(RENEWAL);
+    }
+
+    private static boolean canApplyPermanenceTo(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof DimensionMirrorItem;
+    }
+
+    private static boolean canApplyRenewalTo(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof FirstDreamMirrorItem;
     }
 }
