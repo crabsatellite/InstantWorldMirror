@@ -14,7 +14,7 @@ import net.minecraftforge.client.gui.overlay.ForgeGui;
 import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 
 /**
- * HUD overlay that displays the Dimensional Mirror cooldown timer
+ * HUD overlay that displays the World Reflection Mirror cooldown timer
  * Shows a countdown timer in the corner when the player has a mirror on cooldown
  * 
  * Design inspired by Waystones mod's cooldown display, but with:

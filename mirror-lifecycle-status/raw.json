@@ -749,7 +749,7 @@
         }
       ],
       "status": "covered",
-      "title": "Unenchanted Dimensional Mirror stays temporary"
+      "title": "Unenchanted World Reflection Mirror stays temporary"
     },
     {
       "id": "temporary.heaven_mirror",
@@ -834,7 +834,7 @@
         }
       ],
       "status": "covered",
-      "title": "Permanence enchanted Dimensional Mirror can use persistent worlds"
+      "title": "Permanence enchanted World Reflection Mirror can use persistent worlds"
     },
     {
       "id": "permanent.heaven_mirror",

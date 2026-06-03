@@ -4,7 +4,7 @@ Complete: `true`
 
 ## temporary.dimension_mirror - covered
 
-Unenchanted Dimensional Mirror stays temporary
+Unenchanted World Reflection Mirror stays temporary
 
 - `entry`: covered - Entry portal records whether the held mirror has permanence
 - `save_gate`: covered - Temporary sessions without permanence cannot be saved through commands
@@ -25,7 +25,7 @@ Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary
 
 ## permanent.dimension_mirror - covered
 
-Permanence enchanted Dimensional Mirror can use persistent worlds
+Permanence enchanted World Reflection Mirror can use persistent worlds
 
 - `enchantment`: covered - Permanence enchantment is available for mirror items
 - `enter_gate`: covered - Persistent world entry requires a matching enchanted mirror

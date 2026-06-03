@@ -9,7 +9,7 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.IItemDecorator;
 
 /**
- * Item decorator that renders a charging bar on the Dimensional Mirror item
+ * Item decorator that renders a charging bar on the World Reflection Mirror item
  * Similar to vanilla durability bar style
  * 
  * Shows a cyan charging bar at the bottom of the item that fills up as cooldown expires

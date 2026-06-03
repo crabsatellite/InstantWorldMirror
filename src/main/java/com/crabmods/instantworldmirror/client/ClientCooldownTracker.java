@@ -4,7 +4,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 /**
- * Client-side cooldown tracker for the Dimensional Mirror
+ * Client-side cooldown tracker for the World Reflection Mirror
  * Stores the cooldown end timestamp synced from the server
  * Used by the HUD overlay to display remaining cooldown time
  */

@@ -17,7 +17,7 @@ import net.minecraftforge.registries.RegistryObject;
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, InstantWorldMirror.MODID);
 
-    // Dimensional Mirror
+    // World Reflection Mirror
     public static final RegistryObject<DimensionMirrorItem> DIMENSION_MIRROR = ITEMS.register(
             "dimension_mirror",
             () -> new DimensionMirrorItem(new Item.Properties()
