@@ -368,11 +368,17 @@ public class DimensionMirrorItem extends Item {
     }
 
     public static long getGeneratedContentRefreshRemainingMillis(ItemStack stack) {
+        if (!isGeneratedContentRefreshCooldownStack(stack)) {
+            return 0;
+        }
         long remaining = getGeneratedContentRefreshCooldownUntil(stack) - System.currentTimeMillis();
         return Math.max(0, remaining);
     }
 
     static void markGeneratedContentRefreshUsed(ItemStack stack) {
+        if (!isGeneratedContentRefreshCooldownStack(stack)) {
+            return;
+        }
         setGeneratedContentRefreshCooldownUntil(stack,
                 System.currentTimeMillis() + GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
     }
@@ -390,6 +396,10 @@ public class DimensionMirrorItem extends Item {
             return;
         }
         stack.getOrCreateTag().putLong(GENERATED_CONTENT_REFRESH_COOLDOWN_KEY, cooldownUntil);
+    }
+
+    private static boolean isGeneratedContentRefreshCooldownStack(ItemStack stack) {
+        return isMirrorStack(stack) && getMirrorKind(stack) == MirrorKind.FIRST_DREAM;
     }
 
     public static MirrorKind getMirrorKind(ItemStack stack) {

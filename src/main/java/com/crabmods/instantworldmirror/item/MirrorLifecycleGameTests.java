@@ -120,12 +120,17 @@ public final class MirrorLifecycleGameTests {
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void renewalRefreshUsesItemCooldownAndCreativeBypass(GameTestHelper helper) {
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+        ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
         ModEnchantments.applyRenewal(helper.getLevel(), firstDreamMirror);
 
         try {
             MirrorConfig.setRuntimeMobSpawning(false);
             helper.assertTrue(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
                     "Renewal must be ready when the item cooldown is clear and generated content is disabled");
+
+            DimensionMirrorItem.markGeneratedContentRefreshUsed(heavenMirror);
+            helper.assertTrue(DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(heavenMirror) == 0,
+                    "Renewal cooldown must ignore non-first-dream mirrors");
 
             DimensionMirrorItem.markGeneratedContentRefreshUsed(firstDreamMirror);
             helper.assertFalse(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
