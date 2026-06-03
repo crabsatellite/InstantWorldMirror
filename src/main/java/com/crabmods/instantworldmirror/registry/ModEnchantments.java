@@ -40,11 +40,11 @@ public final class ModEnchantments {
     }
 
     public static boolean hasPermanence(Level level, ItemStack stack) {
-        return !stack.isEmpty() && stack.getEnchantmentLevel(PERMANENCE.get()) > 0;
+        return canApplyPermanenceTo(stack) && stack.getEnchantmentLevel(PERMANENCE.get()) > 0;
     }
 
     public static void applyPermanence(Level level, ItemStack stack) {
-        if (!stack.isEmpty() && !hasPermanence(level, stack)) {
+        if (canApplyPermanenceTo(stack) && !hasPermanence(level, stack)) {
             stack.enchant(PERMANENCE.get(), 1);
         }
     }
@@ -54,17 +54,25 @@ public final class ModEnchantments {
     }
 
     public static boolean hasRenewal(Level level, ItemStack stack) {
-        return !stack.isEmpty() && stack.getEnchantmentLevel(RENEWAL.get()) > 0;
+        return canApplyRenewalTo(stack) && stack.getEnchantmentLevel(RENEWAL.get()) > 0;
     }
 
     public static void applyRenewal(Level level, ItemStack stack) {
-        if (!stack.isEmpty() && !hasRenewal(level, stack)) {
+        if (canApplyRenewalTo(stack) && !hasRenewal(level, stack)) {
             stack.enchant(RENEWAL.get(), 1);
         }
     }
 
     public static boolean isRenewal(Enchantment enchantment) {
         return enchantment == RENEWAL.get();
+    }
+
+    private static boolean canApplyPermanenceTo(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof DimensionMirrorItem;
+    }
+
+    private static boolean canApplyRenewalTo(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof FirstDreamMirrorItem;
     }
 
     private static class PermanentMirrorEnchantment extends Enchantment {

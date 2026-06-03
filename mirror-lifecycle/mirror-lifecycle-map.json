@@ -880,6 +880,17 @@
       ]
     },
     {
+      "id": "enchantment.helpers_scope_stacks",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+      "texts": [
+        "canApplyPermanenceTo",
+        "instanceof DimensionMirrorItem",
+        "canApplyRenewalTo",
+        "instanceof FirstDreamMirrorItem"
+      ]
+    },
+    {
       "id": "enchantment.renewal_hard_to_get_registration",
       "adapter": "any",
       "checks": [
@@ -1681,6 +1692,9 @@
         "DimensionMirrorItem.calculateCooldownSeconds",
         "DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror, true)",
         "ModEnchantments.applyRenewal",
+        "Permanence helper must ignore non-mirror items",
+        "Renewal must not be valid for the heaven mirror",
+        "Renewal helper must ignore non-first-dream mirrors",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",

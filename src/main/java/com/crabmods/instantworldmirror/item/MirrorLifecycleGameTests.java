@@ -48,6 +48,7 @@ public final class MirrorLifecycleGameTests {
         ItemStack dimensionMirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+        ItemStack nonMirror = new ItemStack(Items.DIAMOND);
 
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(dimensionMirror) == MirrorKind.DIMENSION,
                 "Dimensional mirror stack must resolve to the dimension mirror kind");
@@ -72,21 +73,40 @@ public final class MirrorLifecycleGameTests {
                 "First dream portals must not render as heaven portals");
 
         DimensionMirrorItem dimensionMirrorItem = (DimensionMirrorItem) dimensionMirror.getItem();
+        DimensionMirrorItem heavenMirrorItem = (DimensionMirrorItem) heavenMirror.getItem();
         DimensionMirrorItem firstDreamMirrorItem = (DimensionMirrorItem) firstDreamMirror.getItem();
         helper.assertTrue(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.PERMANENCE.get()),
-                "Permanence enchantment must be valid for mirror items");
+                "Permanence enchantment must be valid for the default mirror");
+        helper.assertTrue(heavenMirrorItem.canApplyAtEnchantingTable(heavenMirror, ModEnchantments.PERMANENCE.get()),
+                "Permanence enchantment must be valid for the heaven mirror");
+        helper.assertTrue(firstDreamMirrorItem.canApplyAtEnchantingTable(firstDreamMirror, ModEnchantments.PERMANENCE.get()),
+                "Permanence enchantment must be valid for the first dream mirror");
         helper.assertTrue(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, Enchantments.BLOCK_EFFICIENCY),
                 "Efficiency must remain valid for mirror cooldown reduction");
         helper.assertFalse(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.RENEWAL.get()),
                 "Renewal must not be valid for the default mirror");
+        helper.assertFalse(heavenMirrorItem.canApplyAtEnchantingTable(heavenMirror, ModEnchantments.RENEWAL.get()),
+                "Renewal must not be valid for the heaven mirror");
         helper.assertTrue(firstDreamMirrorItem.canApplyAtEnchantingTable(firstDreamMirror, ModEnchantments.RENEWAL.get()),
                 "Renewal must be valid for first dream mirrors");
+
+        ModEnchantments.applyPermanence(helper.getLevel(), nonMirror);
+        helper.assertFalse(ModEnchantments.hasPermanence(helper.getLevel(), nonMirror),
+                "Permanence helper must ignore non-mirror items");
+        helper.assertTrue(nonMirror.getEnchantmentLevel(ModEnchantments.PERMANENCE.get()) == 0,
+                "Permanence must not be applied to non-mirror items");
 
         ModEnchantments.applyPermanence(helper.getLevel(), heavenMirror);
         helper.assertTrue(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Permanence helper must mark the stack as permanent");
         helper.assertTrue(heavenMirror.getEnchantmentLevel(ModEnchantments.PERMANENCE.get()) == 1,
                 "Permanence must be applied exactly once");
+
+        ModEnchantments.applyRenewal(helper.getLevel(), heavenMirror);
+        helper.assertFalse(DimensionMirrorItem.hasGeneratedContentRefresh(helper.getLevel(), heavenMirror),
+                "Renewal helper must ignore non-first-dream mirrors");
+        helper.assertTrue(heavenMirror.getEnchantmentLevel(ModEnchantments.RENEWAL.get()) == 0,
+                "Renewal must not be applied to the heaven mirror");
 
         ModEnchantments.applyRenewal(helper.getLevel(), firstDreamMirror);
         helper.assertTrue(DimensionMirrorItem.hasGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),

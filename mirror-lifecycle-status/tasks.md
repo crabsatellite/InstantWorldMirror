@@ -30,6 +30,7 @@
 - [x] `dimensions.persistent_json_values` - all json values matched
 - [x] `dimensions.separate_pool` - found text
 - [x] `enchantment.helper_present` - found text
+- [x] `enchantment.helpers_scope_stacks` - all text found
 - [x] `enchantment.mirror_item_support` - composite passed
 - [x] `enchantment.renewal_first_dream_only` - all text found
 - [x] `enchantment.renewal_hard_to_get_registration` - composite passed
