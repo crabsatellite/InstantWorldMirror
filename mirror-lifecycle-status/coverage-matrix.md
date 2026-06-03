@@ -14,7 +14,7 @@
 | `permanent.heaven_mirror` | `persistent_enter` | `covered` | `manager.persistent_enter_passes_access` |
 | `active_use_lifecycle` | `block_use` | `covered` | `item.block_use_order`, `item.cooldown_applies_after_success` |
 | `active_use_lifecycle` | `air_hold` | `covered` | `item.air_use_order`, `item.finish_use_packet_scope` |
-| `active_use_lifecycle` | `cooldown` | `covered` | `item.cooldown_efficiency_only`, `item.cooldown_ignores_permanence`, `item.renewal_item_cooldown`, `item.renewal_creative_bypasses_cooldown` |
+| `active_use_lifecycle` | `cooldown` | `covered` | `item.cooldown_efficiency_only`, `item.cooldown_ignores_permanence`, `item.renewal_item_cooldown`, `item.renewal_cooldown_icon_visible`, `item.renewal_cooldown_tooltip_visible`, `item.renewal_creative_bypasses_cooldown` |
 | `temporary.session_lifecycle` | `create` | `covered` | `manager.create_session_order` |
 | `temporary.session_lifecycle` | `enter` | `covered` | `manager.teleport_session_order` |
 | `temporary.session_lifecycle` | `return` | `covered` | `manager.return_temporary_order` |

@@ -64,7 +64,7 @@ public class DimensionMirrorItem extends Item {
     private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
     private static final String GENERATED_CONTENT_REFRESH_COOLDOWN_KEY =
             InstantWorldMirror.MODID + ":generated_content_refresh_cooldown_until";
-    static final long GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS = 10L * 60L * 1000L;
+    public static final long GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS = 10L * 60L * 1000L;
     private final MirrorKind kind;
     
     // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
@@ -362,7 +362,7 @@ public class DimensionMirrorItem extends Item {
                 && (bypassCooldown || getGeneratedContentRefreshRemainingMillis(stack) == 0);
     }
 
-    static long getGeneratedContentRefreshRemainingMillis(ItemStack stack) {
+    public static long getGeneratedContentRefreshRemainingMillis(ItemStack stack) {
         long remaining = getGeneratedContentRefreshCooldownUntil(stack) - System.currentTimeMillis();
         return Math.max(0, remaining);
     }
@@ -406,6 +406,11 @@ public class DimensionMirrorItem extends Item {
         super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
         tooltipComponents.add(Component.translatable(getDescriptionId() + ".function").withStyle(ChatFormatting.DARK_GRAY));
         tooltipComponents.add(Component.translatable(getDescriptionId() + ".desc").withStyle(ChatFormatting.GRAY));
+        long renewalRemainingMillis = getGeneratedContentRefreshRemainingMillis(stack);
+        if (renewalRemainingMillis > 0) {
+            tooltipComponents.add(Component.translatable("message.instantworldmirror.renewal_refresh_cooldown",
+                    (int) Math.ceil(renewalRemainingMillis / 1000.0)));
+        }
     }
 
     static int calculateCooldownSeconds(Level level, ItemStack stack) {

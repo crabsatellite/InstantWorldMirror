@@ -391,6 +391,18 @@
       "message": "found text",
       "passed": true
     },
+    "item.renewal_cooldown_icon_visible": {
+      "adapter": "file_contains_all",
+      "id": "item.renewal_cooldown_icon_visible",
+      "message": "all text found",
+      "passed": true
+    },
+    "item.renewal_cooldown_tooltip_visible": {
+      "adapter": "method_contains_all",
+      "id": "item.renewal_cooldown_tooltip_visible",
+      "message": "method contains all text",
+      "passed": true
+    },
     "item.renewal_creative_bypasses_cooldown": {
       "adapter": "method_contains_in_order",
       "id": "item.renewal_creative_bypasses_cooldown",
@@ -739,11 +751,11 @@
     }
   },
   "completion": {
-    "checkCount": 98,
+    "checkCount": 100,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 98,
+    "passedCheckCount": 100,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",
@@ -907,6 +919,8 @@
             "item.cooldown_efficiency_only",
             "item.cooldown_ignores_permanence",
             "item.renewal_item_cooldown",
+            "item.renewal_cooldown_icon_visible",
+            "item.renewal_cooldown_tooltip_visible",
             "item.renewal_creative_bypasses_cooldown"
           ],
           "id": "cooldown",

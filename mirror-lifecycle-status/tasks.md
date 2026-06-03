@@ -51,6 +51,8 @@
 - [x] `item.entry.passes_permanence_state` - found text
 - [x] `item.finish_use_packet_scope` - method contains ordered text
 - [x] `item.kind_from_stack` - found text
+- [x] `item.renewal_cooldown_icon_visible` - all text found
+- [x] `item.renewal_cooldown_tooltip_visible` - method contains all text
 - [x] `item.renewal_creative_bypasses_cooldown` - method contains ordered text
 - [x] `item.renewal_item_cooldown` - all text found
 - [x] `item.shift_menu_uses_stack` - found text

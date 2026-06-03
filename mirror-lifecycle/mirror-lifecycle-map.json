@@ -147,6 +147,8 @@
             "item.cooldown_efficiency_only",
             "item.cooldown_ignores_permanence",
             "item.renewal_item_cooldown",
+            "item.renewal_cooldown_icon_visible",
+            "item.renewal_cooldown_tooltip_visible",
             "item.renewal_creative_bypasses_cooldown"
           ]
         }
@@ -559,6 +561,28 @@
         "getGeneratedContentRefreshRemainingMillis",
         "markGeneratedContentRefreshUsed",
         "setGeneratedContentRefreshCooldownUntil"
+      ]
+    },
+    {
+      "id": "item.renewal_cooldown_icon_visible",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/client/CooldownItemDecorator.java",
+      "texts": [
+        "RENEWAL_BAR_COLOR",
+        "DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(stack)",
+        "DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS",
+        "yOffset + 10"
+      ]
+    },
+    {
+      "id": "item.renewal_cooldown_tooltip_visible",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+      "method": "appendHoverText",
+      "texts": [
+        "getGeneratedContentRefreshRemainingMillis(stack)",
+        "message.instantworldmirror.renewal_refresh_cooldown",
+        "Math.ceil"
       ]
     },
     {
