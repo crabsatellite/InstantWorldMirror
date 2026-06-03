@@ -122,23 +122,34 @@ public final class MirrorLifecycleGameTests {
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
         ModEnchantments.applyRenewal(helper.getLevel(), firstDreamMirror);
+        addEfficiency(helper, firstDreamMirror, 2);
 
         try {
             MirrorConfig.setRuntimeMobSpawning(false);
             helper.assertTrue(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
                     "Renewal must be ready when the item cooldown is clear and generated content is disabled");
 
-            DimensionMirrorItem.markGeneratedContentRefreshUsed(heavenMirror);
+            DimensionMirrorItem.markGeneratedContentRefreshUsed(helper.getLevel(), heavenMirror);
             helper.assertTrue(DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(heavenMirror) == 0,
                     "Renewal cooldown must ignore non-first-dream mirrors");
 
-            DimensionMirrorItem.markGeneratedContentRefreshUsed(firstDreamMirror);
+            long efficientRenewalMillis =
+                    DimensionMirrorItem.calculateGeneratedContentRefreshCooldownMillis(helper.getLevel(), firstDreamMirror);
+            long expectedEfficientRenewalMillis =
+                    Math.max(30_000L, (long) (DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS * 0.6));
+            helper.assertTrue(efficientRenewalMillis == expectedEfficientRenewalMillis,
+                    "Renewal cooldown must use the same Efficiency reduction as mirror use cooldown");
+
+            DimensionMirrorItem.markGeneratedContentRefreshUsed(helper.getLevel(), firstDreamMirror);
             helper.assertFalse(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
-                    "Renewal must respect the 10 minute item cooldown for non-creative use");
+                    "Renewal must respect the efficiency-reduced item cooldown for non-creative use");
             long remainingMillis = DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(firstDreamMirror);
             helper.assertTrue(remainingMillis > 0
-                            && remainingMillis <= DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS,
+                            && remainingMillis <= efficientRenewalMillis,
                     "Renewal cooldown must be stored on the mirror item stack");
+            helper.assertTrue(DimensionMirrorItem.getGeneratedContentRefreshCooldownDurationMillis(firstDreamMirror)
+                            == efficientRenewalMillis,
+                    "Renewal cooldown duration must be stored for the item cooldown bar");
             helper.assertTrue(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror, true),
                     "Creative use must bypass the Renewal item cooldown");
 
