@@ -135,7 +135,7 @@ public class ModEvents {
             }
 
             // Safety net: clear any leftover stale mirror data after respawn
-            if (MirrorWorldManager.hasSavedInventory(player)) {
+            if (MirrorWorldManager.hasSavedMirrorState(player)) {
                 InstantWorldMirror.LOGGER.warn(
                         "Player {} respawned with stale mirror inventory data, clearing",
                         player.getName().getString());
@@ -530,13 +530,13 @@ public class ModEvents {
                 InstantWorldMirror.LOGGER.info(
                         "Clearing stale mirror death flag for {} on login",
                         player.getName().getString());
-                if (!MirrorWorldManager.hasSavedInventory(player)) {
+                if (!MirrorWorldManager.hasSavedMirrorState(player)) {
                     MirrorWorldManager.clearSavedData(player);
                 }
             }
 
             // Check if player has saved inventory data (might have been in mirror world before server restart)
-            if (MirrorWorldManager.hasSavedInventory(player)) {
+            if (MirrorWorldManager.hasSavedMirrorState(player)) {
                 // Player has saved data, restore inventory
                 player.getServer().execute(() -> {
                     // If in mirror world, teleport back to the saved origin first
@@ -599,6 +599,27 @@ public class ModEvents {
                 });
             }
         }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerChangeGameMode(PlayerEvent.PlayerChangeGameModeEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (!ModDimensions.isAnyMirrorWorld(player.level().dimension())) {
+            return;
+        }
+        if (player.getServer() == null) {
+            return;
+        }
+
+        GameType requestedGameMode = event.getNewGameMode();
+        player.getServer().execute(() -> {
+            if (ModDimensions.isAnyMirrorWorld(player.level().dimension())
+                    && player.gameMode.getGameModeForPlayer() == requestedGameMode) {
+                MirrorWorldManager.syncPlayerAbilitiesToGameMode(player);
+            }
+        });
     }
 
     /**

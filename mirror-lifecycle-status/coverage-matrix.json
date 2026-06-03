@@ -147,7 +147,9 @@
     },
     {
       "checks": [
-        "manager.return_temporary_order"
+        "manager.return_temporary_order",
+        "manager.non_sandbox_game_mode_state",
+        "events.mirror_game_mode_change_sync"
       ],
       "route": "temporary.session_lifecycle",
       "stage": "return",
@@ -340,6 +342,7 @@
         "command.repair_scans_dead_data_only",
         "command.purge_temporary_pool_only",
         "manager.repair_dead_persistent_records_only",
+        "manager.forceclear_restores_player_state",
         "worldcopy.persistent_copy_query",
         "lang.repair_messages",
         "lang.status_persistent_messages"

@@ -17,7 +17,7 @@
 | `active_use_lifecycle` | `cooldown` | `covered` | `item.cooldown_efficiency_only`, `item.cooldown_ignores_permanence`, `item.renewal_item_cooldown`, `item.renewal_cooldown_icon_visible`, `item.renewal_cooldown_tooltip_visible`, `item.renewal_creative_bypasses_cooldown` |
 | `temporary.session_lifecycle` | `create` | `covered` | `manager.create_session_order` |
 | `temporary.session_lifecycle` | `enter` | `covered` | `manager.teleport_session_order` |
-| `temporary.session_lifecycle` | `return` | `covered` | `manager.return_temporary_order` |
+| `temporary.session_lifecycle` | `return` | `covered` | `manager.return_temporary_order`, `manager.non_sandbox_game_mode_state`, `events.mirror_game_mode_change_sync` |
 | `temporary.session_lifecycle` | `heaven_origin_gate` | `covered` | `manager.heaven_return_origin_gate` |
 | `death_external_logout_lifecycle` | `respawn` | `covered` | `events.respawn_restore_order` |
 | `death_external_logout_lifecycle` | `external_exit` | `covered` | `events.dimension_change_exit_order` |
@@ -37,7 +37,7 @@
 | `command_bypass_guards` | `save` | `covered` | `manager.save_requires_persistent_access` |
 | `command_bypass_guards` | `enter` | `covered` | `manager.enter_requires_matching_permanence` |
 | `command_bypass_guards` | `selection` | `covered` | `command.persistent_record_suggestions`, `command.persistent_uses_selector`, `command.persistent_rename_command`, `lang.persistent_messages` |
-| `command_bypass_guards` | `admin_visibility` | `covered` | `command.status_includes_persistent_pool`, `command.persistent_name_suggestions_all_kinds`, `command.mob_updates_persistent_worlds`, `command.repair_scans_dead_data_only`, `command.purge_temporary_pool_only`, `manager.repair_dead_persistent_records_only`, `worldcopy.persistent_copy_query`, `lang.repair_messages`, `lang.status_persistent_messages` |
+| `command_bypass_guards` | `admin_visibility` | `covered` | `command.status_includes_persistent_pool`, `command.persistent_name_suggestions_all_kinds`, `command.mob_updates_persistent_worlds`, `command.repair_scans_dead_data_only`, `command.purge_temporary_pool_only`, `manager.repair_dead_persistent_records_only`, `manager.forceclear_restores_player_state`, `worldcopy.persistent_copy_query`, `lang.repair_messages`, `lang.status_persistent_messages` |
 | `runtime_smoke_infra` | `script` | `covered` | `runtime.runclient_smoke_script` |
 | `runtime.gametest_lifecycle` | `registration` | `covered` | `runtime.gametest_source_registered`, `runtime.gametest_empty_template` |
 | `runtime.gametest_lifecycle` | `coverage` | `covered` | `runtime.gametest_behavior_coverage`, `runtime.gametest_pristine_terrain_coverage` |

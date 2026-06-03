@@ -44,6 +44,7 @@
 - [x] `events.login_saved_origin_restore_order` - method contains ordered text
 - [x] `events.logout_cleanup_order` - method contains ordered text
 - [x] `events.logout_clears_persistent_tracking` - method contains ordered text
+- [x] `events.mirror_game_mode_change_sync` - method contains ordered text
 - [x] `events.respawn_restore_order` - method contains ordered text
 - [x] `events.server_stop_clears_all_lifecycle_state` - method contains ordered text
 - [x] `item.air_use_order` - method contains ordered text
@@ -71,9 +72,11 @@
 - [x] `manager.delete_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.enter_persistent_order` - method contains ordered text
 - [x] `manager.enter_requires_matching_permanence` - found text
+- [x] `manager.forceclear_restores_player_state` - method contains ordered text
 - [x] `manager.heaven_return_origin_gate` - method contains ordered text
 - [x] `manager.leave_persistent_order` - method contains ordered text
 - [x] `manager.menu_uses_selectors` - composite passed
+- [x] `manager.non_sandbox_game_mode_state` - all text found
 - [x] `manager.persistent_enter_passes_access` - found text
 - [x] `manager.recover_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.recover_unready_records` - method contains ordered text

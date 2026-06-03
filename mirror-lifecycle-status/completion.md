@@ -2,4 +2,4 @@
 
 - complete: `true`
 - routes: `14/14`
-- checks: `103/103`
+- checks: `106/106`
