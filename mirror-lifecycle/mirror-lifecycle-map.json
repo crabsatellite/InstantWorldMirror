@@ -558,9 +558,13 @@
       "texts": [
         "GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS = 10L * 60L * 1000L",
         "generated_content_refresh_cooldown_until",
+        "generated_content_refresh_cooldown_duration",
         "getGeneratedContentRefreshRemainingMillis",
+        "getGeneratedContentRefreshCooldownDurationMillis",
         "markGeneratedContentRefreshUsed",
-        "setGeneratedContentRefreshCooldownUntil",
+        "setGeneratedContentRefreshCooldown",
+        "calculateGeneratedContentRefreshCooldownMillis",
+        "calculateEfficiencyReducedCooldownMillis",
         "isGeneratedContentRefreshCooldownStack",
         "getMirrorKind(stack) == MirrorKind.FIRST_DREAM"
       ]
@@ -572,7 +576,7 @@
       "texts": [
         "RENEWAL_BAR_COLOR",
         "DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(stack)",
-        "DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS",
+        "DimensionMirrorItem.getGeneratedContentRefreshCooldownDurationMillis(stack)",
         "yOffset + 10"
       ]
     },
@@ -596,7 +600,7 @@
         "boolean bypassRefreshCooldown = player.isCreative()",
         "shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown)",
         "if (generatedContentRefresh && !bypassRefreshCooldown)",
-        "markGeneratedContentRefreshUsed(stack)"
+        "markGeneratedContentRefreshUsed(level, stack)"
       ]
     },
     {
@@ -1722,6 +1726,8 @@
         "Renewal must not be valid for the heaven mirror",
         "Renewal helper must ignore non-first-dream mirrors",
         "Renewal cooldown must ignore non-first-dream mirrors",
+        "Renewal cooldown must use the same Efficiency reduction as mirror use cooldown",
+        "Renewal cooldown duration must be stored for the item cooldown bar",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",

@@ -43,8 +43,9 @@ public class CooldownItemDecorator implements IItemDecorator {
         RenderSystem.disableDepthTest();
 
         if (hasRenewalCooldown) {
+            long renewalCooldownDurationMillis = DimensionMirrorItem.getGeneratedContentRefreshCooldownDurationMillis(stack);
             float renewalProgress = 1.0f - Math.min(1.0f,
-                    (float) renewalRemainingMillis / DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
+                    (float) renewalRemainingMillis / renewalCooldownDurationMillis);
             renderBar(guiGraphics, xOffset + 2, yOffset + 10, renewalProgress, RENEWAL_BAR_COLOR);
         }
 

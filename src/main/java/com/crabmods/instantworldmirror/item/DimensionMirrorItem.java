@@ -60,6 +60,8 @@ public class DimensionMirrorItem extends Item {
     private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
     private static final String GENERATED_CONTENT_REFRESH_COOLDOWN_KEY =
             InstantWorldMirror.MODID + ":generated_content_refresh_cooldown_until";
+    private static final String GENERATED_CONTENT_REFRESH_COOLDOWN_DURATION_KEY =
+            InstantWorldMirror.MODID + ":generated_content_refresh_cooldown_duration";
     public static final long GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS = 10L * 60L * 1000L;
     private final MirrorKind kind;
     
@@ -375,12 +377,12 @@ public class DimensionMirrorItem extends Item {
         return Math.max(0, remaining);
     }
 
-    static void markGeneratedContentRefreshUsed(ItemStack stack) {
+    static void markGeneratedContentRefreshUsed(Level level, ItemStack stack) {
         if (!isGeneratedContentRefreshCooldownStack(stack)) {
             return;
         }
-        setGeneratedContentRefreshCooldownUntil(stack,
-                System.currentTimeMillis() + GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
+        long cooldownMillis = calculateGeneratedContentRefreshCooldownMillis(level, stack);
+        setGeneratedContentRefreshCooldown(stack, System.currentTimeMillis() + cooldownMillis, cooldownMillis);
     }
 
     private static long getGeneratedContentRefreshCooldownUntil(ItemStack stack) {
@@ -391,11 +393,24 @@ public class DimensionMirrorItem extends Item {
         return tag.getLong(GENERATED_CONTENT_REFRESH_COOLDOWN_KEY);
     }
 
-    private static void setGeneratedContentRefreshCooldownUntil(ItemStack stack, long cooldownUntil) {
+    public static long getGeneratedContentRefreshCooldownDurationMillis(ItemStack stack) {
+        if (!isGeneratedContentRefreshCooldownStack(stack)) {
+            return 0;
+        }
+        CompoundTag tag = stack.getTag();
+        if (tag == null) {
+            return GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS;
+        }
+        long duration = tag.getLong(GENERATED_CONTENT_REFRESH_COOLDOWN_DURATION_KEY);
+        return duration > 0 ? duration : GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS;
+    }
+
+    private static void setGeneratedContentRefreshCooldown(ItemStack stack, long cooldownUntil, long cooldownDuration) {
         if (stack.isEmpty()) {
             return;
         }
         stack.getOrCreateTag().putLong(GENERATED_CONTENT_REFRESH_COOLDOWN_KEY, cooldownUntil);
+        stack.getOrCreateTag().putLong(GENERATED_CONTENT_REFRESH_COOLDOWN_DURATION_KEY, cooldownDuration);
     }
 
     private static boolean isGeneratedContentRefreshCooldownStack(ItemStack stack) {
@@ -428,16 +443,27 @@ public class DimensionMirrorItem extends Item {
 
     static int calculateCooldownSeconds(Level level, ItemStack stack) {
         int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
+        return (int) (calculateEfficiencyReducedCooldownMillis(level, stack, baseCooldownSeconds * 1000L) / 1000L);
+    }
+
+    static long calculateGeneratedContentRefreshCooldownMillis(Level level, ItemStack stack) {
+        if (!isGeneratedContentRefreshCooldownStack(stack)) {
+            return 0;
+        }
+        return calculateEfficiencyReducedCooldownMillis(level, stack, GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
+    }
+
+    private static long calculateEfficiencyReducedCooldownMillis(Level level, ItemStack stack, long baseCooldownMillis) {
         int efficiencyLevel = getEfficiencyLevel(level, stack);
 
         // Each efficiency level reduces cooldown by 20%
         // Level 0: 100% (5 min), Level 1: 80% (4 min), Level 2: 60% (3 min)
         // Level 3: 40% (2 min), Level 4: 20% (1 min), Level 5: 10% (30 sec, minimum)
         double reduction = Math.min(0.9, efficiencyLevel * 0.2); // Cap at 90% reduction
-        int finalCooldownSeconds = (int) (baseCooldownSeconds * (1.0 - reduction));
+        long finalCooldownMillis = (long) (baseCooldownMillis * (1.0 - reduction));
 
         // Minimum cooldown is 30 seconds
-        return Math.max(30, finalCooldownSeconds);
+        return Math.max(30_000L, finalCooldownMillis);
     }
 
     /**
@@ -515,7 +541,7 @@ public class DimensionMirrorItem extends Item {
                 true
         );
         if (generatedContentRefresh && !bypassRefreshCooldown) {
-            markGeneratedContentRefreshUsed(stack);
+            markGeneratedContentRefreshUsed(level, stack);
             player.displayClientMessage(
                     Component.translatable("message.instantworldmirror.renewal_refresh_triggered"),
                     true

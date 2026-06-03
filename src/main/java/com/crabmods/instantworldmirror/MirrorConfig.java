@@ -77,7 +77,7 @@ public class MirrorConfig {
             .comment("World Reflection Mirror cooldown in seconds (default: 300 = 5 minutes)",
                     "This is how long players must wait between using the World Reflection Mirror.",
                     "Can be reduced with Efficiency enchantment (each level reduces by 20%).",
-                    "Efficiency 5 = minimum cooldown of 1 minute.",
+                    "Efficiency 5 = minimum cooldown of 30 seconds.",
                     "Creative mode players have no cooldown.")
             .defineInRange("mirrorCooldown", 300, 0, 3600);
 
