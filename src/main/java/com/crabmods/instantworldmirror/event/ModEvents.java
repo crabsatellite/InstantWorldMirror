@@ -195,6 +195,7 @@ public class ModEvents {
             
             // Handle disconnect - remove from session and cleanup if needed
             MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
+            PersistentMirrorManager.clearPlayerTracking(player.getUUID());
             
             // Clean up lazy tracking cache for this player
             lastTrackedChunkPos.remove(player.getUUID());
@@ -556,6 +557,7 @@ public class ModEvents {
                     // forceReturn() -> returnToOverworld() -> isInMirrorWorld() would fail
                     // because the player has already been teleported out of the mirror world above.
                     MirrorWorldManager.restorePlayerInventoryOnLogin(player);
+                    PersistentMirrorManager.clearPlayerTracking(player.getUUID());
                     InstantWorldMirror.LOGGER.info("Player {} had saved inventory data, restored on login", 
                             player.getName().getString());
                 });
@@ -579,6 +581,7 @@ public class ModEvents {
                     } finally {
                         MirrorWorldManager.unmarkPlayerBeingTeleported(player.getUUID());
                     }
+                    PersistentMirrorManager.clearPlayerTracking(player.getUUID());
                     InstantWorldMirror.LOGGER.info("Player {} was in Mirror World on login (no saved data), teleported to Overworld", 
                             player.getName().getString());
                 });
@@ -599,7 +602,8 @@ public class ModEvents {
         // Clear the in-memory cooldown map
         DimensionMirrorItem.clearAllCooldowns();
         
-        MirrorWorldManager.clearAllSessions();
+        MirrorWorldManager.clearAllSessions(event.getServer());
+        PersistentMirrorManager.clearTransientState();
         WorldCopyService.clearAllTasks();
         InstantWorldMirror.LOGGER.info("Server stopping, mirror sessions and tasks cleared.");
     }

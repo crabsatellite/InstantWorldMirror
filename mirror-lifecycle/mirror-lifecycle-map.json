@@ -200,14 +200,26 @@
           "id": "login",
           "title": "Login recovery returns saved mirror state to the saved origin instead of overworld spawn",
           "checks": [
-            "events.login_saved_origin_restore_order"
+            "events.login_saved_origin_restore_order",
+            "events.login_clears_persistent_tracking"
           ]
         },
         {
           "id": "logout",
           "title": "Logout saves cooldown before session cleanup and local tracking cleanup",
           "checks": [
-            "events.logout_cleanup_order"
+            "events.logout_cleanup_order",
+            "events.logout_clears_persistent_tracking"
+          ]
+        },
+        {
+          "id": "shutdown",
+          "title": "Server shutdown marks active and deferred temporary dimensions for cleanup before clearing memory",
+          "checks": [
+            "events.server_stop_clears_all_lifecycle_state",
+            "dimension_pool.allocate_marks_cleanup_dirty",
+            "manager.server_stop_marks_active_dimensions",
+            "dimension_pool.cleaning_removes_allocations"
           ]
         }
       ]
@@ -221,6 +233,8 @@
           "title": "Saving a persistent mirror checks permission, session permanence, duplicate-session rejection, slot allocation, and queueing",
           "checks": [
             "manager.save_persistent_order",
+            "manager.save_retains_temporary_source",
+            "manager.copy_completion_releases_temporary_source",
             "manager.save_rejects_duplicate_session",
             "record.source_session_persisted",
             "data.source_session_lookup",
@@ -255,6 +269,7 @@
           "title": "Deleting a persistent mirror cancels queued copy work, ejects players, cleans the persistent world, and removes the record",
           "checks": [
             "manager.delete_persistent_order",
+            "manager.delete_releases_unready_temporary_source",
             "copy.persistent_cancel_task"
           ]
         },
@@ -263,6 +278,7 @@
           "title": "Interrupted persistent saves are removed on server start so they cannot occupy slots forever",
           "checks": [
             "manager.recover_unready_records",
+            "manager.recover_releases_unready_temporary_source",
             "data.remove_unready_records",
             "startup.recover_unready_records"
           ]
@@ -625,6 +641,32 @@
       ]
     },
     {
+      "id": "manager.save_retains_temporary_source",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "saveCurrentTemporaryMirror",
+      "texts": [
+        "if (!MirrorWorldManager.retainTemporarySourceForPersistentSave(session))",
+        "data.addRecord(record)",
+        "pendingCopySourceSessions.put(recordId, session.getSessionId())",
+        "WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld)"
+      ]
+    },
+    {
+      "id": "manager.copy_completion_releases_temporary_source",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "handlePersistentCopyComplete",
+      "texts": [
+        "record.setReady(true)",
+        "data.setDirty()",
+        "UUID sourceSessionId = pendingCopySourceSessions.remove(recordId)",
+        "sourceSessionId = record.sourceSessionId()",
+        "MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server)",
+        "pendingCopyCreators.remove(recordId)"
+      ]
+    },
+    {
       "id": "manager.save_rejects_duplicate_session",
       "adapter": "method_contains_in_order",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
@@ -850,6 +892,20 @@
       ]
     },
     {
+      "id": "manager.delete_releases_unready_temporary_source",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "deleteRecord",
+      "texts": [
+        "pendingCopyCreators.remove(record.id())",
+        "UUID sourceSessionId = pendingCopySourceSessions.remove(record.id())",
+        "sourceSessionId = record.sourceSessionId()",
+        "if (!record.ready())",
+        "MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server)",
+        "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())"
+      ]
+    },
+    {
       "id": "manager.recover_unready_records",
       "adapter": "method_contains_in_order",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
@@ -861,6 +917,19 @@
         "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
         "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition())"
+      ]
+    },
+    {
+      "id": "manager.recover_releases_unready_temporary_source",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "recoverUnreadyPersistentMirrors",
+      "texts": [
+        "pendingCopyCreators.remove(record.id())",
+        "UUID sourceSessionId = pendingCopySourceSessions.remove(record.id())",
+        "sourceSessionId = record.sourceSessionId()",
+        "MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server)",
+        "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())"
       ]
     },
     {
@@ -1079,6 +1148,16 @@
       ]
     },
     {
+      "id": "events.login_clears_persistent_tracking",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerLogin",
+      "texts": [
+        "MirrorWorldManager.restorePlayerInventoryOnLogin(player)",
+        "PersistentMirrorManager.clearPlayerTracking(player.getUUID())"
+      ]
+    },
+    {
       "id": "events.dimension_change_exit_order",
       "adapter": "method_contains_in_order",
       "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
@@ -1103,6 +1182,72 @@
         "DimensionMirrorItem.saveCooldown(player)",
         "MirrorWorldManager.handlePlayerDisconnect(player, player.getServer())",
         "lastTrackedChunkPos.remove(player.getUUID())"
+      ]
+    },
+    {
+      "id": "events.logout_clears_persistent_tracking",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onPlayerLogout",
+      "texts": [
+        "MirrorWorldManager.handlePlayerDisconnect(player, player.getServer())",
+        "PersistentMirrorManager.clearPlayerTracking(player.getUUID())",
+        "lastTrackedChunkPos.remove(player.getUUID())"
+      ]
+    },
+    {
+      "id": "events.server_stop_clears_all_lifecycle_state",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+      "method": "onServerStopping",
+      "texts": [
+        "DimensionMirrorItem.clearAllCooldowns()",
+        "MirrorWorldManager.clearAllSessions(event.getServer())",
+        "PersistentMirrorManager.clearTransientState()",
+        "WorldCopyService.clearAllTasks()"
+      ]
+    },
+    {
+      "id": "manager.server_stop_marks_active_dimensions",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "clearAllSessions",
+      "signatureContains": [
+        "MinecraftServer server"
+      ],
+      "texts": [
+        "for (MirrorSession session : activeSessions.values())",
+        "DimensionPool.releaseDimension(session.getSessionId())",
+        "session.markDestroyed()",
+        "deferredPersistentSourceReleases.entrySet()",
+        "DimensionPool.markDimensionCleaning(dimIndex)",
+        "activeSessions.clear()",
+        "persistentSaveSourceHolds.clear()",
+        "DimensionPool.clearAll()"
+      ]
+    },
+    {
+      "id": "dimension_pool.allocate_marks_cleanup_dirty",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/DimensionPool.java",
+      "method": "allocateDimension",
+      "texts": [
+        "dimensionStates.put(i, DimensionState.IN_USE)",
+        "dimensionToSession.put(i, sessionId)",
+        "markCleanupInProgress(i, true)",
+        "return i"
+      ]
+    },
+    {
+      "id": "dimension_pool.cleaning_removes_allocations",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/DimensionPool.java",
+      "method": "markDimensionCleaning",
+      "texts": [
+        "dimensionStates.put(dimIndex, DimensionState.CLEANING)",
+        "UUID sessionId = dimensionToSession.remove(dimIndex)",
+        "sessionToDimension.remove(sessionId)",
+        "markCleanupInProgress(dimIndex, true)"
       ]
     },
     {
@@ -1290,6 +1435,7 @@
         "firstDreamUsesDefaultPlayerState",
         "persistentRecordsTrackSourceSession",
         "persistentDataRemovesUnreadyRecords",
+        "persistentSaveSourceAndShutdownCleanupDoNotLeaveDeadDimensions",
         "DimensionMirrorItem.findMirrorStack(player)",
         "DimensionMirrorItem.calculateCooldownSeconds",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
@@ -1301,7 +1447,14 @@
         "data.allocateDimensionIndex() == 0",
         "loaded.selector().equals(\"slot_1\")",
         "data.getRecordBySelector(\"slot_1\", candidate -> true)",
-        "loaded.setName(\"renamed mirror\")"
+        "loaded.setName(\"renamed mirror\")",
+        "MirrorWorldManager.retainTemporarySourceForPersistentSave(sourceSession)",
+        "dimensionPoolData(player).isMarkedForCleanup(heldDimIndex)",
+        "DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.IN_USE",
+        "dimensionPoolData(player).isMarkedForCleanup(activeDimIndex)",
+        "DimensionPool.getDimensionState(activeDimIndex) == DimensionPool.DimensionState.CLEANING",
+        "clearDimensionPoolTestState(player)",
+        "WorldCopyService.cancelCleanupTask(dimIndex)"
       ]
     },
     {
