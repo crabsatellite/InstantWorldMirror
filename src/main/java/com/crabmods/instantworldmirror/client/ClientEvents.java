@@ -3,7 +3,10 @@ package com.crabmods.instantworldmirror.client;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.renderer.MirrorPortalRenderer;
 import com.crabmods.instantworldmirror.entity.ModEntities;
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.registry.ModItems;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -12,6 +15,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 
 /**
  * Client-side MOD bus event handling.
@@ -70,5 +74,22 @@ class ClientGameEvents {
         MirrorDimensionEffectsManager.clearAll();
         ClientCooldownTracker.clear();
         InstantWorldMirror.LOGGER.debug("Client disconnected, cleared mirror dimension effects cache and cooldown tracker");
+    }
+
+    @SubscribeEvent
+    public static void onItemTooltip(ItemTooltipEvent event) {
+        if (event.getEntity() == null) {
+            return;
+        }
+        ItemStack stack = event.getItemStack();
+        if (!(stack.getItem() instanceof DimensionMirrorItem)) {
+            return;
+        }
+        long remainingMillis = ClientCooldownTracker.getRemainingCooldownMillis();
+        if (remainingMillis <= 0) {
+            return;
+        }
+        event.getToolTip().add(Component.translatable("message.instantworldmirror.mirror_use_cooldown",
+                (int) Math.ceil(remainingMillis / 1000.0)));
     }
 }

@@ -85,11 +85,7 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
 
     private static void applyItemTransform(ItemDisplayContext displayContext, PoseStack poseStack, MirrorKind kind) {
         if (displayContext == ItemDisplayContext.GUI) {
-            if (kind == MirrorKind.HEAVEN) {
-                poseStack.translate(0.46D, 1.43D, 0.5D);
-            } else {
-                poseStack.translate(0.45D, 1.44D, 0.5D);
-            }
+            poseStack.translate(0.46D, 1.43D, 0.5D);
         } else {
             poseStack.translate(0.5D, 1.5D, 0.5D);
         }
