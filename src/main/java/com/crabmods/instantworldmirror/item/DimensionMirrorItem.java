@@ -238,7 +238,7 @@ public class DimensionMirrorItem extends Item {
             if (remainingMillis > 0) {
                 int seconds = (int) (remainingMillis / 1000);
                 player.displayClientMessage(
-                        Component.translatable("message.instantworldmirror.cooldown", seconds),
+                        Component.translatable("message.instantworldmirror.mirror_use_cooldown", seconds),
                         true
                 );
                 return InteractionResult.FAIL;

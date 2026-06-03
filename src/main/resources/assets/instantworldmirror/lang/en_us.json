@@ -30,7 +30,8 @@
   "message.instantworldmirror.return_failed": "§cFailed to return to the original world. Please try again or use /iwm return.",
   "message.instantworldmirror.wait_for_host": "§eWaiting for the portal owner to enter first...",
   "message.instantworldmirror.host_left": "§cThe portal owner has left. You have been returned to the original world.",
-  "message.instantworldmirror.cooldown": "§eCooldown: %d seconds remaining",
+  "message.instantworldmirror.cooldown": "§eMirror use cooldown: %d seconds remaining",
+  "message.instantworldmirror.mirror_use_cooldown": "§eMirror use cooldown: %d seconds remaining",
   "message.instantworldmirror.teleported_to_spawn": "§aTeleported to mirror world spawn point",
   "message.instantworldmirror.not_in_mirror_world": "§cYou are not in the Mirror World!",
   "message.instantworldmirror.no_active_session": "§cNo active mirror session found",
@@ -130,5 +131,5 @@
   "enchantment.instantworldmirror.permanence": "Permanence",
   "enchantment.instantworldmirror.renewal": "Renewal",
   "message.instantworldmirror.renewal_refresh_triggered": "§aRenewal refreshed generated mobs and loot for this dream.",
-  "message.instantworldmirror.renewal_refresh_cooldown": "§eRenewal is cooling down: %d seconds remaining"
+  "message.instantworldmirror.renewal_refresh_cooldown": "§eRenewal cooldown: %d seconds remaining"
 }
