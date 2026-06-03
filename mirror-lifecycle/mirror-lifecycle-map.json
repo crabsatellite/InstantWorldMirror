@@ -1599,6 +1599,7 @@
           "texts": [
             "ChunkPyramid.GENERATION_PYRAMID.getStepTo(status)",
             "ChunkStatus.FEATURES",
+            "ChunkStatus.SPAWN",
             "generator.createStructures",
             "without reading player-modified chunks"
           ]
@@ -1612,6 +1613,7 @@
           "texts": [
             "status.generate",
             "ChunkStatus.FEATURES",
+            "ChunkStatus.SPAWN",
             "ChunkStatus.STRUCTURE_STARTS",
             "without reading player-modified chunks"
           ]
@@ -1629,6 +1631,30 @@
         "!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()",
         "copy.remove(\"LootTable\")",
         "copy.remove(\"LootTableSeed\")"
+      ]
+    },
+    {
+      "id": "copy.pristine_generated_entities_use_mob_rules",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "texts": [
+        "copyGeneratedEntitiesFromChunk(generatedChunk, mirrorWorld)",
+        "task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()",
+        "generatedChunk instanceof ProtoChunk protoChunk",
+        "EntityType.loadEntityRecursive",
+        "copyEntityDataWithFreshUuid"
+      ]
+    },
+    {
+      "id": "copy.generated_content_refresh_copies_source_mobs",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "texts": [
+        "copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,",
+        "false, false, true",
+        "entityChunkX != chunkX || entityChunkZ != chunkZ",
+        "copyGeneratedContent && isGeneratedContentEntity(entity)",
+        "entity instanceof net.minecraft.world.entity.LivingEntity"
       ]
     },
     {

@@ -21,6 +21,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
+import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -1307,11 +1308,11 @@ public class WorldCopyService {
             return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
         }
 
-        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task.generatedContentRefresh);
     }
 
     private static int copyCurrentChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                        int chunkX, int chunkZ) {
+                                        int chunkX, int chunkZ, boolean generatedContentRefresh) {
         int blocksCopied = 0;
         
         try {
@@ -1483,8 +1484,10 @@ public class WorldCopyService {
             // Copy all entities only if copyEntities is enabled
             boolean copyAll = MirrorConfig.COPY_ENTITIES.get();
             boolean copyDecorations = MirrorConfig.COPY_DECORATION_ENTITIES.get();
-            if (copyAll || copyDecorations) {
-                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, copyAll, copyDecorations);
+            boolean copyGeneratedContent = generatedContentRefresh;
+            if (copyAll || copyDecorations || copyGeneratedContent) {
+                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
+                        copyAll, copyDecorations, copyGeneratedContent);
             }
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -1569,6 +1572,14 @@ public class WorldCopyService {
                 regenerateHeightmaps(targetChunk);
             }
 
+            if (task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()) {
+                copyGeneratedEntitiesFromChunk(generatedChunk, mirrorWorld);
+            }
+            if (task.generatedContentRefresh) {
+                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
+                        false, false, true);
+            }
+
             targetChunk.initializeLightSources();
             relightChunk(mirrorWorld, targetChunk);
         } catch (Exception e) {
@@ -1603,6 +1614,31 @@ public class WorldCopyService {
         }
     }
 
+    private static void copyGeneratedEntitiesFromChunk(ChunkAccess generatedChunk, ServerLevel mirrorWorld) {
+        if (!(generatedChunk instanceof ProtoChunk protoChunk)) {
+            return;
+        }
+
+        for (CompoundTag generatedEntityTag : protoChunk.getEntities()) {
+            try {
+                CompoundTag entityData = copyEntityDataWithFreshUuid(generatedEntityTag);
+                net.minecraft.world.entity.Entity entity = net.minecraft.world.entity.EntityType.loadEntityRecursive(
+                        entityData,
+                        mirrorWorld,
+                        loadedEntity -> loadedEntity
+                );
+                if (entity != null
+                        && !(entity instanceof net.minecraft.world.entity.player.Player)
+                        && !(entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity)) {
+                    mirrorWorld.addFreshEntity(entity);
+                }
+            } catch (Exception e) {
+                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                InstantWorldMirror.LOGGER.warn("Failed to copy generated entity from pristine chunk: {}", errorMsg);
+            }
+        }
+    }
+
     static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag) {
         return filterGeneratedLootTagForConfig(tag, false);
     }
@@ -1614,6 +1650,24 @@ public class WorldCopyService {
             copy.remove("LootTableSeed");
         }
         return copy;
+    }
+
+    private static CompoundTag copyEntityDataWithFreshUuid(CompoundTag tag) {
+        CompoundTag copy = tag.copy();
+        removeEntityUuids(copy);
+        return copy;
+    }
+
+    private static void removeEntityUuids(CompoundTag tag) {
+        tag.remove("UUID");
+        if (!tag.contains("Passengers", net.minecraft.nbt.Tag.TAG_LIST)) {
+            return;
+        }
+
+        net.minecraft.nbt.ListTag passengers = tag.getList("Passengers", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int i = 0; i < passengers.size(); i++) {
+            removeEntityUuids(passengers.getCompound(i));
+        }
     }
 
     /**
@@ -1679,6 +1733,11 @@ public class WorldCopyService {
         return false;
     }
 
+    private static boolean isGeneratedContentEntity(net.minecraft.world.entity.Entity entity) {
+        return entity instanceof net.minecraft.world.entity.LivingEntity
+                && !(entity instanceof net.minecraft.world.entity.player.Player);
+    }
+
     /**
      * Copy entities in a chunk
      * @param copyAll if true, copy all entities; if false, only copy based on copyDecorations
@@ -1686,6 +1745,12 @@ public class WorldCopyService {
      */
     private static void copyEntitiesInChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld, 
                                              int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations) {
+        copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, copyAll, copyDecorations, false);
+    }
+
+    private static void copyEntitiesInChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
+                                             int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations,
+                                             boolean copyGeneratedContent) {
         try {
             int minX = chunkX * 16;
             int minZ = chunkZ * 16;
@@ -1717,8 +1782,16 @@ public class WorldCopyService {
                         if (entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity) {
                             return false;
                         }
+                        int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
+                        int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
+                        if (entityChunkX != chunkX || entityChunkZ != chunkZ) {
+                            return false;
+                        }
                         // Pre-filter based on copy settings to avoid processing unwanted entities
                         if (copyAll) {
+                            return true;
+                        }
+                        if (copyGeneratedContent && isGeneratedContentEntity(entity)) {
                             return true;
                         }
                         return copyDecorations && isDecorationEntity(entity);
@@ -1739,8 +1812,8 @@ public class WorldCopyService {
                     net.minecraft.world.entity.Entity newEntity = entityType.create(mirrorWorld);
 
                     if (newEntity != null) {
-                        // Use a fresh CompoundTag per entity to prevent state leakage
-                        // NOTE: Do NOT reuse tags with getAllKeys().clear() 鈥?that corrupts
+                        // Use a fresh CompoundTag per entity to prevent state leakage.
+                        // Do not reuse tags with getAllKeys().clear(); that corrupts
                         // the tag's internal map and causes data from previous entities to
                         // bleed into subsequent ones, breaking Container inventory save/load
                         net.minecraft.nbt.CompoundTag entityData = new net.minecraft.nbt.CompoundTag();
@@ -1756,8 +1829,7 @@ public class WorldCopyService {
                             continue;
                         }
 
-                        // Remove UUID to generate new one
-                        entityData.remove("UUID");
+                        entityData = copyEntityDataWithFreshUuid(entityData);
 
                         newEntity.load(entityData);
                         newEntity.setPos(sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());

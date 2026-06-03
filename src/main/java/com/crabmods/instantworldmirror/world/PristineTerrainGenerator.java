@@ -77,6 +77,7 @@ final class PristineTerrainGenerator {
             generateStep(chunkX, chunkZ, ChunkStatus.SURFACE, TERRAIN_RADIUS);
             generateStep(chunkX, chunkZ, ChunkStatus.CARVERS, TERRAIN_RADIUS);
             generateStep(chunkX, chunkZ, ChunkStatus.FEATURES, 0);
+            generateStep(chunkX, chunkZ, ChunkStatus.SPAWN, 0);
             return chunkAt(chunkX, chunkZ);
         }
 

@@ -11,12 +11,14 @@
 - [x] `command.purge_temporary_pool_only` - composite passed
 - [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
+- [x] `copy.generated_content_refresh_copies_source_mobs` - all text found
 - [x] `copy.generated_content_refresh_task_flag` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_cancel_task` - method contains ordered text
 - [x] `copy.persistent_completion_order` - method contains ordered text
 - [x] `copy.persistent_queue` - found text
 - [x] `copy.persistent_queue_order` - method contains ordered text
+- [x] `copy.pristine_generated_entities_use_mob_rules` - all text found
 - [x] `copy.pristine_generator_features` - all text found
 - [x] `copy.pristine_generator_pipeline` - composite passed
 - [x] `copy.pristine_loot_uses_mob_spawn_config` - all text found
