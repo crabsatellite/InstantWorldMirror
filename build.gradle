@@ -181,6 +181,45 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+tasks.withType(ProcessResources).configureEach {
+    filteringCharset = 'UTF-8'
+}
+
+def languageResourceDir = layout.projectDirectory.dir('src/main/resources/assets/instantworldmirror/lang')
+def mojibakeFragments = [
+        '\u6402',
+        '\u6d93\u682b\u666b',
+        '\u95c0\u6ec8\u6f70',
+        '\u9350\u5cf0\u5d48',
+        '\u6fb6\u2541\u721e',
+        '\u9352\u6fc7\u2175',
+        '\ufffd'
+]
+
+tasks.register('checkLanguageResourceEncoding') {
+    group = 'verification'
+    description = 'Verifies language resources are valid UTF-8 and do not contain common mojibake fragments.'
+    inputs.dir(languageResourceDir)
+
+    doLast {
+        def json = new groovy.json.JsonSlurper()
+        languageResourceDir.asFileTree.matching { include '*.json' }.files.each { file ->
+            def decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+            decoder.onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            decoder.onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            def text = decoder.decode(java.nio.ByteBuffer.wrap(java.nio.file.Files.readAllBytes(file.toPath()))).toString()
+            json.parseText(text)
+
+            mojibakeFragments.each { fragment ->
+                def codepoints = fragment.codePoints().toArray()
+                        .collect { String.format('U+%04X', it) }
+                        .join(' ')
+                assert !text.contains(fragment): "Language resource ${file.name} contains mojibake fragment ${codepoints}"
+            }
+        }
+    }
+}
+
 def mirrorLifecycleManifest = layout.projectDirectory.file('mirror-lifecycle/mirror-lifecycle-map.json')
 def mirrorLifecycleGenerator = layout.projectDirectory.file('scripts/generate_mirror_lifecycle_status.py')
 def mirrorLifecycleGeneratorTest = layout.projectDirectory.file('scripts/test_generate_mirror_lifecycle_status.py')
@@ -335,6 +374,7 @@ tasks.named('check') {
     dependsOn tasks.named('testMirrorLifecycleStatusGenerator')
     dependsOn tasks.named('checkMirrorLifecycleCoverage')
     dependsOn tasks.named('persistentMirrorStaticTest')
+    dependsOn tasks.named('checkLanguageResourceEncoding')
 }
 
 tasks.named('build') {
