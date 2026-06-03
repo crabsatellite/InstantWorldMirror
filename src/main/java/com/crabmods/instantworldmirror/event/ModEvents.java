@@ -5,6 +5,7 @@ import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.command.ModCommands;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
+import com.crabmods.instantworldmirror.world.MirrorBossBarManager;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
@@ -425,6 +426,8 @@ public class ModEvents {
             return; // Invalid dimension index
         }
         
+        MirrorBossBarManager.tick(serverLevel);
+
         long gameTime = serverLevel.getGameTime();
         
         // OPTIMIZED: Lazy track temporary mirror player positions for cleanup.
@@ -612,6 +615,7 @@ public class ModEvents {
         MirrorWorldManager.clearAllSessions(event.getServer());
         PersistentMirrorManager.clearTransientState();
         WorldCopyService.clearAllTasks();
+        MirrorBossBarManager.clear();
         InstantWorldMirror.LOGGER.info("Server stopping, mirror sessions and tasks cleared.");
     }
 }

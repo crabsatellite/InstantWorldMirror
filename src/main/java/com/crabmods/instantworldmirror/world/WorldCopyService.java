@@ -184,6 +184,10 @@ public class WorldCopyService {
         private int preloadedChunks = 0;
         private static final int PRELOAD_AHEAD = 8; // Preload 8 chunks ahead
         private PristineTerrainGenerator.Region pristineRegion;
+        private boolean pristineRegionPrepared = false;
+        private boolean pristinePreparationStarted = false;
+        private int pristinePrepChunkX;
+        private int pristinePrepChunkZ;
 
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius, 
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain) {
@@ -291,11 +295,50 @@ public class WorldCopyService {
         public void cancel() { cancelled = true; completed = true; }
         public int getTotalBlocksCopied() { return totalBlocksCopied; }
         public boolean isPreloadingStarted() { return preloadingStarted; }
+        public boolean preparePristineRegion(ServerLevel sourceWorld, int maxChunks) {
+            if (!pristineTerrain || pristineRegionPrepared) {
+                return true;
+            }
+
+            ensurePristineRegion(sourceWorld);
+            if (!pristinePreparationStarted) {
+                pristinePrepChunkX = minChunkX;
+                pristinePrepChunkZ = minChunkZ;
+                pristinePreparationStarted = true;
+            }
+
+            int chunksToGenerate = Math.max(1, maxChunks);
+            for (int i = 0; i < chunksToGenerate && !pristineRegionPrepared; i++) {
+                pristineRegion.generateChunk(pristinePrepChunkX, pristinePrepChunkZ);
+                advancePristinePreparationCursor();
+            }
+
+            return pristineRegionPrepared;
+        }
+
         public ChunkAccess generatePristineChunk(ServerLevel sourceWorld, int chunkX, int chunkZ) {
+            ensurePristineRegion(sourceWorld);
+            if (!pristineRegionPrepared) {
+                throw new IllegalStateException("Pristine region must be prepared before copying chunks");
+            }
+            return pristineRegion.getChunk(chunkX, chunkZ);
+        }
+
+        private void ensurePristineRegion(ServerLevel sourceWorld) {
             if (pristineRegion == null) {
                 pristineRegion = PristineTerrainGenerator.openRegion(sourceWorld, centerPos, chunkRadius);
             }
-            return pristineRegion.generateChunk(chunkX, chunkZ);
+        }
+
+        private void advancePristinePreparationCursor() {
+            pristinePrepChunkX++;
+            if (pristinePrepChunkX > maxChunkX) {
+                pristinePrepChunkX = minChunkX;
+                pristinePrepChunkZ++;
+                if (pristinePrepChunkZ > maxChunkZ) {
+                    pristineRegionPrepared = true;
+                }
+            }
         }
         
         private boolean cancelled = false;
@@ -1172,6 +1215,10 @@ public class WorldCopyService {
         
         ServerLevel sourceWorld = server.getLevel(task.sourceDimension);
         if (sourceWorld == null) sourceWorld = server.overworld();
+
+        if (!task.preparePristineRegion(sourceWorld, chunksPerTick)) {
+            return;
+        }
         
         // OPTIMIZATION: Start async preloading of chunks ahead of current position
         // This reduces sync blocking during copy operations
@@ -1249,6 +1296,10 @@ public class WorldCopyService {
 
         ServerLevel sourceWorld = server.getLevel(task.sourceDimension);
         if (sourceWorld == null) sourceWorld = server.overworld();
+
+        if (!task.preparePristineRegion(sourceWorld, chunksPerTick)) {
+            return;
+        }
 
         if (!task.isPreloadingStarted()) {
             task.preloadChunksAsync(sourceWorld, targetWorld);
@@ -1592,6 +1643,7 @@ public class WorldCopyService {
     }
 
     private static void clearChunkForPristineCopy(ServerLevel mirrorWorld, LevelChunk chunk) {
+        clearEntitiesInChunk(mirrorWorld, chunk.getPos().x, chunk.getPos().z);
         clearPendingBlockEntities(chunk);
 
         for (BlockPos bePos : new java.util.ArrayList<>(chunk.getBlockEntities().keySet())) {
@@ -1630,6 +1682,7 @@ public class WorldCopyService {
                 if (entity != null
                         && !(entity instanceof net.minecraft.world.entity.player.Player)
                         && !(entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity)) {
+                    MirrorBossBarManager.markGeneratedContentEntity(entity);
                     mirrorWorld.addFreshEntity(entity);
                 }
             } catch (Exception e) {
@@ -1833,6 +1886,9 @@ public class WorldCopyService {
 
                         newEntity.load(entityData);
                         newEntity.setPos(sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());
+                        if (copyGeneratedContent && isGeneratedContentEntity(sourceEntity)) {
+                            MirrorBossBarManager.markGeneratedContentEntity(newEntity);
+                        }
                         
                         entitiesToAdd.add(newEntity);
                     } else {

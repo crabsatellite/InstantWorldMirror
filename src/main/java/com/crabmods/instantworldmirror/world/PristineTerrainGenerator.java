@@ -81,6 +81,11 @@ final class PristineTerrainGenerator {
             return chunkAt(chunkX, chunkZ);
         }
 
+        ChunkAccess getChunk(int chunkX, int chunkZ) {
+            ensureWithin(chunkX, chunkZ, 0);
+            return chunkAt(chunkX, chunkZ);
+        }
+
         private void generateStep(int chunkX, int chunkZ, ChunkStatus status, int generationRadius) {
             ensureWithin(chunkX, chunkZ, generationRadius);
             for (int x = chunkX - generationRadius; x <= chunkX + generationRadius; x++) {
@@ -120,13 +125,15 @@ final class PristineTerrainGenerator {
         }
 
         private ProtoChunk createChunk(int x, int z) {
-            return new ProtoChunk(
+            ProtoChunk chunk = new ProtoChunk(
                     new ChunkPos(x, z),
                     UpgradeData.EMPTY,
                     sourceWorld,
                     sourceWorld.registryAccess().registryOrThrow(Registries.BIOME),
                     null
             );
+            chunk.setLightEngine(sourceWorld.getChunkSource().getLightEngine());
+            return chunk;
         }
 
         private ProtoChunk chunkAt(int x, int z) {

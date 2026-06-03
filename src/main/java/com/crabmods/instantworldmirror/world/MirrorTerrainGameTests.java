@@ -6,11 +6,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
 
 @GameTestHolder(InstantWorldMirror.MODID)
 @PrefixGameTestTemplate(false)
@@ -93,6 +98,62 @@ public final class MirrorTerrainGameTests {
                 "First dream region generation must complete edge chunks in one shared copy region");
         helper.assertFalse(edgeChunk.getBlockState(editedEdgePos).is(Blocks.GOLD_BLOCK),
                 "First dream shared region terrain must not copy player edits from edge chunks");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 120)
+    public static void firstDreamCopyTaskPreparesWholeRegionBeforeChunkCopy(GameTestHelper helper) {
+        BlockPos centerPos = helper.absolutePos(BlockPos.ZERO);
+        int centerChunkX = centerPos.getX() >> 4;
+        int centerChunkZ = centerPos.getZ() >> 4;
+        WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
+                UUID.randomUUID(),
+                centerPos,
+                1,
+                helper.getLevel().dimension(),
+                0,
+                true
+        );
+
+        boolean rejectedEarlyCopy = false;
+        try {
+            task.generatePristineChunk(helper.getLevel(), centerChunkX, centerChunkZ);
+        } catch (IllegalStateException e) {
+            rejectedEarlyCopy = true;
+        }
+
+        helper.assertTrue(rejectedEarlyCopy,
+                "First dream chunks must not be copied before the shared region is prepared");
+        helper.assertFalse(task.preparePristineRegion(helper.getLevel(), task.getTotalChunks() - 1),
+                "First dream region preparation must wait for every copied chunk");
+        helper.assertTrue(task.preparePristineRegion(helper.getLevel(), 1),
+                "First dream region preparation must complete after the final copied chunk is generated");
+
+        ChunkAccess centerChunk = task.generatePristineChunk(helper.getLevel(), centerChunkX, centerChunkZ);
+        helper.assertTrue(centerChunk.getStatus().isOrAfter(ChunkStatus.SPAWN),
+                "Prepared first dream chunks must include generated entities before copying starts");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void generatedBossBarFallbackOnlyCoversBossesWithoutNativeBars(GameTestHelper helper) {
+        EnderDragon dragon = EntityType.ENDER_DRAGON.create(helper.getLevel());
+        WitherBoss wither = EntityType.WITHER.create(helper.getLevel());
+
+        helper.assertTrue(dragon != null, "Ender dragon test entity must be creatable");
+        helper.assertTrue(wither != null, "Wither test entity must be creatable");
+        helper.assertFalse(MirrorBossBarManager.shouldUseFallbackBar(dragon),
+                "Unmarked entities must not receive mirror boss bar fallback");
+
+        MirrorBossBarManager.markGeneratedContentEntity(dragon);
+        MirrorBossBarManager.markGeneratedContentEntity(wither);
+
+        helper.assertTrue(MirrorBossBarManager.shouldUseFallbackBar(dragon),
+                "Generated high-health hostile entities without native tracking need mirror boss bar fallback");
+        helper.assertFalse(MirrorBossBarManager.shouldUseFallbackBar(wither),
+                "Entities with native boss bar tracking must not get duplicate mirror fallback bars");
 
         helper.succeed();
     }
