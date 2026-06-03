@@ -120,6 +120,8 @@
         "item.cooldown_efficiency_only",
         "item.cooldown_ignores_permanence",
         "item.renewal_item_cooldown",
+        "item.renewal_cooldown_icon_visible",
+        "item.renewal_cooldown_tooltip_visible",
         "item.renewal_creative_bypasses_cooldown"
       ],
       "route": "active_use_lifecycle",

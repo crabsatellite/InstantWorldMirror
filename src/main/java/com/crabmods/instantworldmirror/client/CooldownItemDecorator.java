@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror.client;
 
+import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -20,52 +21,50 @@ public class CooldownItemDecorator implements IItemDecorator {
     
     // Bar colors - cyan theme to match the HUD
     private static final int BAR_COLOR = 0xFF00CCFF;      // Bright cyan
+    private static final int RENEWAL_BAR_COLOR = 0xFF7CFF4A;
     private static final int BAR_BG_COLOR = 0xFF000000;   // Black background (like vanilla)
     
     @Override
     public boolean render(GuiGraphics guiGraphics, Font font, ItemStack stack, int xOffset, int yOffset) {
-        // Check if there's an active cooldown
-        if (!ClientCooldownTracker.hasCooldown()) {
-            return false;
-        }
-        
         long remainingMillis = ClientCooldownTracker.getRemainingCooldownMillis();
         long totalCooldownMillis = ClientCooldownTracker.getTotalCooldownMillis();
+        long renewalRemainingMillis = DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(stack);
+        boolean hasMirrorCooldown = ClientCooldownTracker.hasCooldown()
+                && remainingMillis > 0
+                && totalCooldownMillis > 0;
+        boolean hasRenewalCooldown = renewalRemainingMillis > 0;
         
-        if (remainingMillis <= 0 || totalCooldownMillis <= 0) {
+        if (!hasMirrorCooldown && !hasRenewalCooldown) {
             return false;
         }
-        
-        // Calculate charge progress (0.0 = empty/just started, 1.0 = fully charged/ready to use)
-        // This is the INVERSE of remaining time - as time passes, charge increases
-        float chargeProgress = 1.0f - Math.min(1.0f, (float) remainingMillis / totalCooldownMillis);
-        
-        // Bar dimensions - same as vanilla durability bar
-        // Vanilla: starts at x+2, y+13, width 13, height 2 (1px background + 1px bar)
-        int barX = xOffset + 2;
-        int barY = yOffset + 13;
-        int barWidth = 13;
-        
-        // Push pose to render above item (z = 200 like vanilla overlays)
+
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
-        
-        // Disable depth test to render on top
         RenderSystem.disableDepthTest();
-        
-        // Draw black background bar (full width, 2px height like vanilla)
-        guiGraphics.fill(barX, barY, barX + barWidth, barY + 2, BAR_BG_COLOR);
-        
-        // Draw cyan charging bar (1px height, on top of background)
-        // Bar fills from left to right as the item charges
-        int filledWidth = Math.round(barWidth * chargeProgress);
-        if (filledWidth > 0) {
-            guiGraphics.fill(barX, barY, barX + filledWidth, barY + 1, BAR_COLOR);
+
+        if (hasRenewalCooldown) {
+            float renewalProgress = 1.0f - Math.min(1.0f,
+                    (float) renewalRemainingMillis / DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
+            renderBar(guiGraphics, xOffset + 2, yOffset + 10, renewalProgress, RENEWAL_BAR_COLOR);
+        }
+
+        if (hasMirrorCooldown) {
+            float chargeProgress = 1.0f - Math.min(1.0f, (float) remainingMillis / totalCooldownMillis);
+            renderBar(guiGraphics, xOffset + 2, yOffset + 13, chargeProgress, BAR_COLOR);
         }
         
         RenderSystem.enableDepthTest();
         guiGraphics.pose().popPose();
         
         return true; // We modified render state
+    }
+
+    private static void renderBar(GuiGraphics guiGraphics, int barX, int barY, float progress, int color) {
+        int barWidth = 13;
+        guiGraphics.fill(barX, barY, barX + barWidth, barY + 2, BAR_BG_COLOR);
+        int filledWidth = Math.round(barWidth * progress);
+        if (filledWidth > 0) {
+            guiGraphics.fill(barX, barY, barX + filledWidth, barY + 1, color);
+        }
     }
 }
