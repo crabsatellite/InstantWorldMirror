@@ -6,9 +6,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
@@ -165,6 +167,22 @@ public final class MirrorTerrainGameTests {
         } finally {
             firstDreamRefreshTask.closePristineRegion();
         }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamNaturalSpawnWarmupUsesVanillaDistance(GameTestHelper helper) {
+        ChunkPos originChunk = new ChunkPos(helper.absolutePos(BlockPos.ZERO));
+        Entity marker = EntityType.ZOMBIE.create(helper.getLevel());
+        helper.assertTrue(marker != null, "Natural spawn distance marker entity must be creatable");
+        marker.moveTo(originChunk.x * 16 + 8.0D, 64.0D, originChunk.z * 16 + 8.0D);
+
+        helper.assertTrue(PristineTerrainGenerator.isWithinVanillaNaturalSpawnDistance(originChunk, marker),
+                "First dream warmup must include chunks near the scratch player");
+        helper.assertFalse(PristineTerrainGenerator.isWithinVanillaNaturalSpawnDistance(
+                        new ChunkPos(originChunk.x + 8, originChunk.z), marker),
+                "First dream warmup must skip chunks outside vanilla natural-spawn range");
 
         helper.succeed();
     }
