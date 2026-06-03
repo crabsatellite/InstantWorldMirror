@@ -305,6 +305,17 @@
     },
     {
       "checks": [
+        "command.status_includes_persistent_pool",
+        "command.persistent_name_suggestions_all_kinds",
+        "command.mob_updates_persistent_worlds",
+        "lang.status_persistent_messages"
+      ],
+      "route": "command_bypass_guards",
+      "stage": "admin_visibility",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "runtime.runclient_smoke_script"
       ],
       "route": "runtime_smoke_infra",

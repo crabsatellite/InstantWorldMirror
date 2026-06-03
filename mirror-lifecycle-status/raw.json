@@ -12,6 +12,18 @@
       "message": "found text",
       "passed": true
     },
+    "command.mob_updates_persistent_worlds": {
+      "adapter": "method_contains_all",
+      "id": "command.mob_updates_persistent_worlds",
+      "message": "method contains all text",
+      "passed": true
+    },
+    "command.persistent_name_suggestions_all_kinds": {
+      "adapter": "file_contains_all",
+      "id": "command.persistent_name_suggestions_all_kinds",
+      "message": "all text found",
+      "passed": true
+    },
     "command.persistent_record_suggestions": {
       "adapter": "file_contains_all",
       "id": "command.persistent_record_suggestions",
@@ -28,6 +40,12 @@
       "adapter": "file_contains_all",
       "id": "command.persistent_uses_selector",
       "message": "all text found",
+      "passed": true
+    },
+    "command.status_includes_persistent_pool": {
+      "adapter": "method_contains_all",
+      "id": "command.status_includes_persistent_pool",
+      "message": "method contains all text",
       "passed": true
     },
     "copy.no_portal_entity_copy": {
@@ -316,6 +334,30 @@
       "message": "composite passed",
       "passed": true
     },
+    "lang.status_persistent_messages": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "json parsed",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "lang.status_persistent_messages",
+      "message": "composite passed",
+      "passed": true
+    },
     "manager.create_session_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.create_session_order",
@@ -498,11 +540,11 @@
     }
   },
   "completion": {
-    "checkCount": 69,
+    "checkCount": 73,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 69,
+    "passedCheckCount": 73,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -883,6 +925,17 @@
           "id": "selection",
           "status": "covered",
           "title": "Persistent record commands use player-facing selectors with autocomplete and localization"
+        },
+        {
+          "checks": [
+            "command.status_includes_persistent_pool",
+            "command.persistent_name_suggestions_all_kinds",
+            "command.mob_updates_persistent_worlds",
+            "lang.status_persistent_messages"
+          ],
+          "id": "admin_visibility",
+          "status": "covered",
+          "title": "Admin commands expose persistent slots and all mirror kinds"
         }
       ],
       "status": "covered",

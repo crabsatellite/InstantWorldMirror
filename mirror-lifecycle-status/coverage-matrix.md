@@ -36,6 +36,7 @@
 | `command_bypass_guards` | `save` | `covered` | `manager.save_requires_persistent_access` |
 | `command_bypass_guards` | `enter` | `covered` | `manager.enter_requires_matching_permanence` |
 | `command_bypass_guards` | `selection` | `covered` | `command.persistent_record_suggestions`, `command.persistent_uses_selector`, `command.persistent_rename_command`, `lang.persistent_messages` |
+| `command_bypass_guards` | `admin_visibility` | `covered` | `command.status_includes_persistent_pool`, `command.persistent_name_suggestions_all_kinds`, `command.mob_updates_persistent_worlds`, `lang.status_persistent_messages` |
 | `runtime_smoke_infra` | `script` | `covered` | `runtime.runclient_smoke_script` |
 | `runtime.gametest_lifecycle` | `registration` | `covered` | `runtime.gametest_source_registered`, `runtime.gametest_empty_template` |
 | `runtime.gametest_lifecycle` | `coverage` | `covered` | `runtime.gametest_behavior_coverage`, `runtime.gametest_pristine_terrain_coverage` |

@@ -90,6 +90,7 @@ Commands cannot bypass the enchanted-mirror lifecycle
 - `save`: covered - Save command is blocked unless the current session was permanence-enabled
 - `enter`: covered - Enter command is blocked unless the player still holds a matching enchanted mirror
 - `selection`: covered - Persistent record commands use player-facing selectors with autocomplete and localization
+- `admin_visibility`: covered - Admin commands expose persistent slots and all mirror kinds
 
 ## runtime_smoke_infra - covered
 

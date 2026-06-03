@@ -6,8 +6,10 @@ import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.DimensionPool;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
+import com.crabmods.instantworldmirror.world.PersistentMirrorData;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
 import com.mojang.brigadier.CommandDispatcher;
@@ -35,7 +37,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,7 +68,10 @@ public class ModCommands {
     };
 
     private static final SuggestionProvider<CommandSourceStack> PERSISTENT_NAME_SUGGESTIONS = (context, builder) ->
-            SharedSuggestionProvider.suggest(List.of("Dimensional Mirror", "Heaven Mirror"), builder);
+            SharedSuggestionProvider.suggest(
+                    Stream.of(MirrorKind.values()).map(MirrorKind::defaultName).toList(),
+                    builder
+            );
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
@@ -343,6 +347,13 @@ public class ModCommands {
                 mirrorWorld.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(enabled, server);
             }
         }
+
+        for (int i = 0; i < ModDimensions.MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE; i++) {
+            ServerLevel persistentWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(i));
+            if (persistentWorld != null) {
+                persistentWorld.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(enabled, server);
+            }
+        }
     }
 
     private static int mobStatusCommand(CommandContext<CommandSourceStack> context) {
@@ -414,6 +425,11 @@ public class ModCommands {
      */
     private static int statusCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+        if (server == null) {
+            source.sendFailure(Component.translatable("command.instantworldmirror.server_unavailable"));
+            return 0;
+        }
         int poolSize = ModDimensions.getPoolSize();
         
         source.sendSuccess(() -> Component.translatable("command.instantworldmirror.status.header"), false);
@@ -434,8 +450,8 @@ public class ModCommands {
             
             // Get player count directly from the dimension level (most reliable)
             int playerCount = 0;
-            if (source.getServer() != null) {
-                ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(source.getServer(), i);
+            if (server != null) {
+                ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, i);
                 if (mirrorWorld != null) {
                     playerCount = mirrorWorld.players().size();
                 }
@@ -446,6 +462,53 @@ public class ModCommands {
             source.sendSuccess(() -> Component.translatable(
                     "command.instantworldmirror.status.entry", dimIndex, 
                     Component.translatable(finalStateKey), finalPlayerCount
+            ), false);
+        }
+
+        PersistentMirrorData persistentData = PersistentMirrorData.get(server);
+        int persistentSlots = ModDimensions.MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE;
+        int persistentRecords = persistentData.records().size();
+        long readyRecords = persistentData.records().stream().filter(PersistentMirrorRecord::ready).count();
+        long copyingRecords = persistentRecords - readyRecords;
+        int freePersistentSlots = Math.max(0, persistentSlots - persistentRecords);
+
+        source.sendSuccess(() -> Component.translatable("command.instantworldmirror.status.persistent_header"), false);
+        source.sendSuccess(() -> Component.translatable("command.instantworldmirror.status.persistent_summary",
+                freePersistentSlots,
+                readyRecords,
+                copyingRecords,
+                persistentRecords,
+                persistentSlots), false);
+
+        for (int i = 0; i < persistentSlots; i++) {
+            final int slotNumber = i + 1;
+            Optional<PersistentMirrorRecord> record = persistentData.getRecordByDimensionIndex(i);
+            ServerLevel persistentWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(i));
+            final int persistentPlayerCount = persistentWorld != null ? persistentWorld.players().size() : 0;
+
+            if (record.isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(
+                        "command.instantworldmirror.status.persistent_entry_empty",
+                        slotNumber,
+                        persistentPlayerCount
+                ), false);
+                continue;
+            }
+
+            PersistentMirrorRecord persistentRecord = record.get();
+            final String persistentName = persistentRecord.name();
+            final String kindTranslationKey = persistentRecord.kind().translationKey();
+            final String stateTranslationKey = persistentRecord.ready()
+                    ? "command.instantworldmirror.status.persistent_ready"
+                    : "command.instantworldmirror.status.persistent_copying";
+
+            source.sendSuccess(() -> Component.translatable(
+                    "command.instantworldmirror.status.persistent_entry",
+                    slotNumber,
+                    persistentName,
+                    Component.translatable(kindTranslationKey),
+                    Component.translatable(stateTranslationKey),
+                    persistentPlayerCount
             ), false);
         }
         

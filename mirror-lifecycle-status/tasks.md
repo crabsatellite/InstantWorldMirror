@@ -2,9 +2,12 @@
 
 - [x] `build.verify_mirror_jar_contents` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
+- [x] `command.mob_updates_persistent_worlds` - method contains all text
+- [x] `command.persistent_name_suggestions_all_kinds` - all text found
 - [x] `command.persistent_record_suggestions` - all text found
 - [x] `command.persistent_rename_command` - all text found
 - [x] `command.persistent_uses_selector` - all text found
+- [x] `command.status_includes_persistent_pool` - method contains all text
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_cancel_task` - method contains ordered text
 - [x] `copy.persistent_completion_order` - method contains ordered text
@@ -39,6 +42,7 @@
 - [x] `kind.first_dream_present` - all text found
 - [x] `kind.first_dream_pristine` - all text found
 - [x] `lang.persistent_messages` - composite passed
+- [x] `lang.status_persistent_messages` - composite passed
 - [x] `manager.create_session_order` - method contains ordered text
 - [x] `manager.delete_persistent_order` - method contains ordered text
 - [x] `manager.enter_persistent_order` - method contains ordered text
