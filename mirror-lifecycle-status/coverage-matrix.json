@@ -50,7 +50,8 @@
         "session.kind_field",
         "copy.pristine_task_flag",
         "copy.pristine_generator_features",
-        "copy.pristine_generator_pipeline"
+        "copy.pristine_generator_pipeline",
+        "copy.pristine_loot_uses_mob_spawn_config"
       ],
       "route": "temporary.first_dream_mirror",
       "stage": "copy",

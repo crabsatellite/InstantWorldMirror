@@ -1582,8 +1582,17 @@ public class WorldCopyService {
     private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, LevelChunk targetChunk, BlockPos pos) {
         CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
         if (tag != null) {
-            targetChunk.setBlockEntityNbt(tag.copy());
+            targetChunk.setBlockEntityNbt(filterGeneratedLootTagForConfig(tag));
         }
+    }
+
+    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag) {
+        CompoundTag copy = tag.copy();
+        if (!MirrorConfig.isMobSpawningEnabled()) {
+            copy.remove("LootTable");
+            copy.remove("LootTableSeed");
+        }
+        return copy;
     }
 
     /**

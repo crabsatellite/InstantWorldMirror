@@ -1,9 +1,11 @@
 package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.MirrorConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
@@ -33,6 +35,34 @@ public final class MirrorTerrainGameTests {
                 "First dream terrain generation must run through biome decoration");
         helper.assertFalse(generatedChunk.getBlockState(editedPos).is(Blocks.GOLD_BLOCK),
                 "First dream terrain must not copy player edits from the current world chunk");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamLootTablesUseMobSpawningConfig(GameTestHelper helper) {
+        CompoundTag generatedChest = new CompoundTag();
+        generatedChest.putString("id", "minecraft:chest");
+        generatedChest.putString("LootTable", "minecraft:chests/simple_dungeon");
+        generatedChest.putLong("LootTableSeed", 123L);
+
+        try {
+            MirrorConfig.setRuntimeMobSpawning(true);
+            CompoundTag enabled = WorldCopyService.filterGeneratedLootTagForConfig(generatedChest);
+            helper.assertTrue(enabled.contains("LootTable"),
+                    "Generated loot tables must be kept when the unified generation config is enabled");
+            helper.assertTrue(enabled.contains("LootTableSeed"),
+                    "Generated loot seeds must be kept when the unified generation config is enabled");
+
+            MirrorConfig.setRuntimeMobSpawning(false);
+            CompoundTag disabled = WorldCopyService.filterGeneratedLootTagForConfig(generatedChest);
+            helper.assertFalse(disabled.contains("LootTable"),
+                    "Generated loot tables must be stripped when the unified generation config is disabled");
+            helper.assertFalse(disabled.contains("LootTableSeed"),
+                    "Generated loot seeds must be stripped when the unified generation config is disabled");
+        } finally {
+            MirrorConfig.setRuntimeMobSpawning(null);
+        }
 
         helper.succeed();
     }

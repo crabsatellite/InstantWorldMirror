@@ -7,7 +7,7 @@
 | `temporary.heaven_mirror` | `kind` | `covered` | `item.kind_from_stack`, `record.kind_saved_from_session` |
 | `temporary.heaven_mirror` | `sandbox` | `covered` | `sandbox.prep_receives_persistent_access` |
 | `temporary.first_dream_mirror` | `kind` | `covered` | `item.kind_from_stack`, `kind.first_dream_present`, `kind.first_dream_not_sandbox`, `kind.first_dream_pristine` |
-| `temporary.first_dream_mirror` | `copy` | `covered` | `session.kind_field`, `copy.pristine_task_flag`, `copy.pristine_generator_features`, `copy.pristine_generator_pipeline` |
+| `temporary.first_dream_mirror` | `copy` | `covered` | `session.kind_field`, `copy.pristine_task_flag`, `copy.pristine_generator_features`, `copy.pristine_generator_pipeline`, `copy.pristine_loot_uses_mob_spawn_config` |
 | `permanent.dimension_mirror` | `enchantment` | `covered` | `enchantment.helper_present`, `enchantment.version_registration`, `enchantment.mirror_item_support` |
 | `permanent.dimension_mirror` | `enter_gate` | `covered` | `manager.enter_requires_matching_permanence`, `command.menu_uses_held_mirror` |
 | `permanent.heaven_mirror` | `sandbox_hotbar` | `covered` | `sandbox.applies_permanence_to_hotbar_mirror` |

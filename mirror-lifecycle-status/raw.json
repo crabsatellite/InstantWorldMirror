@@ -123,6 +123,12 @@
       "message": "composite passed",
       "passed": true
     },
+    "copy.pristine_loot_uses_mob_spawn_config": {
+      "adapter": "file_contains_all",
+      "id": "copy.pristine_loot_uses_mob_spawn_config",
+      "message": "all text found",
+      "passed": true
+    },
     "copy.pristine_task_flag": {
       "adapter": "file_contains_all",
       "id": "copy.pristine_task_flag",
@@ -658,11 +664,11 @@
     }
   },
   "completion": {
-    "checkCount": 88,
+    "checkCount": 89,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 88,
+    "passedCheckCount": 89,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -735,7 +741,8 @@
             "session.kind_field",
             "copy.pristine_task_flag",
             "copy.pristine_generator_features",
-            "copy.pristine_generator_pipeline"
+            "copy.pristine_generator_pipeline",
+            "copy.pristine_loot_uses_mob_spawn_config"
           ],
           "id": "copy",
           "status": "covered",
