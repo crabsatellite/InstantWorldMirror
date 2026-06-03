@@ -262,7 +262,8 @@
           "title": "Renaming a persistent mirror resolves a player-facing selector and marks saved data dirty",
           "checks": [
             "manager.rename_record_order",
-            "manager.menu_uses_selectors"
+            "manager.menu_uses_selectors",
+            "client.persistent_popup_controls"
           ]
         },
         {
@@ -1046,13 +1047,29 @@
     },
     {
       "id": "manager.menu_uses_selectors",
-      "adapter": "file_contains_all",
-      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
-      "texts": [
-        "record.selector()",
-        "\"/iwm persistent enter \" + selector",
-        "\"/iwm persistent delete \" + selector",
-        "ClickEvent.Action.SUGGEST_COMMAND"
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "texts": [
+            "PersistentMirrorMenuPacket.inside(",
+            "record.selector()",
+            "new PersistentMirrorMenuPacket.Entry("
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/screen/PersistentMirrorMenuScreen.java",
+          "texts": [
+            "\"iwm persistent enter \" + entry.selector()",
+            "\"iwm persistent rename \" + entry.selector() + \" \"",
+            "\"iwm persistent delete \" + entry.selector()",
+            "\"iwm persistent rename \" + selector + \" \"",
+            "\"iwm persistent delete \" + selector",
+            "new ChatScreen(\"/\" + command)"
+          ]
+        }
       ]
     },
     {
@@ -1060,6 +1077,18 @@
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
       "text": "PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player))"
+    },
+    {
+      "id": "client.persistent_popup_controls",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/client/screen/PersistentMirrorMenuScreen.java",
+      "texts": [
+        "extends Screen",
+        "Button.builder(Component.literal(\"\\u00D7\")",
+        ".bounds(panelLeft + panelWidth - 24, panelTop + 8, 16, 16)",
+        "public boolean shouldCloseOnEsc()",
+        "return true;"
+      ]
     },
     {
       "id": "command.persistent_record_suggestions",

@@ -229,7 +229,8 @@
     {
       "checks": [
         "manager.rename_record_order",
-        "manager.menu_uses_selectors"
+        "manager.menu_uses_selectors",
+        "client.persistent_popup_controls"
       ],
       "route": "persistent.record_lifecycle",
       "stage": "rename",

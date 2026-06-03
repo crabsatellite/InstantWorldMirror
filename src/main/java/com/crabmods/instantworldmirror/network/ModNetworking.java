@@ -58,6 +58,15 @@ public class ModNetworking {
                 SyncCooldownPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PersistentMirrorMenuPacket.class,
+                PersistentMirrorMenuPacket::encode,
+                PersistentMirrorMenuPacket::decode,
+                PersistentMirrorMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
         
         // Register server-bound packets
         CHANNEL.registerMessage(

@@ -6,6 +6,12 @@
       "message": "all text found",
       "passed": true
     },
+    "client.persistent_popup_controls": {
+      "adapter": "file_contains_all",
+      "id": "client.persistent_popup_controls",
+      "message": "all text found",
+      "passed": true
+    },
     "command.menu_uses_held_mirror": {
       "adapter": "file_contains",
       "id": "command.menu_uses_held_mirror",
@@ -536,9 +542,19 @@
       "passed": true
     },
     "manager.menu_uses_selectors": {
-      "adapter": "file_contains_all",
+      "adapter": "all",
+      "children": [
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
       "id": "manager.menu_uses_selectors",
-      "message": "all text found",
+      "message": "composite passed",
       "passed": true
     },
     "manager.persistent_enter_passes_access": {
@@ -717,11 +733,11 @@
     }
   },
   "completion": {
-    "checkCount": 96,
+    "checkCount": 97,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 96,
+    "passedCheckCount": 97,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -1015,7 +1031,8 @@
         {
           "checks": [
             "manager.rename_record_order",
-            "manager.menu_uses_selectors"
+            "manager.menu_uses_selectors",
+            "client.persistent_popup_controls"
           ],
           "id": "rename",
           "status": "covered",
