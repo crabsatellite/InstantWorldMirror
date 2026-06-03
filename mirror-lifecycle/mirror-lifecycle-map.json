@@ -335,6 +335,16 @@
             "command.persistent_rename_command",
             "lang.persistent_messages"
           ]
+        },
+        {
+          "id": "admin_visibility",
+          "title": "Admin commands expose persistent slots and all mirror kinds",
+          "checks": [
+            "command.status_includes_persistent_pool",
+            "command.persistent_name_suggestions_all_kinds",
+            "command.mob_updates_persistent_worlds",
+            "lang.status_persistent_messages"
+          ]
         }
       ]
     },
@@ -931,6 +941,74 @@
         "Commands.literal(\"rename\")",
         "persistentRenameCommand",
         "PersistentMirrorManager.renameRecord(player, id, name)"
+      ]
+    },
+    {
+      "id": "command.status_includes_persistent_pool",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "method": "statusCommand",
+      "texts": [
+        "PersistentMirrorData.get(server)",
+        "ModDimensions.MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE",
+        "persistentData.getRecordByDimensionIndex(i)",
+        "ModDimensions.getPersistentMirrorWorld(i)",
+        "command.instantworldmirror.status.persistent_summary",
+        "command.instantworldmirror.status.persistent_entry"
+      ]
+    },
+    {
+      "id": "command.persistent_name_suggestions_all_kinds",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "texts": [
+        "PERSISTENT_NAME_SUGGESTIONS",
+        "Stream.of(MirrorKind.values()).map(MirrorKind::defaultName).toList()"
+      ]
+    },
+    {
+      "id": "command.mob_updates_persistent_worlds",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+      "method": "setMirrorWorldsMobSpawning",
+      "texts": [
+        "ModDimensions.MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE",
+        "ModDimensions.getPersistentMirrorWorld(i)",
+        "server.getLevel"
+      ]
+    },
+    {
+      "id": "lang.status_persistent_messages",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json"
+        },
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json"
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json",
+          "texts": [
+            "command.instantworldmirror.status.persistent_header",
+            "command.instantworldmirror.status.persistent_summary",
+            "command.instantworldmirror.status.persistent_entry",
+            "command.instantworldmirror.status.persistent_entry_empty"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json",
+          "texts": [
+            "command.instantworldmirror.status.persistent_header",
+            "command.instantworldmirror.status.persistent_summary",
+            "command.instantworldmirror.status.persistent_entry",
+            "command.instantworldmirror.status.persistent_entry_empty"
+          ]
+        }
       ]
     },
     {
