@@ -19,6 +19,8 @@
 - [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text
 - [x] `data.source_session_lookup` - method contains all text
+- [x] `dimension_pool.allocate_marks_cleanup_dirty` - method contains ordered text
+- [x] `dimension_pool.cleaning_removes_allocations` - method contains ordered text
 - [x] `dimensions.persistent_json_count` - 8 matched, expected 8
 - [x] `dimensions.persistent_json_values` - all json values matched
 - [x] `dimensions.separate_pool` - found text
@@ -26,9 +28,12 @@
 - [x] `enchantment.mirror_item_support` - composite passed
 - [x] `enchantment.version_registration` - composite passed
 - [x] `events.dimension_change_exit_order` - method contains ordered text
+- [x] `events.login_clears_persistent_tracking` - method contains ordered text
 - [x] `events.login_saved_origin_restore_order` - method contains ordered text
 - [x] `events.logout_cleanup_order` - method contains ordered text
+- [x] `events.logout_clears_persistent_tracking` - method contains ordered text
 - [x] `events.respawn_restore_order` - method contains ordered text
+- [x] `events.server_stop_clears_all_lifecycle_state` - method contains ordered text
 - [x] `item.air_use_order` - method contains ordered text
 - [x] `item.block_use_order` - method contains ordered text
 - [x] `item.cooldown_applies_after_success` - method contains ordered text
@@ -43,20 +48,25 @@
 - [x] `kind.first_dream_pristine` - all text found
 - [x] `lang.persistent_messages` - composite passed
 - [x] `lang.status_persistent_messages` - composite passed
+- [x] `manager.copy_completion_releases_temporary_source` - method contains ordered text
 - [x] `manager.create_session_order` - method contains ordered text
 - [x] `manager.delete_persistent_order` - method contains ordered text
+- [x] `manager.delete_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.enter_persistent_order` - method contains ordered text
 - [x] `manager.enter_requires_matching_permanence` - found text
 - [x] `manager.heaven_return_origin_gate` - method contains ordered text
 - [x] `manager.leave_persistent_order` - method contains ordered text
 - [x] `manager.menu_uses_selectors` - all text found
 - [x] `manager.persistent_enter_passes_access` - found text
+- [x] `manager.recover_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.recover_unready_records` - method contains ordered text
 - [x] `manager.rename_record_order` - method contains ordered text
 - [x] `manager.return_temporary_order` - method contains ordered text
 - [x] `manager.save_persistent_order` - method contains ordered text
 - [x] `manager.save_rejects_duplicate_session` - method contains ordered text
 - [x] `manager.save_requires_persistent_access` - found text
+- [x] `manager.save_retains_temporary_source` - method contains ordered text
+- [x] `manager.server_stop_marks_active_dimensions` - method contains ordered text
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text

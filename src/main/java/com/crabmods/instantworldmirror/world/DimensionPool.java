@@ -110,6 +110,9 @@ public class DimensionPool {
                 dimensionToSession.put(i, sessionId);
                 sessionToDimension.put(sessionId, i);
                 dimensionToSource.put(i, sourceDimension);
+
+                // Treat every allocated temporary dimension as dirty until cleanup completes.
+                markCleanupInProgress(i, true);
                 
                 InstantWorldMirror.LOGGER.info("Allocated dimension {} for session {} (source: {})", 
                         i, sessionId, sourceDimension.location());
@@ -253,7 +256,10 @@ public class DimensionPool {
         if (dimIndex >= 0 && dimIndex < poolSize) {
             dimensionStates.put(dimIndex, DimensionState.CLEANING);
             // Clear any session mapping
-            dimensionToSession.remove(dimIndex);
+            UUID sessionId = dimensionToSession.remove(dimIndex);
+            if (sessionId != null) {
+                sessionToDimension.remove(sessionId);
+            }
             
             // Save cleanup state to persistent storage
             markCleanupInProgress(dimIndex, true);

@@ -62,6 +62,7 @@ Death, external dimension changes, login, and logout restore or clean mirror sta
 - `external_exit`: covered - External dimension changes route persistent and temporary exits through the correct cleanup handlers
 - `login`: covered - Login recovery returns saved mirror state to the saved origin instead of overworld spawn
 - `logout`: covered - Logout saves cooldown before session cleanup and local tracking cleanup
+- `shutdown`: covered - Server shutdown marks active and deferred temporary dimensions for cleanup before clearing memory
 
 ## persistent.record_lifecycle - covered
 

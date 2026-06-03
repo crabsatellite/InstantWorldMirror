@@ -125,6 +125,18 @@
       "message": "method contains all text",
       "passed": true
     },
+    "dimension_pool.allocate_marks_cleanup_dirty": {
+      "adapter": "method_contains_in_order",
+      "id": "dimension_pool.allocate_marks_cleanup_dirty",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "dimension_pool.cleaning_removes_allocations": {
+      "adapter": "method_contains_in_order",
+      "id": "dimension_pool.cleaning_removes_allocations",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "dimensions.persistent_json_count": {
       "adapter": "glob_count",
       "id": "dimensions.persistent_json_count",
@@ -209,6 +221,12 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "events.login_clears_persistent_tracking": {
+      "adapter": "method_contains_in_order",
+      "id": "events.login_clears_persistent_tracking",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "events.login_saved_origin_restore_order": {
       "adapter": "method_contains_in_order",
       "id": "events.login_saved_origin_restore_order",
@@ -221,9 +239,21 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "events.logout_clears_persistent_tracking": {
+      "adapter": "method_contains_in_order",
+      "id": "events.logout_clears_persistent_tracking",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "events.respawn_restore_order": {
       "adapter": "method_contains_in_order",
       "id": "events.respawn_restore_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "events.server_stop_clears_all_lifecycle_state": {
+      "adapter": "method_contains_in_order",
+      "id": "events.server_stop_clears_all_lifecycle_state",
       "message": "method contains ordered text",
       "passed": true
     },
@@ -358,6 +388,12 @@
       "message": "composite passed",
       "passed": true
     },
+    "manager.copy_completion_releases_temporary_source": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.copy_completion_releases_temporary_source",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.create_session_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.create_session_order",
@@ -367,6 +403,12 @@
     "manager.delete_persistent_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.delete_persistent_order",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.delete_releases_unready_temporary_source": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.delete_releases_unready_temporary_source",
       "message": "method contains ordered text",
       "passed": true
     },
@@ -406,6 +448,12 @@
       "message": "found text",
       "passed": true
     },
+    "manager.recover_releases_unready_temporary_source": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.recover_releases_unready_temporary_source",
+      "message": "method contains ordered text",
+      "passed": true
+    },
     "manager.recover_unready_records": {
       "adapter": "method_contains_in_order",
       "id": "manager.recover_unready_records",
@@ -440,6 +488,18 @@
       "adapter": "file_contains",
       "id": "manager.save_requires_persistent_access",
       "message": "found text",
+      "passed": true
+    },
+    "manager.save_retains_temporary_source": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.save_retains_temporary_source",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.server_stop_marks_active_dimensions": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.server_stop_marks_active_dimensions",
+      "message": "method contains ordered text",
       "passed": true
     },
     "manager.teleport_session_order": {
@@ -540,11 +600,11 @@
     }
   },
   "completion": {
-    "checkCount": 73,
+    "checkCount": 83,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 73,
+    "passedCheckCount": 83,
     "routeCount": 14
   },
   "minecraftVersion": "1.20.1",
@@ -770,7 +830,8 @@
         },
         {
           "checks": [
-            "events.login_saved_origin_restore_order"
+            "events.login_saved_origin_restore_order",
+            "events.login_clears_persistent_tracking"
           ],
           "id": "login",
           "status": "covered",
@@ -778,11 +839,23 @@
         },
         {
           "checks": [
-            "events.logout_cleanup_order"
+            "events.logout_cleanup_order",
+            "events.logout_clears_persistent_tracking"
           ],
           "id": "logout",
           "status": "covered",
           "title": "Logout saves cooldown before session cleanup and local tracking cleanup"
+        },
+        {
+          "checks": [
+            "events.server_stop_clears_all_lifecycle_state",
+            "dimension_pool.allocate_marks_cleanup_dirty",
+            "manager.server_stop_marks_active_dimensions",
+            "dimension_pool.cleaning_removes_allocations"
+          ],
+          "id": "shutdown",
+          "status": "covered",
+          "title": "Server shutdown marks active and deferred temporary dimensions for cleanup before clearing memory"
         }
       ],
       "status": "covered",
@@ -794,6 +867,8 @@
         {
           "checks": [
             "manager.save_persistent_order",
+            "manager.save_retains_temporary_source",
+            "manager.copy_completion_releases_temporary_source",
             "manager.save_rejects_duplicate_session",
             "record.source_session_persisted",
             "data.source_session_lookup",
@@ -832,6 +907,7 @@
         {
           "checks": [
             "manager.delete_persistent_order",
+            "manager.delete_releases_unready_temporary_source",
             "copy.persistent_cancel_task"
           ],
           "id": "delete",
@@ -841,6 +917,7 @@
         {
           "checks": [
             "manager.recover_unready_records",
+            "manager.recover_releases_unready_temporary_source",
             "data.remove_unready_records",
             "startup.recover_unready_records"
           ],

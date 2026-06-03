@@ -93,6 +93,10 @@ public class MirrorWorldManager {
     // Player item transfer permission
     private static final Map<UUID, Boolean> playerItemTransferPermission = new ConcurrentHashMap<>();
 
+    // Temporary sessions currently used as source data for a queued persistent save.
+    private static final Map<UUID, Integer> persistentSaveSourceHolds = new ConcurrentHashMap<>();
+    private static final Map<UUID, Integer> deferredPersistentSourceReleases = new ConcurrentHashMap<>();
+
     // Players denied access to mirror world
     private static final Map<UUID, Boolean> playerAccessDenied = new ConcurrentHashMap<>();
 
@@ -357,6 +361,67 @@ public class MirrorWorldManager {
         playerToSession.remove(playerId);
         playerItemTransferPermission.remove(playerId);
         playerOwnedSession.remove(playerId);
+    }
+
+    public static boolean retainTemporarySourceForPersistentSave(MirrorSession session) {
+        if (session == null || session.getDimensionIndex() < 0 || session.isDestroyed()) {
+            return false;
+        }
+
+        sessionLock.writeLock().lock();
+        try {
+            MirrorSession activeSession = activeSessions.get(session.getSessionId());
+            if (activeSession == null || activeSession.isDestroyed()) {
+                return false;
+            }
+
+            persistentSaveSourceHolds.merge(session.getSessionId(), 1, Integer::sum);
+            return true;
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+
+    public static void releaseTemporarySourceAfterPersistentSave(UUID sourceSessionId, MinecraftServer server) {
+        if (sourceSessionId == null) {
+            return;
+        }
+
+        sessionLock.writeLock().lock();
+        try {
+            Integer holdCount = persistentSaveSourceHolds.get(sourceSessionId);
+            if (holdCount == null) {
+                return;
+            }
+
+            if (holdCount > 1) {
+                persistentSaveSourceHolds.put(sourceSessionId, holdCount - 1);
+                return;
+            }
+
+            persistentSaveSourceHolds.remove(sourceSessionId);
+            Integer deferredDimIndex = deferredPersistentSourceReleases.remove(sourceSessionId);
+            if (deferredDimIndex != null) {
+                releaseDeferredPersistentSource(sourceSessionId, deferredDimIndex, server);
+            }
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+
+    private static void releaseDeferredPersistentSource(UUID sessionId, int dimIndex, MinecraftServer server) {
+        DimensionPool.releaseDimension(sessionId);
+
+        if (server != null) {
+            ServerLevel mirrorWorld = server.getLevel(ModDimensions.getMirrorWorld(dimIndex));
+            if (mirrorWorld != null) {
+                WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
+            }
+        }
+
+        InstantWorldMirror.LOGGER.info(
+                "Released temporary mirror dimension {} after persistent save source copy completed",
+                dimIndex);
     }
 
     // ==================== World Copy ====================
@@ -1441,6 +1506,14 @@ public class MirrorWorldManager {
         // Release dimension back to pool (starts cleanup)
         int dimIndex = session.getDimensionIndex();
         if (dimIndex >= 0) {
+            if (persistentSaveSourceHolds.getOrDefault(sessionId, 0) > 0) {
+                deferredPersistentSourceReleases.put(sessionId, dimIndex);
+                InstantWorldMirror.LOGGER.info(
+                        "Deferring cleanup of temporary mirror dimension {} until persistent save source copy completes",
+                        dimIndex);
+                return;
+            }
+
             DimensionPool.releaseDimension(sessionId);
             
             // Queue aggressive async cleanup for the session's dedicated dimension
@@ -2361,11 +2434,32 @@ public class MirrorWorldManager {
      * Clear all sessions (for server shutdown)
      */
     public static void clearAllSessions() {
+        clearAllSessions(null);
+    }
+
+    /**
+     * Clear all sessions (for server shutdown) and persist cleanup state for any in-use dimensions.
+     */
+    public static void clearAllSessions(MinecraftServer server) {
         sessionLock.writeLock().lock();
         try {
             for (MirrorSession session : activeSessions.values()) {
+                int dimIndex = session.getDimensionIndex();
+                if (dimIndex >= 0) {
+                    DimensionPool.releaseDimension(session.getSessionId());
+                }
                 session.markDestroyed();
             }
+
+            for (Map.Entry<UUID, Integer> entry : deferredPersistentSourceReleases.entrySet()) {
+                UUID sessionId = entry.getKey();
+                int dimIndex = entry.getValue();
+                DimensionPool.releaseDimension(sessionId);
+                if (DimensionPool.getDimensionState(dimIndex) != DimensionPool.DimensionState.CLEANING) {
+                    DimensionPool.markDimensionCleaning(dimIndex);
+                }
+            }
+
             activeSessions.clear();
             portalToSession.clear();
             playerToSession.clear();
@@ -2373,6 +2467,8 @@ public class MirrorWorldManager {
             playerOriginalPositions.clear();
             playerOriginalDimensions.clear();
             playerItemTransferPermission.clear();
+            persistentSaveSourceHolds.clear();
+            deferredPersistentSourceReleases.clear();
             
             // Clear dimension pool
             DimensionPool.clearAll();

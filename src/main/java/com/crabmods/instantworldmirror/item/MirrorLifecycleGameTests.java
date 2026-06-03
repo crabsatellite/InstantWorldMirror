@@ -5,10 +5,14 @@ import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorKind;
+import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
+import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorData;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
+import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
@@ -233,6 +237,64 @@ public final class MirrorLifecycleGameTests {
                 "Removing interrupted records must release their persistent slot");
 
         helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void persistentSaveSourceAndShutdownCleanupDoNotLeaveDeadDimensions(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        clearDimensionPoolTestState(player);
+
+        MirrorSession sourceSession = MirrorWorldManager.createSession(
+                player, BlockPos.ZERO, MirrorKind.HEAVEN, true).orElseThrow();
+        int heldDimIndex = sourceSession.getDimensionIndex();
+
+        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(heldDimIndex),
+                "Allocated temporary dimensions must be marked dirty for restart cleanup");
+
+        helper.assertTrue(MirrorWorldManager.retainTemporarySourceForPersistentSave(sourceSession),
+                "Persistent save must retain its temporary source session while copying");
+
+        MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
+        helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.IN_USE,
+                "Disconnect cleanup must not release a temporary source dimension before persistent copy finishes");
+
+        MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSession.getSessionId(), player.getServer());
+        helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.CLEANING,
+                "Temporary source dimension must enter cleanup once persistent copy releases it");
+
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+
+        MirrorSession activeSession = MirrorWorldManager.createSession(
+                player, BlockPos.ZERO.above(), MirrorKind.DIMENSION, false).orElseThrow();
+        int activeDimIndex = activeSession.getDimensionIndex();
+
+        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(activeDimIndex),
+                "Active temporary dimensions must persist a cleanup marker before shutdown");
+
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        helper.assertTrue(DimensionPool.getDimensionState(activeDimIndex) == DimensionPool.DimensionState.CLEANING,
+                "Server shutdown cleanup must leave active temporary dimensions marked for cleanup");
+
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+        helper.succeed();
+    }
+
+    private static void clearDimensionPoolTestState(ServerPlayer player) {
+        DimensionPool.initializeWithServer(player.getServer());
+        for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
+            WorldCopyService.cancelCleanupTask(dimIndex);
+            DimensionPool.markDimensionAvailable(dimIndex);
+        }
+    }
+
+    private static DimensionPool.DimensionPoolData dimensionPoolData(ServerPlayer player) {
+        return player.getServer().overworld().getDataStorage().computeIfAbsent(
+                DimensionPool.DimensionPoolData::load,
+                DimensionPool.DimensionPoolData::new,
+                DimensionPool.DimensionPoolData.DATA_NAME
+        );
     }
 
     private static void addEfficiency(ItemStack stack, int level) {

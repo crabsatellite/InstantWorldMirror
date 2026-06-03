@@ -21,14 +21,15 @@
 | `temporary.session_lifecycle` | `heaven_origin_gate` | `covered` | `manager.heaven_return_origin_gate` |
 | `death_external_logout_lifecycle` | `respawn` | `covered` | `events.respawn_restore_order` |
 | `death_external_logout_lifecycle` | `external_exit` | `covered` | `events.dimension_change_exit_order` |
-| `death_external_logout_lifecycle` | `login` | `covered` | `events.login_saved_origin_restore_order` |
-| `death_external_logout_lifecycle` | `logout` | `covered` | `events.logout_cleanup_order` |
-| `persistent.record_lifecycle` | `save` | `covered` | `manager.save_persistent_order`, `manager.save_rejects_duplicate_session`, `record.source_session_persisted`, `data.source_session_lookup`, `record.selector_present`, `data.selector_lookup` |
+| `death_external_logout_lifecycle` | `login` | `covered` | `events.login_saved_origin_restore_order`, `events.login_clears_persistent_tracking` |
+| `death_external_logout_lifecycle` | `logout` | `covered` | `events.logout_cleanup_order`, `events.logout_clears_persistent_tracking` |
+| `death_external_logout_lifecycle` | `shutdown` | `covered` | `events.server_stop_clears_all_lifecycle_state`, `dimension_pool.allocate_marks_cleanup_dirty`, `manager.server_stop_marks_active_dimensions`, `dimension_pool.cleaning_removes_allocations` |
+| `persistent.record_lifecycle` | `save` | `covered` | `manager.save_persistent_order`, `manager.save_retains_temporary_source`, `manager.copy_completion_releases_temporary_source`, `manager.save_rejects_duplicate_session`, `record.source_session_persisted`, `data.source_session_lookup`, `record.selector_present`, `data.selector_lookup` |
 | `persistent.record_lifecycle` | `enter` | `covered` | `manager.enter_persistent_order` |
 | `persistent.record_lifecycle` | `rename` | `covered` | `manager.rename_record_order`, `manager.menu_uses_selectors` |
 | `persistent.record_lifecycle` | `leave` | `covered` | `manager.leave_persistent_order` |
-| `persistent.record_lifecycle` | `delete` | `covered` | `manager.delete_persistent_order`, `copy.persistent_cancel_task` |
-| `persistent.record_lifecycle` | `recover_unready` | `covered` | `manager.recover_unready_records`, `data.remove_unready_records`, `startup.recover_unready_records` |
+| `persistent.record_lifecycle` | `delete` | `covered` | `manager.delete_persistent_order`, `manager.delete_releases_unready_temporary_source`, `copy.persistent_cancel_task` |
+| `persistent.record_lifecycle` | `recover_unready` | `covered` | `manager.recover_unready_records`, `manager.recover_releases_unready_temporary_source`, `data.remove_unready_records`, `startup.recover_unready_records` |
 | `persistent.pool_lifecycle` | `dimensions` | `covered` | `dimensions.persistent_json_count`, `dimensions.persistent_json_values`, `dimensions.separate_pool` |
 | `persistent.pool_lifecycle` | `copy` | `covered` | `copy.persistent_queue`, `copy.persistent_queue_order`, `copy.persistent_completion_order`, `copy.no_portal_entity_copy` |
 | `persistent.pool_lifecycle` | `worldgen` | `covered` | `worldgen.structures_disabled` |

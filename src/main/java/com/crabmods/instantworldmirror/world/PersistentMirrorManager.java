@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PersistentMirrorManager {
     private static final Map<UUID, UUID> playerToPersistentMirror = new ConcurrentHashMap<>();
     private static final Map<UUID, UUID> pendingCopyCreators = new ConcurrentHashMap<>();
+    private static final Map<UUID, UUID> pendingCopySourceSessions = new ConcurrentHashMap<>();
 
     public static boolean canCreatePersistentMirror(ServerPlayer player) {
         if (player.hasPermissions(3)) {
@@ -44,6 +45,16 @@ public class PersistentMirrorManager {
     public static boolean isInPersistentMirror(ServerPlayer player) {
         return playerToPersistentMirror.containsKey(player.getUUID())
                 || ModDimensions.isPersistentMirrorWorld(player.level().dimension());
+    }
+
+    public static void clearPlayerTracking(UUID playerId) {
+        playerToPersistentMirror.remove(playerId);
+    }
+
+    public static void clearTransientState() {
+        playerToPersistentMirror.clear();
+        pendingCopyCreators.clear();
+        pendingCopySourceSessions.clear();
     }
 
     public static boolean isPlayerInSandboxMirror(ServerPlayer player) {
@@ -303,9 +314,24 @@ public class PersistentMirrorManager {
                 false
         );
 
-        data.addRecord(record);
-        pendingCopyCreators.put(recordId, player.getUUID());
-        int queuePosition = WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld);
+        if (!MirrorWorldManager.retainTemporarySourceForPersistentSave(session)) {
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.temporary_copying"), false);
+            return false;
+        }
+
+        int queuePosition;
+        try {
+            data.addRecord(record);
+            pendingCopyCreators.put(recordId, player.getUUID());
+            pendingCopySourceSessions.put(recordId, session.getSessionId());
+            queuePosition = WorldCopyService.queuePersistentWorldCopy(record, sourceMirrorWorld, targetMirrorWorld);
+        } catch (RuntimeException e) {
+            data.removeRecord(recordId);
+            pendingCopyCreators.remove(recordId);
+            pendingCopySourceSessions.remove(recordId);
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(session.getSessionId(), server);
+            throw e;
+        }
 
         player.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.save_queued", name, queuePosition)
                 .withStyle(ChatFormatting.GREEN));
@@ -316,12 +342,20 @@ public class PersistentMirrorManager {
         PersistentMirrorData data = PersistentMirrorData.get(server);
         Optional<PersistentMirrorRecord> recordOpt = data.getRecord(recordId);
         if (recordOpt.isEmpty()) {
+            pendingCopyCreators.remove(recordId);
+            UUID sourceSessionId = pendingCopySourceSessions.remove(recordId);
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
             return;
         }
 
         PersistentMirrorRecord record = recordOpt.get();
         record.setReady(true);
         data.setDirty();
+        UUID sourceSessionId = pendingCopySourceSessions.remove(recordId);
+        if (sourceSessionId == null) {
+            sourceSessionId = record.sourceSessionId();
+        }
+        MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
 
         UUID creatorId = pendingCopyCreators.remove(recordId);
         if (creatorId != null) {
@@ -344,6 +378,11 @@ public class PersistentMirrorManager {
 
         for (PersistentMirrorRecord record : unreadyRecords) {
             pendingCopyCreators.remove(record.id());
+            UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
+            if (sourceSessionId == null) {
+                sourceSessionId = record.sourceSessionId();
+            }
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
             WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
 
             ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
@@ -547,6 +586,13 @@ public class PersistentMirrorManager {
 
         ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
         pendingCopyCreators.remove(record.id());
+        UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
+        if (sourceSessionId == null) {
+            sourceSessionId = record.sourceSessionId();
+        }
+        if (!record.ready()) {
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+        }
         WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
         if (persistentLevel != null) {
             for (ServerPlayer other : persistentLevel.players().toArray(ServerPlayer[]::new)) {

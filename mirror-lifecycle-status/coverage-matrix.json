@@ -168,7 +168,8 @@
     },
     {
       "checks": [
-        "events.login_saved_origin_restore_order"
+        "events.login_saved_origin_restore_order",
+        "events.login_clears_persistent_tracking"
       ],
       "route": "death_external_logout_lifecycle",
       "stage": "login",
@@ -176,7 +177,8 @@
     },
     {
       "checks": [
-        "events.logout_cleanup_order"
+        "events.logout_cleanup_order",
+        "events.logout_clears_persistent_tracking"
       ],
       "route": "death_external_logout_lifecycle",
       "stage": "logout",
@@ -184,7 +186,20 @@
     },
     {
       "checks": [
+        "events.server_stop_clears_all_lifecycle_state",
+        "dimension_pool.allocate_marks_cleanup_dirty",
+        "manager.server_stop_marks_active_dimensions",
+        "dimension_pool.cleaning_removes_allocations"
+      ],
+      "route": "death_external_logout_lifecycle",
+      "stage": "shutdown",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "manager.save_persistent_order",
+        "manager.save_retains_temporary_source",
+        "manager.copy_completion_releases_temporary_source",
         "manager.save_rejects_duplicate_session",
         "record.source_session_persisted",
         "data.source_session_lookup",
@@ -223,6 +238,7 @@
     {
       "checks": [
         "manager.delete_persistent_order",
+        "manager.delete_releases_unready_temporary_source",
         "copy.persistent_cancel_task"
       ],
       "route": "persistent.record_lifecycle",
@@ -232,6 +248,7 @@
     {
       "checks": [
         "manager.recover_unready_records",
+        "manager.recover_releases_unready_temporary_source",
         "data.remove_unready_records",
         "startup.recover_unready_records"
       ],
