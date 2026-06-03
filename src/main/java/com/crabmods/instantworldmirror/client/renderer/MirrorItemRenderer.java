@@ -14,6 +14,7 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
@@ -58,7 +59,8 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
 
         ResourceLocation texture = textureFor(kind);
         EntityModel<Entity> model = modelFor(kind);
-        VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutoutNoCull(texture));
+        RenderType renderType = RenderType.entityCutoutNoCull(texture);
+        VertexConsumer vertexConsumer = ItemRenderer.getFoilBufferDirect(buffer, renderType, true, stack.hasFoil());
         model.renderToBuffer(poseStack, vertexConsumer, packedLight, OverlayTexture.NO_OVERLAY,
                 1.0F, 1.0F, 1.0F, 1.0F);
 

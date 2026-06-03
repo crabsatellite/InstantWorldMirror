@@ -101,6 +101,8 @@ public final class MirrorLifecycleGameTests {
                 "Permanence helper must mark the stack as permanent");
         helper.assertTrue(heavenMirror.getEnchantmentLevel(ModEnchantments.PERMANENCE.get()) == 1,
                 "Permanence must be applied exactly once");
+        helper.assertTrue(heavenMirror.hasFoil(),
+                "Permanence enchanted mirrors must show enchantment glint");
 
         ModEnchantments.applyRenewal(helper.getLevel(), heavenMirror);
         helper.assertFalse(DimensionMirrorItem.hasGeneratedContentRefresh(helper.getLevel(), heavenMirror),
@@ -113,6 +115,8 @@ public final class MirrorLifecycleGameTests {
                 "Renewal helper must mark first dream mirrors as generated content refresh capable");
         helper.assertTrue(firstDreamMirror.getEnchantmentLevel(ModEnchantments.RENEWAL.get()) == 1,
                 "Renewal must be applied exactly once");
+        helper.assertTrue(firstDreamMirror.hasFoil(),
+                "Renewal enchanted first dream mirrors must show enchantment glint");
 
         helper.succeed();
     }
