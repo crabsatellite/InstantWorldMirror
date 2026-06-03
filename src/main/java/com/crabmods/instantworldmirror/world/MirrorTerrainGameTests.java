@@ -12,8 +12,10 @@ import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -183,6 +185,29 @@ public final class MirrorTerrainGameTests {
         helper.assertFalse(PristineTerrainGenerator.isWithinVanillaNaturalSpawnDistance(
                         new ChunkPos(originChunk.x + 8, originChunk.z), marker),
                 "First dream warmup must skip chunks outside vanilla natural-spawn range");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamRefreshCopiesSpawnerAsLiveBlockEntity(GameTestHelper helper) {
+        BlockPos spawnerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        LevelChunk targetChunk = (LevelChunk) helper.getLevel().getChunk(spawnerPos);
+        int sectionY = spawnerPos.getY() >> 4;
+        LevelChunkSection section = targetChunk.getSection(sectionY - targetChunk.getMinSection());
+        section.setBlockState(spawnerPos.getX() & 15, spawnerPos.getY() & 15, spawnerPos.getZ() & 15,
+                Blocks.SPAWNER.defaultBlockState(), false);
+
+        CompoundTag spawnerTag = new CompoundTag();
+        spawnerTag.putString("id", "minecraft:mob_spawner");
+        spawnerTag.putInt("x", spawnerPos.getX());
+        spawnerTag.putInt("y", spawnerPos.getY());
+        spawnerTag.putInt("z", spawnerPos.getZ());
+
+        WorldCopyService.copyGeneratedBlockEntityTag(helper.getLevel(), targetChunk, spawnerPos, spawnerTag, true);
+
+        helper.assertTrue(helper.getLevel().getBlockEntity(spawnerPos) instanceof SpawnerBlockEntity,
+                "Renewal refresh must install generated spawners as live ticking block entities");
 
         helper.succeed();
     }

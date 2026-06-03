@@ -1444,9 +1444,10 @@ public class WorldCopyService {
 
                             // Null check for corrupted/uninitialized section data
                             if (state != null && !state.isAir() && !isPortalBlock(state)) {
-                                // Direct section setBlockState is faster than mirrorWorld.setBlock
-                                // because it skips neighbor updates and lighting calculations
-                                if (targetSection != null) {
+                                if (state.hasBlockEntity()) {
+                                    targetPos.set(worldX, y, worldZ);
+                                    mirrorWorld.setBlock(targetPos, state, 2 | 16);
+                                } else if (targetSection != null) {
                                     targetSection.setBlockState(localX, localY, localZ, state, false);
                                 } else {
                                     targetPos.set(worldX, y, worldZ);
@@ -1561,16 +1562,24 @@ public class WorldCopyService {
                             }
 
                             int worldX = chunkX * 16 + localX;
-                            if (targetSection != null) {
+                            BlockPos targetPos = null;
+                            if (state.hasBlockEntity()) {
+                                targetPos = new BlockPos(worldX, y, worldZ);
+                                mirrorWorld.setBlock(targetPos, state, 2 | 16);
+                            } else if (targetSection != null) {
                                 targetSection.setBlockState(localX, localY, localZ, state, false);
                             } else {
-                                mirrorWorld.setBlock(new BlockPos(worldX, y, worldZ), state, 2 | 16);
+                                targetPos = new BlockPos(worldX, y, worldZ);
+                                mirrorWorld.setBlock(targetPos, state, 2 | 16);
                             }
                             blocksCopied++;
 
                             if (state.hasBlockEntity()) {
+                                if (targetPos == null) {
+                                    targetPos = new BlockPos(worldX, y, worldZ);
+                                }
                                 copyGeneratedBlockEntity(
-                                        generatedChunk, targetChunk, new BlockPos(worldX, y, worldZ),
+                                        generatedChunk, mirrorWorld, targetChunk, targetPos,
                                         task.generatedContentRefresh);
                             }
                         }
@@ -1625,11 +1634,33 @@ public class WorldCopyService {
         }
     }
 
-    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, LevelChunk targetChunk, BlockPos pos,
+    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, ServerLevel mirrorWorld,
+                                                 LevelChunk targetChunk, BlockPos pos,
                                                  boolean generatedContentRefresh) {
         CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
         if (tag != null) {
-            targetChunk.setBlockEntityNbt(filterGeneratedLootTagForConfig(tag, generatedContentRefresh));
+            copyGeneratedBlockEntityTag(mirrorWorld, targetChunk, pos, tag, generatedContentRefresh);
+        }
+    }
+
+    static void copyGeneratedBlockEntityTag(ServerLevel mirrorWorld, LevelChunk targetChunk, BlockPos pos,
+                                            CompoundTag tag, boolean generatedContentRefresh) {
+        CompoundTag copy = filterGeneratedLootTagForConfig(tag, generatedContentRefresh);
+        copy.putInt("x", pos.getX());
+        copy.putInt("y", pos.getY());
+        copy.putInt("z", pos.getZ());
+
+        targetChunk.setBlockEntityNbt(copy);
+        BlockEntity targetBE = mirrorWorld.getBlockEntity(pos);
+        if (targetBE == null) {
+            targetBE = BlockEntity.loadStatic(pos, targetChunk.getBlockState(pos), copy, mirrorWorld.registryAccess());
+            if (targetBE != null) {
+                targetChunk.addAndRegisterBlockEntity(targetBE);
+            }
+        }
+        if (targetBE != null) {
+            targetBE.loadWithComponents(copy, mirrorWorld.registryAccess());
+            targetBE.setChanged();
         }
     }
 
