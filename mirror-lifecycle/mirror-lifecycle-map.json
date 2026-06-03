@@ -69,6 +69,7 @@
             "copy.pristine_task_flag",
             "copy.pristine_generator_features",
             "copy.pristine_generator_pipeline",
+            "copy.pristine_scratch_world_skips_poi_updates",
             "copy.pristine_loot_uses_mob_spawn_config",
             "session.generated_content_refresh_field",
             "copy.generated_content_refresh_task_flag",
@@ -1589,36 +1590,25 @@
     },
     {
       "id": "copy.pristine_generator_pipeline",
-      "adapter": "any",
-      "checks": [
-        {
-          "adapter": "file_contains_all",
-          "versions": [
-            "1.21.1"
-          ],
-          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
-          "texts": [
-            "ChunkPyramid.GENERATION_PYRAMID.getStepTo(status)",
-            "ChunkStatus.FEATURES",
-            "ChunkStatus.SPAWN",
-            "generator.createStructures",
-            "without reading player-modified chunks"
-          ]
-        },
-        {
-          "adapter": "file_contains_all",
-          "versions": [
-            "1.20.1"
-          ],
-          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
-          "texts": [
-            "status.generate",
-            "ChunkStatus.FEATURES",
-            "ChunkStatus.SPAWN",
-            "ChunkStatus.STRUCTURE_STARTS",
-            "without reading player-modified chunks"
-          ]
-        }
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+      "texts": [
+        "ServerLevel chunk lifecycle",
+        "LevelStorageSource.createDefault(scratchRoot)",
+        "new ServerLevel(",
+        "scratchWorld.getChunk(chunkX, chunkZ)",
+        "prepareGeneratedContentSnapshot",
+        "copyGeneratedEntitiesToChunk"
+      ]
+    },
+    {
+      "id": "copy.pristine_scratch_world_skips_poi_updates",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+      "texts": [
+        "public void onBlockStateChange(BlockPos pos, BlockState blockState, BlockState newState)",
+        "Scratch POI data is never copied back",
+        "Avoid queuing temporary POI updates on the real server"
       ]
     },
     {
@@ -1639,24 +1629,22 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "copyGeneratedEntitiesFromChunk(generatedChunk, mirrorWorld)",
+        "task.copyPristineGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld",
         "task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()",
-        "generatedChunk instanceof ProtoChunk protoChunk",
-        "EntityType.loadEntityRecursive",
+        "WorldCopyService::copyEntityDataWithFreshUuid",
         "copyEntityDataWithFreshUuid"
       ]
     },
     {
-      "id": "copy.generated_content_refresh_skips_live_source_mobs",
+      "id": "copy.generated_content_refresh_uses_scratch_snapshot",
       "adapter": "file_contains_all",
-      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
       "texts": [
-        "shouldCopyLiveGeneratedContentFromSource()",
-        "return generatedContentRefresh && !pristineTerrain",
-        "Do not also copy live source entities here",
-        "entityChunkX != chunkX || entityChunkZ != chunkZ",
-        "copyGeneratedContent && isGeneratedContentEntity(entity)",
-        "entity instanceof net.minecraft.world.entity.LivingEntity"
+        "void prepareGeneratedContentSnapshot",
+        "FakePlayerFactory.get(scratchWorld",
+        "NaturalSpawner.spawnForChunk",
+        "snapshotGeneratedEntities()",
+        "EntityType.loadEntityRecursive"
       ]
     },
     {

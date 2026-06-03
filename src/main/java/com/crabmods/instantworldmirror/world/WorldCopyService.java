@@ -21,7 +21,6 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
-import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -292,12 +291,9 @@ public class WorldCopyService {
         public void addBlocksCopied(int count) { totalBlocksCopied += count; }
         public boolean isCompleted() { return completed; }
         public boolean isCancelled() { return cancelled; }
-        public void cancel() { cancelled = true; completed = true; }
+        public void cancel() { cancelled = true; completed = true; closePristineRegion(); }
         public int getTotalBlocksCopied() { return totalBlocksCopied; }
         public boolean isPreloadingStarted() { return preloadingStarted; }
-        boolean shouldCopyLiveGeneratedContentFromSource() {
-            return generatedContentRefresh && !pristineTerrain;
-        }
 
         public boolean preparePristineRegion(ServerLevel sourceWorld, int maxChunks) {
             if (!pristineTerrain || pristineRegionPrepared) {
@@ -317,6 +313,11 @@ public class WorldCopyService {
                 advancePristinePreparationCursor();
             }
 
+            if (pristineRegionPrepared) {
+                pristineRegion.prepareGeneratedContentSnapshot(centerPos,
+                        generatedContentRefresh || MirrorConfig.isMobSpawningEnabled());
+            }
+
             return pristineRegionPrepared;
         }
 
@@ -326,6 +327,20 @@ public class WorldCopyService {
                 throw new IllegalStateException("Pristine region must be prepared before copying chunks");
             }
             return pristineRegion.getChunk(chunkX, chunkZ);
+        }
+
+        public void copyPristineGeneratedEntitiesToChunk(int chunkX, int chunkZ, ServerLevel mirrorWorld,
+                                                         java.util.function.Function<CompoundTag, CompoundTag> freshUuidCopier) {
+            if (pristineRegion != null) {
+                pristineRegion.copyGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld, freshUuidCopier);
+            }
+        }
+
+        public void closePristineRegion() {
+            if (pristineRegion != null) {
+                pristineRegion.close();
+                pristineRegion = null;
+            }
         }
 
         private void ensurePristineRegion(ServerLevel sourceWorld) {
@@ -358,6 +373,9 @@ public class WorldCopyService {
             task.cancel();
             InstantWorldMirror.LOGGER.debug("Cancelled copy task for dimension {}", dimensionIndex);
         }
+        if (task != null) {
+            task.closePristineRegion();
+        }
         copyTasks.remove(dimensionIndex);
         
         // Remove from queue
@@ -376,6 +394,9 @@ public class WorldCopyService {
         if (task != null && !task.isCompleted()) {
             task.cancel();
             InstantWorldMirror.LOGGER.info("Cancelled persistent copy task for dimension {}", dimensionIndex);
+        }
+        if (task != null) {
+            task.closePristineRegion();
         }
 
         synchronized (persistentCopyQueue) {
@@ -1205,6 +1226,7 @@ public class WorldCopyService {
         if (task.isCompleted()) {
             // Remove completed task from both map and queue
             copyTasks.remove(currentDimIndex);
+            task.closePristineRegion();
             synchronized (copyQueue) {
                 copyQueue.removeFirstOccurrence(currentDimIndex);
             }
@@ -1250,6 +1272,7 @@ public class WorldCopyService {
         // Check completion
         if (task.isCompleted()) {
             copyTasks.remove(currentDimIndex);
+            task.closePristineRegion();
             synchronized (copyQueue) {
                 copyQueue.removeFirstOccurrence(currentDimIndex);
             }
@@ -1286,6 +1309,7 @@ public class WorldCopyService {
 
         if (task.isCompleted()) {
             persistentCopyTasks.remove(currentDimIndex);
+            task.closePristineRegion();
             synchronized (persistentCopyQueue) {
                 persistentCopyQueue.removeFirstOccurrence(currentDimIndex);
             }
@@ -1320,6 +1344,7 @@ public class WorldCopyService {
 
         if (task.isCompleted()) {
             persistentCopyTasks.remove(currentDimIndex);
+            task.closePristineRegion();
             synchronized (persistentCopyQueue) {
                 persistentCopyQueue.removeFirstOccurrence(currentDimIndex);
             }
@@ -1363,12 +1388,11 @@ public class WorldCopyService {
             return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
         }
 
-        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
-                task.shouldCopyLiveGeneratedContentFromSource());
+        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
     }
 
     private static int copyCurrentChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                        int chunkX, int chunkZ, boolean generatedContentRefresh) {
+                                        int chunkX, int chunkZ) {
         int blocksCopied = 0;
         
         try {
@@ -1518,10 +1542,8 @@ public class WorldCopyService {
             // Copy all entities only if copyEntities is enabled
             boolean copyAll = MirrorConfig.COPY_ENTITIES.get();
             boolean copyDecorations = MirrorConfig.COPY_DECORATION_ENTITIES.get();
-            boolean copyGeneratedContent = generatedContentRefresh;
-            if (copyAll || copyDecorations || copyGeneratedContent) {
-                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ,
-                        copyAll, copyDecorations, copyGeneratedContent);
+            if (copyAll || copyDecorations) {
+                copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, copyAll, copyDecorations);
             }
         } catch (Exception e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -1607,10 +1629,11 @@ public class WorldCopyService {
             }
 
             if (task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()) {
-                copyGeneratedEntitiesFromChunk(generatedChunk, mirrorWorld);
+                task.copyPristineGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld,
+                        WorldCopyService::copyEntityDataWithFreshUuid);
             }
-            // Do not also copy live source entities here. Renewal must use regenerated
-            // chunk entities, otherwise dimension-controller bosses can be duplicated.
+            // Do not also copy live source entities here. Renewal must use the
+            // isolated generated snapshot to avoid duplicating moved bosses or pets.
 
             targetChunk.initializeLightSources();
             relightChunk(mirrorWorld, targetChunk);
@@ -1644,32 +1667,6 @@ public class WorldCopyService {
         CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
         if (tag != null) {
             targetChunk.setBlockEntityNbt(filterGeneratedLootTagForConfig(tag, generatedContentRefresh));
-        }
-    }
-
-    private static void copyGeneratedEntitiesFromChunk(ChunkAccess generatedChunk, ServerLevel mirrorWorld) {
-        if (!(generatedChunk instanceof ProtoChunk protoChunk)) {
-            return;
-        }
-
-        for (CompoundTag generatedEntityTag : protoChunk.getEntities()) {
-            try {
-                CompoundTag entityData = copyEntityDataWithFreshUuid(generatedEntityTag);
-                net.minecraft.world.entity.Entity entity = net.minecraft.world.entity.EntityType.loadEntityRecursive(
-                        entityData,
-                        mirrorWorld,
-                        loadedEntity -> loadedEntity
-                );
-                if (entity != null
-                        && !(entity instanceof net.minecraft.world.entity.player.Player)
-                        && !(entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity)) {
-                    MirrorBossBarManager.markGeneratedContentEntity(entity);
-                    mirrorWorld.addFreshEntity(entity);
-                }
-            } catch (Exception e) {
-                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-                InstantWorldMirror.LOGGER.warn("Failed to copy generated entity from pristine chunk: {}", errorMsg);
-            }
         }
     }
 
@@ -1767,24 +1764,13 @@ public class WorldCopyService {
         return false;
     }
 
-    private static boolean isGeneratedContentEntity(net.minecraft.world.entity.Entity entity) {
-        return entity instanceof net.minecraft.world.entity.LivingEntity
-                && !(entity instanceof net.minecraft.world.entity.player.Player);
-    }
-
     /**
      * Copy entities in a chunk
      * @param copyAll if true, copy all entities; if false, only copy based on copyDecorations
      * @param copyDecorations if true (and copyAll is false), only copy decoration entities
      */
     private static void copyEntitiesInChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld, 
-                                             int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations) {
-        copyEntitiesInChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, copyAll, copyDecorations, false);
-    }
-
-    private static void copyEntitiesInChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                             int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations,
-                                             boolean copyGeneratedContent) {
+                                              int chunkX, int chunkZ, boolean copyAll, boolean copyDecorations) {
         try {
             int minX = chunkX * 16;
             int minZ = chunkZ * 16;
@@ -1823,9 +1809,6 @@ public class WorldCopyService {
                         }
                         // Pre-filter based on copy settings to avoid processing unwanted entities
                         if (copyAll) {
-                            return true;
-                        }
-                        if (copyGeneratedContent && isGeneratedContentEntity(entity)) {
                             return true;
                         }
                         return copyDecorations && isDecorationEntity(entity);
@@ -1867,9 +1850,6 @@ public class WorldCopyService {
 
                         newEntity.load(entityData);
                         newEntity.setPos(sourceEntity.getX(), sourceEntity.getY(), sourceEntity.getZ());
-                        if (copyGeneratedContent && isGeneratedContentEntity(sourceEntity)) {
-                            MirrorBossBarManager.markGeneratedContentEntity(newEntity);
-                        }
                         
                         entitiesToAdd.add(newEntity);
                     } else {
@@ -2835,7 +2815,9 @@ public class WorldCopyService {
         
         // Save all pending modifications
         savePendingModifications();
-        
+
+        copyTasks.values().forEach(CopyTask::closePristineRegion);
+        persistentCopyTasks.values().forEach(CopyTask::closePristineRegion);
         copyTasks.clear();
         persistentCopyTasks.clear();
         cleanupTasks.clear();
