@@ -1,0 +1,554 @@
+{
+  "schemaVersion": 1,
+  "readme": "README.md",
+  "features": [
+    {
+      "id": "mirror_items",
+      "readmeTexts": [
+        "**World Reflection Mirror** creates the default temporary mirror copy of the current area.",
+        "**Heaven Mirror** creates a temporary mirror where you enter in Creative mode for testing.",
+        "**First Dream Mirror** creates original terrain again from the current world seed"
+      ],
+      "code": [
+        {
+          "label": "item registry",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModItems.java",
+          "texts": [
+            "DIMENSION_MIRROR",
+            "HEAVEN_MIRROR",
+            "FIRST_DREAM_MIRROR",
+            "mirrorItem(MirrorKind kind)"
+          ]
+        },
+        {
+          "label": "mirror kind behavior",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorKind.java",
+          "texts": [
+            "DIMENSION(",
+            "HEAVEN(",
+            "FIRST_DREAM(",
+            "isSandbox()",
+            "usesPristineTerrain()"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "portal_flow",
+      "readmeTexts": [
+        "Right-click a solid block with any mirror to create an entry portal.",
+        "Inside a normal mirror world, hold right-click with the World Reflection Mirror or First Dream Mirror to return to the entrance.",
+        "Heaven Mirror worlds can only leave through the original entrance."
+      ],
+      "code": [
+        {
+          "label": "block right-click portal flow",
+          "adapter": "method_contains_in_order",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "useOn",
+          "texts": [
+            "state.isSolidRender",
+            "ModDimensions.isAnyMirrorWorld",
+            "createReturnPortal",
+            "createEntryPortal"
+          ]
+        },
+        {
+          "label": "hold right-click return flow",
+          "adapter": "method_contains_in_order",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "use",
+          "texts": [
+            "PersistentMirrorManager.openMirrorMenu",
+            "ModDimensions.isAnyMirrorWorld",
+            "player.startUsingItem"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mirror_safety_and_sync",
+      "readmeTexts": [
+        "Death in a mirror world returns the player to the source world and restores saved state.",
+        "Weather, time, and dimension visual effects are synchronized from the source dimension.",
+        "Nether and End portals are blocked inside mirror worlds."
+      ],
+      "code": [
+        {
+          "label": "death cleanup trigger",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onPlayerDeath",
+          "texts": [
+            "MirrorWorldManager.isInMirrorWorld",
+            "MirrorWorldManager.handleMirrorWorldDeath",
+            "PersistentMirrorManager.handlePersistentMirrorDeath"
+          ]
+        },
+        {
+          "label": "death respawn restore",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onPlayerRespawn",
+          "texts": [
+            "MirrorWorldManager.diedInMirrorWorld",
+            "MirrorWorldManager.handleMirrorDeathRespawn",
+            "ModDimensions.isAnyMirrorWorld"
+          ]
+        },
+        {
+          "label": "time and weather sync",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onWorldTick",
+          "texts": [
+            "syncLevelTime(sourceLevel, serverLevel)",
+            "sourceLevel.isRaining()",
+            "serverLevel.setWeatherParameters"
+          ]
+        },
+        {
+          "label": "dimension visual effects sync",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "syncMirrorEffectsForPlayer",
+          "texts": [
+            "sourceLevel.dimensionType().effectsLocation()",
+            "SyncMirrorEffectsPacket"
+          ]
+        },
+        {
+          "label": "nether portal spawn block",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onPortalSpawn",
+          "texts": [
+            "ModDimensions.isAnyMirrorWorld",
+            "event.setCanceled(true)"
+          ]
+        },
+        {
+          "label": "dimension portal travel block",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onEntityTravelToDimension",
+          "texts": [
+            "ModDimensions.isAnyMirrorWorld",
+            "MirrorWorldManager.isBeingTeleportedByMod",
+            "event.setCanceled(true)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cooldowns_and_efficiency",
+      "readmeTexts": [
+        "Efficiency reduces both normal mirror use cooldown and Renewal refresh cooldown by 20% per level",
+        "Creative mode bypasses mirror use cooldowns and Renewal refresh cooldowns."
+      ],
+      "code": [
+        {
+          "label": "shared efficiency cooldown calculation",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "calculateCooldownSeconds",
+            "calculateGeneratedContentRefreshCooldownMillis",
+            "calculateEfficiencyReducedCooldownMillis",
+            "efficiencyLevel * 0.2",
+            "Math.min(0.9",
+            "Math.max(30_000L"
+          ]
+        },
+        {
+          "label": "renewal cooldown item bar duration",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/CooldownItemDecorator.java",
+          "texts": [
+            "getGeneratedContentRefreshRemainingMillis",
+            "getGeneratedContentRefreshCooldownDurationMillis",
+            "RENEWAL_BAR_COLOR"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "world_copy_and_mob_rules",
+      "readmeTexts": [
+        "Mirror copy sessions copy blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.",
+        "Natural mob spawning is disabled by default; existing mobs and generated loot can be controlled by config or commands."
+      ],
+      "code": [
+        {
+          "label": "world copy service coverage",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+          "texts": [
+            "copyChunkBiomes",
+            "copyChunkStructures",
+            "regenerateHeightmaps",
+            "copyBlockEntity",
+            "copyEntitiesInChunk",
+            "filterGeneratedLootTagForConfig"
+          ]
+        },
+        {
+          "label": "mob spawn event gate",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onMobSpawn",
+          "texts": [
+            "MirrorWorldManager.hasGeneratedContentRefresh",
+            "MirrorConfig.isMobSpawningEnabled",
+            "event.setSpawnCancelled(true)"
+          ]
+        },
+        {
+          "label": "mob and copy config",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
+          "texts": [
+            "copyChunkRadius",
+            "copyEntities",
+            "copyDecorationEntities",
+            "enableMobSpawning",
+            "copyBiomes",
+            "copyStructures",
+            "copyHeightmaps"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "first_dream_pristine_terrain",
+      "readmeTexts": [
+        "First Dream Mirror uses the source world's current seed and chunk generator to regenerate terrain, structures, biomes, carvers, surfaces, and features.",
+        "First Dream Mirror keeps the player's current game mode on entry and uses the same inventory transfer rules as the World Reflection Mirror."
+      ],
+      "code": [
+        {
+          "label": "first dream item kind",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.java",
+          "texts": [
+            "MirrorKind.FIRST_DREAM"
+          ]
+        },
+        {
+          "label": "pristine terrain generator",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PristineTerrainGenerator.java",
+          "texts": [
+            "sourceWorld.getChunkSource().getGenerator()",
+            "STRUCTURE_RADIUS",
+            "ChunkStatus.STRUCTURE_REFERENCES",
+            "ChunkStatus.BIOMES",
+            "ChunkStatus.NOISE",
+            "ChunkStatus.SURFACE",
+            "ChunkStatus.CARVERS",
+            "ChunkStatus.FEATURES"
+          ]
+        },
+        {
+          "label": "pristine copy path",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+          "texts": [
+            "pristineTerrain",
+            "PristineTerrainGenerator.openRegion",
+            "task.pristineTerrain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heaven_sandbox",
+      "readmeTexts": [
+        "When entering with Heaven Mirror, the mod saves your inventory and state, clears the sandbox inventory, switches you to Creative, and restores the saved state when you leave.",
+        "Heaven Mirror gives the player a matching mirror inside the sandbox"
+      ],
+      "code": [
+        {
+          "label": "heaven item sandbox kind",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/HeavenMirrorItem.java",
+          "texts": [
+            "super(properties, true)"
+          ]
+        },
+        {
+          "label": "sandbox entry state",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "prepareSandboxPlayer",
+          "texts": [
+            "player.getInventory().clearContent()",
+            "player.getEnderChestInventory().clearContent()",
+            "player.setGameMode(GameType.CREATIVE)",
+            "giveSandboxMirror"
+          ]
+        },
+        {
+          "label": "sandbox restore state",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "restoreSandboxState",
+          "texts": [
+            "SAVED_GAME_MODE_KEY",
+            "SAVED_HEALTH_KEY",
+            "SAVED_EFFECTS_KEY",
+            "player.setGameMode"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "persistent_mirrors",
+      "readmeTexts": [
+        "A mirror enchanted with Permanence can save a completed temporary mirror as a persistent mirror",
+        "Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions."
+      ],
+      "code": [
+        {
+          "label": "permanence enchantment restriction",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "PERMANENCE",
+            "canApplyPermanenceTo",
+            "stack.getItem() instanceof DimensionMirrorItem"
+          ]
+        },
+        {
+          "label": "persistent permission and save",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "method": "saveCurrentTemporaryMirror",
+          "texts": [
+            "canCreatePersistentMirror",
+            "session.hasPersistentAccess()",
+            "data.allocateDimensionIndex()",
+            "WorldCopyService.queuePersistentWorldCopy"
+          ]
+        },
+        {
+          "label": "separate dimension pools",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/ModDimensions.java",
+          "texts": [
+            "MIRROR_WORLD_POOL",
+            "PERSISTENT_MIRROR_WORLD_POOL",
+            "MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "persistent_menu_and_selectors",
+      "readmeTexts": [
+        "Shift-right-click opens a centered mirror menu with buttons to save, enter, leave, rename, or delete persistent mirrors; Esc or the X button closes it.",
+        "Persistent mirror selectors such as `slot_1` are suggested by commands"
+      ],
+      "code": [
+        {
+          "label": "shift right click menu",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "use",
+          "texts": [
+            "player.isShiftKeyDown()",
+            "PersistentMirrorManager.openMirrorMenu"
+          ]
+        },
+        {
+          "label": "persistent screen buttons",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/screen/PersistentMirrorMenuScreen.java",
+          "texts": [
+            "Component.literal(\"\\u00D7\")",
+            "shouldCloseOnEsc",
+            "iwm persistent save",
+            "iwm persistent enter",
+            "iwm persistent rename",
+            "iwm persistent delete"
+          ]
+        },
+        {
+          "label": "persistent selector suggestions",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "texts": [
+            "PERSISTENT_RECORD_SUGGESTIONS",
+            "suggestPersistentRecords",
+            "record.selector()"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "renewal_refresh",
+      "readmeTexts": [
+        "Renewal can only be applied to the First Dream Mirror.",
+        "an enchanted First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown."
+      ],
+      "code": [
+        {
+          "label": "renewal enchantment restriction",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "RENEWAL",
+            "canApplyRenewalTo",
+            "stack.getItem() instanceof FirstDreamMirrorItem"
+          ]
+        },
+        {
+          "label": "renewal trigger path",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "hasGeneratedContentRefresh",
+            "shouldUseGeneratedContentRefresh",
+            "markGeneratedContentRefreshUsed",
+            "message.instantworldmirror.renewal_refresh_triggered"
+          ]
+        },
+        {
+          "label": "loot refresh preservation",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+          "texts": [
+            "filterGeneratedLootTagForConfig",
+            "generatedContentRefresh",
+            "copy.remove(\"LootTable\")"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "commands_and_repair",
+      "readmeTexts": [
+        "`/iwm status` | Show temporary and persistent mirror slot status",
+        "`/iwm repair` | Automatically repair interrupted dead mirror data without clearing live state",
+        "`/iwm purge` | Delete temporary mirror world save folders and require a restart"
+      ],
+      "code": [
+        {
+          "label": "command registration",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "register",
+          "texts": [
+            "Commands.literal(\"return\")",
+            "Commands.literal(\"mob\")",
+            "Commands.literal(\"persistent\")",
+            "Commands.literal(\"status\")",
+            "Commands.literal(\"repair\")",
+            "Commands.literal(\"purge\")"
+          ]
+        },
+        {
+          "label": "status includes persistent pool",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "statusCommand",
+          "texts": [
+            "status.persistent_header",
+            "MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE",
+            "getRecordByDimensionIndex"
+          ]
+        },
+        {
+          "label": "dead data repair skips live state",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "method": "repairDeadPersistentData",
+          "texts": [
+            "liveRecordsSkipped",
+            "playerCount > 0",
+            "WorldCopyService.hasPendingPersistentCopy",
+            "data.removeRecord"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recipes",
+      "readmeTexts": [
+        "World Reflection Mirror: glass, obsidian, and an ender pearl.",
+        "Heaven Mirror: glowstone, redstone, and an ender pearl.",
+        "First Dream Mirror: glowstone, dirt, redstone, and an ender pearl."
+      ],
+      "code": [
+        {
+          "label": "world reflection recipe",
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/data/instantworldmirror/recipes/dimension_mirror.json",
+          "texts": [
+            "minecraft:glass",
+            "minecraft:obsidian",
+            "minecraft:ender_pearl",
+            "instantworldmirror:dimension_mirror"
+          ]
+        },
+        {
+          "label": "heaven recipe",
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/data/instantworldmirror/recipes/heaven_mirror.json",
+          "texts": [
+            "minecraft:glowstone",
+            "minecraft:redstone",
+            "minecraft:ender_pearl",
+            "instantworldmirror:heaven_mirror"
+          ]
+        },
+        {
+          "label": "first dream recipe",
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/data/instantworldmirror/recipes/first_dream_mirror.json",
+          "texts": [
+            "minecraft:glowstone",
+            "minecraft:dirt",
+            "minecraft:redstone",
+            "minecraft:ender_pearl",
+            "instantworldmirror:first_dream_mirror"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cleanup_and_shutdown",
+      "readmeTexts": [
+        "Cleanup tracks modified chunks and scans edge chunks for blocks that extend beyond the copy radius.",
+        "Server shutdown saves pending cleanup state and clears transient mirror session tracking."
+      ],
+      "code": [
+        {
+          "label": "cleanup queues and edge scan",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+          "texts": [
+            "modifiedChunks",
+            "processBfsIncremental",
+            "EDGE_CLEANUP_RADIUS",
+            "savePendingModifications",
+            "clearAllTasks"
+          ]
+        },
+        {
+          "label": "server stopping cleanup",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "method": "onServerStopping",
+          "texts": [
+            "WorldCopyService.clearAllTasks",
+            "MirrorWorldManager.clearAllSessions",
+            "PersistentMirrorManager.clearTransientState"
+          ]
+        }
+      ]
+    }
+  ]
+}
