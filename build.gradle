@@ -61,6 +61,13 @@ mixin {
     config "${mod_id}.mixins.json"
 }
 
+def mixinRefmapOutput = layout.buildDirectory.file("tmp/compileJava/compileJava-refmap.json")
+
+tasks.named('compileJava') {
+    outputs.file(mixinRefmapOutput)
+    outputs.cacheIf { false }
+}
+
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
@@ -307,6 +314,7 @@ if (minecraft_version == '1.21.1') {
 }
 if (minecraft_version == '1.20.1') {
     mirrorJarRequiredEntries.add('com/crabmods/instantworldmirror/registry/ModEnchantments$PermanentMirrorEnchantment.class')
+    mirrorJarRequiredEntries.add("${mod_id}.refmap.json")
 }
 def mirrorJarOutput = layout.buildDirectory.file("libs/${mod_id}-${minecraft_version}-${mod_version}.jar")
 
