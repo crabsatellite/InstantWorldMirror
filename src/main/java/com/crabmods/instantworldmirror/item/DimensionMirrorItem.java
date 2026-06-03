@@ -58,6 +58,9 @@ public class DimensionMirrorItem extends Item {
 
     private static final String COOLDOWN_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_until";
     private static final String COOLDOWN_DURATION_NBT_KEY = InstantWorldMirror.MODID + ":mirror_cooldown_duration";
+    private static final String GENERATED_CONTENT_REFRESH_COOLDOWN_KEY =
+            InstantWorldMirror.MODID + ":generated_content_refresh_cooldown_until";
+    static final long GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS = 10L * 60L * 1000L;
     private final MirrorKind kind;
     
     // Custom server-side cooldown tracking (playerUUID -> cooldown end timestamp in milliseconds)
@@ -293,7 +296,7 @@ public class DimensionMirrorItem extends Item {
             result = createReturnPortal(serverLevel, serverPlayer, pos);
         } else {
             // In any other dimension (Overworld, Nether, End, mod dimensions): Create entry portal with session
-            result = createEntryPortal(serverLevel, serverPlayer, pos, hasPermanence(level, stack));
+            result = createEntryPortal(serverLevel, serverPlayer, pos, hasPermanence(level, stack), stack);
         }
         
         // Apply cooldown on success (creative mode skips cooldown)
@@ -346,6 +349,47 @@ public class DimensionMirrorItem extends Item {
 
     public static boolean hasPermanence(Level level, ItemStack stack) {
         return isMirrorStack(stack) && ModEnchantments.hasPermanence(level, stack);
+    }
+
+    public static boolean hasGeneratedContentRefresh(Level level, ItemStack stack) {
+        return isMirrorStack(stack)
+                && getMirrorKind(stack) == MirrorKind.FIRST_DREAM
+                && ModEnchantments.hasRenewal(level, stack);
+    }
+
+    static boolean shouldUseGeneratedContentRefresh(Level level, ItemStack stack) {
+        return shouldUseGeneratedContentRefresh(level, stack, false);
+    }
+
+    static boolean shouldUseGeneratedContentRefresh(Level level, ItemStack stack, boolean bypassCooldown) {
+        return hasGeneratedContentRefresh(level, stack)
+                && !MirrorConfig.isMobSpawningEnabled()
+                && (bypassCooldown || getGeneratedContentRefreshRemainingMillis(stack) == 0);
+    }
+
+    static long getGeneratedContentRefreshRemainingMillis(ItemStack stack) {
+        long remaining = getGeneratedContentRefreshCooldownUntil(stack) - System.currentTimeMillis();
+        return Math.max(0, remaining);
+    }
+
+    static void markGeneratedContentRefreshUsed(ItemStack stack) {
+        setGeneratedContentRefreshCooldownUntil(stack,
+                System.currentTimeMillis() + GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS);
+    }
+
+    private static long getGeneratedContentRefreshCooldownUntil(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag == null) {
+            return 0;
+        }
+        return tag.getLong(GENERATED_CONTENT_REFRESH_COOLDOWN_KEY);
+    }
+
+    private static void setGeneratedContentRefreshCooldownUntil(ItemStack stack, long cooldownUntil) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        stack.getOrCreateTag().putLong(GENERATED_CONTENT_REFRESH_COOLDOWN_KEY, cooldownUntil);
     }
 
     public static MirrorKind getMirrorKind(ItemStack stack) {
@@ -407,7 +451,7 @@ public class DimensionMirrorItem extends Item {
      * Create an entry portal in the overworld
      */
     private InteractionResult createEntryPortal(ServerLevel level, ServerPlayer player, BlockPos pos,
-                                                boolean persistentAccess) {
+                                                boolean persistentAccess, ItemStack stack) {
         // Check if player already has an active session
         if (MirrorWorldManager.hasActiveSession(player.getUUID())) {
             player.displayClientMessage(
@@ -417,9 +461,13 @@ public class DimensionMirrorItem extends Item {
             return InteractionResult.FAIL;
         }
 
+        boolean bypassRefreshCooldown = player.isCreative();
+        boolean generatedContentRefresh = shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown);
+
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
-        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(player, pos, kind, persistentAccess);
+        Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(
+                player, pos, kind, persistentAccess, generatedContentRefresh);
         if (sessionOpt.isEmpty()) {
             // Message already shown in createSession
             return InteractionResult.FAIL;
@@ -451,9 +499,30 @@ public class DimensionMirrorItem extends Item {
                 Component.translatable("message.instantworldmirror.portal_created"),
                 true
         );
+        if (generatedContentRefresh && !bypassRefreshCooldown) {
+            markGeneratedContentRefreshUsed(stack);
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.renewal_refresh_triggered"),
+                    true
+            );
+        } else if (generatedContentRefresh) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.renewal_refresh_triggered"),
+                    true
+            );
+        } else if (!bypassRefreshCooldown && hasGeneratedContentRefresh(level, stack) && !MirrorConfig.isMobSpawningEnabled()) {
+            long remainingMillis = getGeneratedContentRefreshRemainingMillis(stack);
+            if (remainingMillis > 0) {
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.renewal_refresh_cooldown",
+                                (int) Math.ceil(remainingMillis / 1000.0)),
+                        true
+                );
+            }
+        }
 
-        InstantWorldMirror.LOGGER.info("Player {} created entry portal with session {}",
-                player.getName().getString(), session.getSessionId());
+        InstantWorldMirror.LOGGER.info("Player {} created entry portal with session {} (generated content refresh: {})",
+                player.getName().getString(), session.getSessionId(), generatedContentRefresh);
 
         return InteractionResult.SUCCESS;
     }
@@ -521,7 +590,9 @@ public class DimensionMirrorItem extends Item {
     
     @Override
     public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        return enchantment == Enchantments.BLOCK_EFFICIENCY || ModEnchantments.isPermanence(enchantment);
+        return enchantment == Enchantments.BLOCK_EFFICIENCY
+                || ModEnchantments.isPermanence(enchantment)
+                || (kind == MirrorKind.FIRST_DREAM && ModEnchantments.isRenewal(enchantment));
     }
 
     @Override

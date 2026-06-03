@@ -203,6 +203,11 @@ public class MirrorWorldManager {
 
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
                                                         boolean persistentAccess) {
+        return createSession(player, sourcePos, kind, persistentAccess, false);
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
+                                                        boolean persistentAccess, boolean generatedContentRefresh) {
         // Check if purge mode is active
         if (purgeMode) {
             InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
@@ -240,7 +245,8 @@ public class MirrorWorldManager {
                     player.level().dimension(),
                     sourceInWater,
                     kind,
-                    persistentAccess
+                    persistentAccess,
+                    generatedContentRefresh
             );
 
             // Allocate a dimension from the pool using actual session ID and source dimension
@@ -275,6 +281,27 @@ public class MirrorWorldManager {
             return Optional.of(session);
         } finally {
             sessionLock.writeLock().unlock();
+        }
+    }
+
+    public static boolean hasGeneratedContentRefresh(MinecraftServer server, ResourceKey<Level> dimension) {
+        int dimensionIndex = ModDimensions.MIRROR_WORLD_POOL.indexOf(dimension);
+        if (server == null || dimensionIndex < 0) {
+            return false;
+        }
+
+        sessionLock.readLock().lock();
+        try {
+            for (MirrorSession session : activeSessions.values()) {
+                if (!session.isDestroyed()
+                        && session.getDimensionIndex() == dimensionIndex
+                        && session.hasGeneratedContentRefresh()) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            sessionLock.readLock().unlock();
         }
     }
 

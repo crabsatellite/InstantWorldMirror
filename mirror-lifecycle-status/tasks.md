@@ -10,6 +10,7 @@
 - [x] `command.purge_temporary_pool_only` - composite passed
 - [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
+- [x] `copy.generated_content_refresh_task_flag` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
 - [x] `copy.persistent_cancel_task` - method contains ordered text
 - [x] `copy.persistent_completion_order` - method contains ordered text
@@ -29,8 +30,11 @@
 - [x] `dimensions.separate_pool` - found text
 - [x] `enchantment.helper_present` - found text
 - [x] `enchantment.mirror_item_support` - composite passed
+- [x] `enchantment.renewal_first_dream_only` - all text found
+- [x] `enchantment.renewal_hard_to_get_registration` - composite passed
 - [x] `enchantment.version_registration` - composite passed
 - [x] `events.dimension_change_exit_order` - method contains ordered text
+- [x] `events.generated_content_refresh_allows_mob_spawn` - all text found
 - [x] `events.login_clears_persistent_tracking` - method contains ordered text
 - [x] `events.login_saved_origin_restore_order` - method contains ordered text
 - [x] `events.logout_cleanup_order` - method contains ordered text
@@ -45,6 +49,8 @@
 - [x] `item.entry.passes_permanence_state` - found text
 - [x] `item.finish_use_packet_scope` - method contains ordered text
 - [x] `item.kind_from_stack` - found text
+- [x] `item.renewal_creative_bypasses_cooldown` - method contains ordered text
+- [x] `item.renewal_item_cooldown` - all text found
 - [x] `item.shift_menu_uses_stack` - found text
 - [x] `kind.first_dream_not_sandbox` - method contains ordered text
 - [x] `kind.first_dream_present` - all text found
@@ -84,6 +90,7 @@
 - [x] `runtime.runclient_smoke_script` - all text found
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.prep_receives_persistent_access` - found text
+- [x] `session.generated_content_refresh_field` - all text found
 - [x] `session.kind_field` - all text found
 - [x] `session.persistent_access_field` - found text
 - [x] `startup.recover_unready_records` - found text
