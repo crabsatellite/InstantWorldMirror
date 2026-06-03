@@ -223,6 +223,9 @@ tasks.register('checkLanguageResourceEncoding') {
 def mirrorLifecycleManifest = layout.projectDirectory.file('mirror-lifecycle/mirror-lifecycle-map.json')
 def mirrorLifecycleGenerator = layout.projectDirectory.file('scripts/generate_mirror_lifecycle_status.py')
 def mirrorLifecycleGeneratorTest = layout.projectDirectory.file('scripts/test_generate_mirror_lifecycle_status.py')
+def readmeCodeMapManifest = layout.projectDirectory.file('docs/readme-code-map.json')
+def readmeCodeMapChecker = layout.projectDirectory.file('scripts/check_readme_code_map.py')
+def readmeCodeMapCheckerTest = layout.projectDirectory.file('scripts/test_check_readme_code_map.py')
 def mirrorLifecycleStatusFiles = [
         layout.projectDirectory.file('mirror-lifecycle-status/raw.json'),
         layout.projectDirectory.file('mirror-lifecycle-status/report-index.md'),
@@ -262,6 +265,25 @@ tasks.register('testMirrorLifecycleStatusGenerator', Exec) {
     commandLine 'python', '-m', 'unittest', 'scripts.test_generate_mirror_lifecycle_status'
     inputs.file(mirrorLifecycleGenerator)
     inputs.file(mirrorLifecycleGeneratorTest)
+}
+
+tasks.register('checkReadmeCodeMap', Exec) {
+    group = 'verification'
+    description = 'Verify README feature descriptions still map to live code anchors.'
+    commandLine 'python', 'scripts/check_readme_code_map.py'
+    inputs.file(layout.projectDirectory.file('README.md'))
+    inputs.file(readmeCodeMapManifest)
+    inputs.file(readmeCodeMapChecker)
+    inputs.dir(layout.projectDirectory.dir('src/main/java'))
+    inputs.dir(layout.projectDirectory.dir('src/main/resources'))
+}
+
+tasks.register('testReadmeCodeMapChecker', Exec) {
+    group = 'verification'
+    description = 'Run unit tests for the README code map checker.'
+    commandLine 'python', '-m', 'unittest', 'scripts.test_check_readme_code_map'
+    inputs.file(readmeCodeMapChecker)
+    inputs.file(readmeCodeMapCheckerTest)
 }
 
 def persistentMirrorDimensionDir = layout.projectDirectory.dir('src/main/resources/data/instantworldmirror/dimension')
@@ -373,6 +395,8 @@ tasks.register('verifyMirrorJarContents') {
 tasks.named('check') {
     dependsOn tasks.named('testMirrorLifecycleStatusGenerator')
     dependsOn tasks.named('checkMirrorLifecycleCoverage')
+    dependsOn tasks.named('testReadmeCodeMapChecker')
+    dependsOn tasks.named('checkReadmeCodeMap')
     dependsOn tasks.named('persistentMirrorStaticTest')
     dependsOn tasks.named('checkLanguageResourceEncoding')
 }
