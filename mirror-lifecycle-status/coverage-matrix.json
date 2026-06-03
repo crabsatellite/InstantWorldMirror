@@ -39,7 +39,9 @@
         "item.kind_from_stack",
         "kind.first_dream_present",
         "kind.first_dream_not_sandbox",
-        "kind.first_dream_pristine"
+        "kind.first_dream_pristine",
+        "enchantment.renewal_first_dream_only",
+        "enchantment.renewal_hard_to_get_registration"
       ],
       "route": "temporary.first_dream_mirror",
       "stage": "kind",
@@ -51,7 +53,10 @@
         "copy.pristine_task_flag",
         "copy.pristine_generator_features",
         "copy.pristine_generator_pipeline",
-        "copy.pristine_loot_uses_mob_spawn_config"
+        "copy.pristine_loot_uses_mob_spawn_config",
+        "session.generated_content_refresh_field",
+        "copy.generated_content_refresh_task_flag",
+        "events.generated_content_refresh_allows_mob_spawn"
       ],
       "route": "temporary.first_dream_mirror",
       "stage": "copy",
@@ -113,7 +118,9 @@
     {
       "checks": [
         "item.cooldown_efficiency_only",
-        "item.cooldown_ignores_permanence"
+        "item.cooldown_ignores_permanence",
+        "item.renewal_item_cooldown",
+        "item.renewal_creative_bypasses_cooldown"
       ],
       "route": "active_use_lifecycle",
       "stage": "cooldown",

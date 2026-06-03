@@ -55,6 +55,9 @@ public class MirrorSession {
 
     // Whether this session was opened with a mirror carrying the permanence enchantment.
     private final boolean persistentAccess;
+
+    // Whether this first-dream session may keep generated mobs and generated loot.
+    private final boolean generatedContentRefresh;
     
     // Creation timestamp for debugging
     private final long createdAt;
@@ -76,6 +79,12 @@ public class MirrorSession {
 
     public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
                          boolean sourceInWater, MirrorKind kind, boolean persistentAccess) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater, kind, persistentAccess, false);
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, MirrorKind kind, boolean persistentAccess,
+                         boolean generatedContentRefresh) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
@@ -83,6 +92,7 @@ public class MirrorSession {
         this.sourceInWater = sourceInWater;
         this.kind = kind;
         this.persistentAccess = persistentAccess;
+        this.generatedContentRefresh = generatedContentRefresh && kind == MirrorKind.FIRST_DREAM;
         this.createdAt = System.currentTimeMillis();
     }
     
@@ -151,6 +161,10 @@ public class MirrorSession {
 
     public boolean hasPersistentAccess() {
         return persistentAccess;
+    }
+
+    public boolean hasGeneratedContentRefresh() {
+        return generatedContentRefresh;
     }
     
     /**

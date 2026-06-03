@@ -123,5 +123,8 @@
   "command.instantworldmirror.persistent.selector_not_found": "找不到永久镜像：%s",
   "command.instantworldmirror.persistent.grant.success": "已授权 %s 创建永久镜像",
   "command.instantworldmirror.persistent.revoke.success": "已撤销 %s 的永久镜像创建权限",
-  "enchantment.instantworldmirror.permanence": "永久"
+  "enchantment.instantworldmirror.permanence": "永久",
+  "enchantment.instantworldmirror.renewal": "复苏",
+  "message.instantworldmirror.renewal_refresh_triggered": "§a复苏已刷新本次梦境中的生物和箱子。",
+  "message.instantworldmirror.renewal_refresh_cooldown": "§e复苏冷却中：还剩 %d 秒"
 }

@@ -286,7 +286,9 @@ public class ModEvents {
         
         if (ModDimensions.isAnyMirrorWorld(level.dimension())) {
             // Check if mob spawning is enabled (uses runtime override or config)
-            if (!MirrorConfig.isMobSpawningEnabled()) {
+            boolean generatedContentRefresh = level instanceof ServerLevel serverLevel
+                    && MirrorWorldManager.hasGeneratedContentRefresh(serverLevel.getServer(), serverLevel.dimension());
+            if (!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()) {
                 MobSpawnType spawnType = event.getSpawnType();
                 
                 // Allow player-triggered spawns:

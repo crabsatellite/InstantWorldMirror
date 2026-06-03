@@ -14,6 +14,10 @@ public final class ModEnchantments {
             Registries.ENCHANTMENT,
             ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "permanence")
     );
+    public static final ResourceKey<Enchantment> RENEWAL = ResourceKey.create(
+            Registries.ENCHANTMENT,
+            ResourceLocation.fromNamespaceAndPath(InstantWorldMirror.MODID, "renewal")
+    );
 
     private ModEnchantments() {
     }
@@ -38,5 +42,27 @@ public final class ModEnchantments {
 
     public static boolean isPermanence(Holder<Enchantment> enchantment) {
         return enchantment.is(PERMANENCE);
+    }
+
+    public static boolean hasRenewal(Level level, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        var enchantmentRegistry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+        return stack.getEnchantmentLevel(enchantmentRegistry.getOrThrow(RENEWAL)) > 0;
+    }
+
+    public static void applyRenewal(Level level, ItemStack stack) {
+        if (stack.isEmpty() || hasRenewal(level, stack)) {
+            return;
+        }
+
+        var enchantmentRegistry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+        stack.enchant(enchantmentRegistry.getOrThrow(RENEWAL), 1);
+    }
+
+    public static boolean isRenewal(Holder<Enchantment> enchantment) {
+        return enchantment.is(RENEWAL);
     }
 }

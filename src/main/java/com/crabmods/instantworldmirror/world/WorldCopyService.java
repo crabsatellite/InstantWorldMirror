@@ -169,6 +169,7 @@ public class WorldCopyService {
         public final ResourceKey<Level> sourceDimension;
         public final int targetDimensionIndex;
         public final boolean pristineTerrain;
+        public final boolean generatedContentRefresh;
         
         private int currentChunkX;
         private int currentChunkZ;
@@ -185,12 +186,19 @@ public class WorldCopyService {
 
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius, 
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain) {
+            this(sessionId, centerPos, chunkRadius, sourceDimension, targetDimensionIndex, pristineTerrain, false);
+        }
+
+        public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
+                        ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain,
+                        boolean generatedContentRefresh) {
             this.sessionId = sessionId;
             this.centerPos = centerPos;
             this.chunkRadius = chunkRadius;
             this.sourceDimension = sourceDimension;
             this.targetDimensionIndex = targetDimensionIndex;
             this.pristineTerrain = pristineTerrain;
+            this.generatedContentRefresh = generatedContentRefresh;
             
             int centerChunkX = centerPos.getX() >> 4;
             int centerChunkZ = centerPos.getZ() >> 4;
@@ -997,6 +1005,11 @@ public class WorldCopyService {
             ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
             if (mirrorWorld != null) {
                 syncGameRules(sourceWorld, mirrorWorld);
+                if (session.hasGeneratedContentRefresh()) {
+                    mirrorWorld.getGameRules()
+                            .getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING)
+                            .set(true, server);
+                }
             }
         }
         
@@ -1006,7 +1019,8 @@ public class WorldCopyService {
                 chunkRadius,
                 sourceWorld.dimension(),
                 dimIndex,
-                session.usesPristineTerrain()
+                session.usesPristineTerrain(),
+                session.hasGeneratedContentRefresh()
         );
         
         copyTasks.put(dimIndex, task);
@@ -1510,7 +1524,9 @@ public class WorldCopyService {
                             blocksCopied++;
 
                             if (state.hasBlockEntity()) {
-                                copyGeneratedBlockEntity(generatedChunk, targetChunk, new BlockPos(worldX, y, worldZ));
+                                copyGeneratedBlockEntity(
+                                        generatedChunk, targetChunk, new BlockPos(worldX, y, worldZ),
+                                        task.generatedContentRefresh);
                             }
                         }
                     }
@@ -1557,16 +1573,21 @@ public class WorldCopyService {
         }
     }
 
-    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, LevelChunk targetChunk, BlockPos pos) {
+    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, LevelChunk targetChunk, BlockPos pos,
+                                                 boolean generatedContentRefresh) {
         CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
         if (tag != null) {
-            targetChunk.setBlockEntityNbt(filterGeneratedLootTagForConfig(tag));
+            targetChunk.setBlockEntityNbt(filterGeneratedLootTagForConfig(tag, generatedContentRefresh));
         }
     }
 
     static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag) {
+        return filterGeneratedLootTagForConfig(tag, false);
+    }
+
+    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean generatedContentRefresh) {
         CompoundTag copy = tag.copy();
-        if (!MirrorConfig.isMobSpawningEnabled()) {
+        if (!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()) {
             copy.remove("LootTable");
             copy.remove("LootTableSeed");
         }

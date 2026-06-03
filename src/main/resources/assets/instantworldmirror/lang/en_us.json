@@ -124,5 +124,8 @@
   "command.instantworldmirror.persistent.selector_not_found": "Persistent mirror not found: %s",
   "command.instantworldmirror.persistent.grant.success": "Granted persistent mirror creation for %s",
   "command.instantworldmirror.persistent.revoke.success": "Revoked persistent mirror creation for %s",
-  "enchantment.instantworldmirror.permanence": "Permanence"
+  "enchantment.instantworldmirror.permanence": "Permanence",
+  "enchantment.instantworldmirror.renewal": "Renewal",
+  "message.instantworldmirror.renewal_refresh_triggered": "§aRenewal refreshed generated mobs and loot for this dream.",
+  "message.instantworldmirror.renewal_refresh_cooldown": "§eRenewal is cooling down: %d seconds remaining"
 }

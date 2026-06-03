@@ -70,6 +70,12 @@
       "message": "method contains all text",
       "passed": true
     },
+    "copy.generated_content_refresh_task_flag": {
+      "adapter": "file_contains_all",
+      "id": "copy.generated_content_refresh_task_flag",
+      "message": "all text found",
+      "passed": true
+    },
     "copy.no_portal_entity_copy": {
       "adapter": "file_contains",
       "id": "copy.no_portal_entity_copy",
@@ -226,6 +232,29 @@
       "message": "composite passed",
       "passed": true
     },
+    "enchantment.renewal_first_dream_only": {
+      "adapter": "file_contains_all",
+      "id": "enchantment.renewal_first_dream_only",
+      "message": "all text found",
+      "passed": true
+    },
+    "enchantment.renewal_hard_to_get_registration": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "skipped for 1.21.1",
+          "passed": true,
+          "skipped": true
+        }
+      ],
+      "id": "enchantment.renewal_hard_to_get_registration",
+      "message": "composite passed",
+      "passed": true
+    },
     "enchantment.version_registration": {
       "adapter": "any",
       "children": [
@@ -247,6 +276,12 @@
       "adapter": "method_contains_in_order",
       "id": "events.dimension_change_exit_order",
       "message": "method contains ordered text",
+      "passed": true
+    },
+    "events.generated_content_refresh_allows_mob_spawn": {
+      "adapter": "file_contains_all",
+      "id": "events.generated_content_refresh_allows_mob_spawn",
+      "message": "all text found",
       "passed": true
     },
     "events.login_clears_persistent_tracking": {
@@ -342,6 +377,18 @@
       "adapter": "file_contains",
       "id": "item.kind_from_stack",
       "message": "found text",
+      "passed": true
+    },
+    "item.renewal_creative_bypasses_cooldown": {
+      "adapter": "method_contains_in_order",
+      "id": "item.renewal_creative_bypasses_cooldown",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "item.renewal_item_cooldown": {
+      "adapter": "file_contains_all",
+      "id": "item.renewal_item_cooldown",
+      "message": "all text found",
       "passed": true
     },
     "item.shift_menu_uses_stack": {
@@ -632,6 +679,12 @@
       "message": "found text",
       "passed": true
     },
+    "session.generated_content_refresh_field": {
+      "adapter": "file_contains_all",
+      "id": "session.generated_content_refresh_field",
+      "message": "all text found",
+      "passed": true
+    },
     "session.kind_field": {
       "adapter": "file_contains_all",
       "id": "session.kind_field",
@@ -664,11 +717,11 @@
     }
   },
   "completion": {
-    "checkCount": 89,
+    "checkCount": 96,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 89,
+    "passedCheckCount": 96,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",
@@ -730,7 +783,9 @@
             "item.kind_from_stack",
             "kind.first_dream_present",
             "kind.first_dream_not_sandbox",
-            "kind.first_dream_pristine"
+            "kind.first_dream_pristine",
+            "enchantment.renewal_first_dream_only",
+            "enchantment.renewal_hard_to_get_registration"
           ],
           "id": "kind",
           "status": "covered",
@@ -742,7 +797,10 @@
             "copy.pristine_task_flag",
             "copy.pristine_generator_features",
             "copy.pristine_generator_pipeline",
-            "copy.pristine_loot_uses_mob_spawn_config"
+            "copy.pristine_loot_uses_mob_spawn_config",
+            "session.generated_content_refresh_field",
+            "copy.generated_content_refresh_task_flag",
+            "events.generated_content_refresh_allows_mob_spawn"
           ],
           "id": "copy",
           "status": "covered",
@@ -825,7 +883,9 @@
         {
           "checks": [
             "item.cooldown_efficiency_only",
-            "item.cooldown_ignores_permanence"
+            "item.cooldown_ignores_permanence",
+            "item.renewal_item_cooldown",
+            "item.renewal_creative_bypasses_cooldown"
           ],
           "id": "cooldown",
           "status": "covered",

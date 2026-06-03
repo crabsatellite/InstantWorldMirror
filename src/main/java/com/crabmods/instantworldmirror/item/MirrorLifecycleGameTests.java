@@ -46,6 +46,7 @@ public final class MirrorLifecycleGameTests {
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
         var enchantments = helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         var permanence = enchantments.getOrThrow(ModEnchantments.PERMANENCE);
+        var renewal = enchantments.getOrThrow(ModEnchantments.RENEWAL);
         var efficiency = enchantments.getOrThrow(Enchantments.EFFICIENCY);
 
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(dimensionMirror) == MirrorKind.DIMENSION,
@@ -71,16 +72,57 @@ public final class MirrorLifecycleGameTests {
                 "First dream portals must not render as heaven portals");
 
         DimensionMirrorItem dimensionMirrorItem = (DimensionMirrorItem) dimensionMirror.getItem();
+        DimensionMirrorItem firstDreamMirrorItem = (DimensionMirrorItem) firstDreamMirror.getItem();
         helper.assertTrue(dimensionMirrorItem.supportsEnchantment(dimensionMirror, permanence),
                 "Permanence enchantment must be valid for mirror items");
         helper.assertTrue(dimensionMirrorItem.supportsEnchantment(dimensionMirror, efficiency),
                 "Efficiency must remain valid for mirror cooldown reduction");
+        helper.assertFalse(dimensionMirrorItem.supportsEnchantment(dimensionMirror, renewal),
+                "Renewal must not be valid for the default mirror");
+        helper.assertTrue(firstDreamMirrorItem.supportsEnchantment(firstDreamMirror, renewal),
+                "Renewal must be valid for first dream mirrors");
 
         ModEnchantments.applyPermanence(helper.getLevel(), heavenMirror);
         helper.assertTrue(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Permanence helper must mark the stack as permanent");
         helper.assertTrue(heavenMirror.getEnchantmentLevel(permanence) == 1,
                 "Permanence must be applied exactly once");
+
+        ModEnchantments.applyRenewal(helper.getLevel(), firstDreamMirror);
+        helper.assertTrue(DimensionMirrorItem.hasGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
+                "Renewal helper must mark first dream mirrors as generated content refresh capable");
+        helper.assertTrue(firstDreamMirror.getEnchantmentLevel(renewal) == 1,
+                "Renewal must be applied exactly once");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void renewalRefreshUsesItemCooldownAndCreativeBypass(GameTestHelper helper) {
+        ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+        ModEnchantments.applyRenewal(helper.getLevel(), firstDreamMirror);
+
+        try {
+            MirrorConfig.setRuntimeMobSpawning(false);
+            helper.assertTrue(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
+                    "Renewal must be ready when the item cooldown is clear and generated content is disabled");
+
+            DimensionMirrorItem.markGeneratedContentRefreshUsed(firstDreamMirror);
+            helper.assertFalse(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror),
+                    "Renewal must respect the 10 minute item cooldown for non-creative use");
+            long remainingMillis = DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(firstDreamMirror);
+            helper.assertTrue(remainingMillis > 0
+                            && remainingMillis <= DimensionMirrorItem.GENERATED_CONTENT_REFRESH_COOLDOWN_MILLIS,
+                    "Renewal cooldown must be stored on the mirror item stack");
+            helper.assertTrue(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror, true),
+                    "Creative use must bypass the Renewal item cooldown");
+
+            MirrorConfig.setRuntimeMobSpawning(true);
+            helper.assertFalse(DimensionMirrorItem.shouldUseGeneratedContentRefresh(helper.getLevel(), firstDreamMirror, true),
+                    "Renewal must not consume or override anything when the unified generation config is already enabled");
+        } finally {
+            MirrorConfig.setRuntimeMobSpawning(null);
+        }
 
         helper.succeed();
     }

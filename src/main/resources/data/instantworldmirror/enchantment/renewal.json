@@ -1,0 +1,21 @@
+{
+  "description": {
+    "translate": "enchantment.instantworldmirror.renewal"
+  },
+  "supported_items": "#instantworldmirror:first_dream_refresh_enchantable",
+  "primary_items": "#instantworldmirror:first_dream_refresh_enchantable",
+  "weight": 1,
+  "max_level": 1,
+  "min_cost": {
+    "base": 45,
+    "per_level_above_first": 0
+  },
+  "max_cost": {
+    "base": 75,
+    "per_level_above_first": 0
+  },
+  "anvil_cost": 12,
+  "slots": [
+    "mainhand"
+  ]
+}

@@ -272,7 +272,8 @@ tasks.register('persistentMirrorStaticTest') {
         def mirrorItem = persistentMirrorSourceFiles[3].asFile.text
         assert mirrorItem.contains('player.isShiftKeyDown()')
         assert mirrorItem.contains('MirrorKind.fromSandboxMode(sandboxMode)')
-        assert mirrorItem.contains('MirrorWorldManager.createSession(player, pos, kind, persistentAccess)')
+        assert mirrorItem.contains('shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown)')
+        assert mirrorItem.contains('player, pos, kind, persistentAccess, generatedContentRefresh)')
 
         def events = persistentMirrorSourceFiles[4].asFile.text
         assert events.contains('PersistentMirrorManager.handleExternalExit')
