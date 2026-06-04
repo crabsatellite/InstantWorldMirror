@@ -40,7 +40,10 @@
       "readmeTexts": [
         "Right-click a solid block with any mirror to create an entry portal.",
         "Inside a normal mirror world, hold right-click with the World Reflection Mirror or First Dream Mirror to return to the entrance.",
-        "Heaven Mirror worlds can only leave through the original entrance."
+        "Heaven Mirror worlds can only leave through the original entrance.",
+        "A player can only have one active mirror session at a time.",
+        "Other players can enter the same entry portal after the portal creator enters first",
+        "If a player disconnects or rejoins while mirror state is saved"
       ],
       "code": [
         {
@@ -64,6 +67,45 @@
             "PersistentMirrorManager.openMirrorMenu",
             "ModDimensions.isAnyMirrorWorld",
             "player.startUsingItem"
+          ]
+        },
+        {
+          "label": "single active session",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "createEntryPortal",
+          "texts": [
+            "MirrorWorldManager.hasActiveSession(player.getUUID())",
+            "message.instantworldmirror.already_has_session"
+          ]
+        },
+        {
+          "label": "shared portal host ordering",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/entity/MirrorPortalEntity.java",
+          "texts": [
+            "message.instantworldmirror.wait_for_host",
+            "MirrorWorldManager.hasActiveSession(serverPlayer.getUUID())"
+          ]
+        },
+        {
+          "label": "host leaves returns guests",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "texts": [
+            "session.isHost(player.getUUID())",
+            "kickAllPlayersFromSession(session, server, player.getUUID())",
+            "message.instantworldmirror.host_left"
+          ]
+        },
+        {
+          "label": "disconnect and login restore",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
+          "texts": [
+            "MirrorWorldManager.handlePlayerDisconnect(player, player.getServer())",
+            "MirrorWorldManager.hasSavedMirrorState(player)",
+            "MirrorWorldManager.restorePlayerInventoryOnLogin(player)"
           ]
         }
       ]
@@ -146,7 +188,11 @@
       "id": "cooldowns_and_efficiency",
       "readmeTexts": [
         "Efficiency reduces both normal mirror use cooldown and Renewal refresh cooldown by 20% per level",
-        "Creative mode bypasses mirror use cooldowns and Renewal refresh cooldowns."
+        "Creative mode bypasses mirror use cooldowns and Renewal refresh cooldowns.",
+        "Normal mirror use cooldown is tracked per player; Renewal cooldown is stored on the First Dream Mirror item itself.",
+        "The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror-use cooldown.",
+        "In Creative mode, the World Mirrors tab includes all three mirrors and enchanted books for Permanence and Renewal.",
+        "In survival, Permanence is a regular mirror enchantment; Renewal is treasure-only."
       ],
       "code": [
         {
@@ -170,6 +216,62 @@
             "getGeneratedContentRefreshRemainingMillis",
             "getGeneratedContentRefreshCooldownDurationMillis",
             "RENEWAL_BAR_COLOR"
+          ]
+        },
+        {
+          "label": "per-player and item cooldown storage",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "private static final Map<UUID, Long> COOLDOWNS",
+            "COOLDOWNS.put(playerId",
+            "GENERATED_CONTENT_REFRESH_COOLDOWN_KEY",
+            "appendHoverText",
+            "message.instantworldmirror.renewal_refresh_cooldown"
+          ]
+        },
+        {
+          "label": "normal cooldown hud config",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/ClientConfig.java",
+          "texts": [
+            "define(\"showCooldownHud\", false)",
+            "shouldShowCooldownHud"
+          ]
+        },
+        {
+          "label": "cooldown item bar split",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/CooldownItemDecorator.java",
+          "texts": [
+            "ClientCooldownTracker.hasCooldown()",
+            "DimensionMirrorItem.getGeneratedContentRefreshRemainingMillis(stack)",
+            "RENEWAL_BAR_COLOR"
+          ]
+        },
+        {
+          "label": "creative tab mirrors and enchanted books",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModCreativeTabs.java",
+          "texts": [
+            "output.accept(ModItems.DIMENSION_MIRROR.get())",
+            "output.accept(ModItems.HEAVEN_MIRROR.get())",
+            "output.accept(ModItems.FIRST_DREAM_MIRROR.get())",
+            "EnchantedBookItem.createForEnchantment",
+            "ModEnchantments.PERMANENCE",
+            "ModEnchantments.RENEWAL"
+          ]
+        },
+        {
+          "label": "1.20 enchantment acquisition rules",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "PermanentMirrorEnchantment",
+            "Rarity.RARE",
+            "RenewalMirrorEnchantment",
+            "Rarity.VERY_RARE",
+            "isTreasureOnly()"
           ]
         }
       ]
@@ -305,7 +407,13 @@
       "id": "persistent_mirrors",
       "readmeTexts": [
         "A mirror enchanted with Permanence can save a completed temporary mirror as a persistent mirror",
-        "Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions."
+        "Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions.",
+        "The persistent pool has eight server-wide slots.",
+        "The temporary session must have been created with a Permanence-enchanted mirror",
+        "persistent re-entry requires a Permanence-enchanted mirror of the same mirror type.",
+        "Entering a saved persistent mirror also requires holding a Permanence-enchanted mirror of the same mirror type.",
+        "Interrupted persistent saves are repaired on startup or by `/iwm repair`",
+        "`/iwm purge` only deletes temporary mirror world folders and never deletes persistent mirror records."
       ],
       "code": [
         {
@@ -327,7 +435,29 @@
             "canCreatePersistentMirror",
             "session.hasPersistentAccess()",
             "data.allocateDimensionIndex()",
+            "message.instantworldmirror.persistent.no_slots",
             "WorldCopyService.queuePersistentWorldCopy"
+          ]
+        },
+        {
+          "label": "temporary menu type and permanence checks",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "method": "sendTemporaryMirrorMenu",
+          "texts": [
+            "heldKind != sessionKind",
+            "message.instantworldmirror.permanent_type_mismatch",
+            "heldHasPermanence"
+          ]
+        },
+        {
+          "label": "persistent entry requires matching permanence mirror",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "method": "hasMatchingPermanenceMirror",
+          "texts": [
+            "DimensionMirrorItem.hasPermanence",
+            "DimensionMirrorItem.getMirrorKind(stack) == kind"
           ]
         },
         {
@@ -338,6 +468,35 @@
             "MIRROR_WORLD_POOL",
             "PERSISTENT_MIRROR_WORLD_POOL",
             "MAX_PERSISTENT_MIRROR_WORLD_POOL_SIZE"
+          ]
+        },
+        {
+          "label": "startup persistent repair",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/InstantWorldMirror.java",
+          "texts": [
+            "PersistentMirrorManager.recoverUnreadyPersistentMirrors(event.getServer())"
+          ]
+        },
+        {
+          "label": "unready persistent cleanup",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "method": "recoverUnreadyPersistentMirrors",
+          "texts": [
+            "data.removeUnreadyRecords()",
+            "WorldCopyService.cleanupPersistentMirrorWorld"
+          ]
+        },
+        {
+          "label": "purge only touches temporary worlds",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "purgeCommand",
+          "texts": [
+            "temporary mirror world directories only",
+            "dimensionsPath.resolve(\"mirror_world_\" + i)",
+            "deleteDirectoryRecursively(mirrorWorldPath)"
           ]
         }
       ]
@@ -388,6 +547,7 @@
       "id": "renewal_refresh",
       "readmeTexts": [
         "Renewal can only be applied to the First Dream Mirror.",
+        "When natural mob spawning is disabled by config or `/iwm mob off`",
         "an enchanted First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown."
       ],
       "code": [
@@ -410,6 +570,17 @@
             "shouldUseGeneratedContentRefresh",
             "markGeneratedContentRefreshUsed",
             "message.instantworldmirror.renewal_refresh_triggered"
+          ]
+        },
+        {
+          "label": "renewal requires mob spawning disabled",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "shouldUseGeneratedContentRefresh(Level level, ItemStack stack, boolean bypassCooldown)",
+            "hasGeneratedContentRefresh(level, stack)",
+            "!MirrorConfig.isMobSpawningEnabled()",
+            "getGeneratedContentRefreshRemainingMillis(stack) == 0"
           ]
         },
         {
