@@ -6,58 +6,61 @@
 
 **English** | **[中文](https://github.com/crabsatellite/InstantWorldMirror/blob/1.20.1/docs/readme/chn/README.md)**
 
-## Instant Sandbox - Explore Without Consequences
+## What This Mod Does
 
 InstantWorldMirror creates temporary or persistent mirror worlds from the place you are standing. You can explore, test builds, try combat, or inspect generated terrain without changing the source world.
 
-## Features
+The mod is built around three mirror items. Each mirror enters a separate world, but the copied area, game mode rules, persistence options, and generated-content behavior differ.
 
-### Mirror Items
+## Choose a Mirror
 
 - **World Reflection Mirror** creates the default temporary mirror copy of the current area.
 - **Heaven Mirror** creates a temporary mirror where you enter in Creative mode for testing.
 - **First Dream Mirror** creates original terrain again from the current world seed, ignoring player-made changes in the source world.
 
-### Portal Flow
+Use the World Reflection Mirror for normal testing, Heaven Mirror for Creative-mode sandboxing, and First Dream Mirror when you want to see the area's original generated terrain again.
+
+## Session Flow
 
 - Right-click a solid block with any mirror to create an entry portal.
+- Enter the portal after the copy or generation work finishes.
 - Inside a normal mirror world, hold right-click with the World Reflection Mirror or First Dream Mirror to return to the entrance.
 - Heaven Mirror worlds can only leave through the original entrance.
 - Death in a mirror world returns the player to the source world and restores saved state.
+- Temporary mirror worlds clean themselves up after players leave.
 
-### Cooldowns and Enchantments
+## World Rules
+
+Mirror copy sessions copy blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.
+
+First Dream Mirror uses the source world's current seed and chunk generator to regenerate terrain, structures, biomes, carvers, surfaces, and features. First Dream Mirror keeps the player's current game mode on entry and uses the same inventory transfer rules as the World Reflection Mirror.
+
+Natural mob spawning is disabled by default; existing mobs and generated loot can be controlled by config or commands. Weather, time, and dimension visual effects are synchronized from the source dimension. Nether and End portals are blocked inside mirror worlds.
+
+By default, items gained in mirror worlds are not kept when returning. Existing modded accessory or capability inventories are not intentionally cleared by this mod; only vanilla inventory and ender chest are saved and restored.
+
+## Heaven Sandbox
+
+When entering with Heaven Mirror, the mod saves your inventory and state, clears the sandbox inventory, switches you to Creative, and restores the saved state when you leave.
+
+Heaven Mirror gives the player a matching mirror inside the sandbox so the menu and return flow remain usable.
+
+## Enchantments and Cooldowns
 
 - Survival use has a configurable cooldown; Efficiency reduces both normal mirror use cooldown and Renewal refresh cooldown by 20% per level, down to a 30 second minimum.
 - Creative mode bypasses mirror use cooldowns and Renewal refresh cooldowns.
 - A mirror enchanted with Permanence can save a completed temporary mirror as a persistent mirror, if the player is an operator or has been granted permission.
 - Renewal can only be applied to the First Dream Mirror. When mob spawning and loot generation are disabled, an enchanted First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown.
 
-### Mirror World Mechanics
+## Persistent Mirrors
 
-- Mirror copy sessions copy blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.
-- Natural mob spawning is disabled by default; existing mobs and generated loot can be controlled by config or commands.
-- Weather, time, and dimension visual effects are synchronized from the source dimension.
-- Nether and End portals are blocked inside mirror worlds.
+Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions.
 
-### First Dream Terrain
+Shift-right-click opens a centered mirror menu with buttons to save, enter, leave, rename, or delete persistent mirrors; Esc or the X button closes it. Persistent mirror selectors such as `slot_1` are suggested by commands, so players do not need to copy raw UUIDs.
 
-- First Dream Mirror uses the source world's current seed and chunk generator to regenerate terrain, structures, biomes, carvers, surfaces, and features.
-- First Dream Mirror keeps the player's current game mode on entry and uses the same inventory transfer rules as the World Reflection Mirror.
+The status command reports both temporary mirror slots and persistent mirror slots. The repair command scans for interrupted dead data and skips live player state. Persistent mirror worlds stay available until deleted by their owner or an operator.
 
-### Heaven Sandbox
-
-- When entering with Heaven Mirror, the mod saves your inventory and state, clears the sandbox inventory, switches you to Creative, and restores the saved state when you leave.
-- Heaven Mirror gives the player a matching mirror inside the sandbox so the menu and return flow remain usable.
-
-### Persistent Mirrors
-
-- Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions.
-- Shift-right-click opens a centered mirror menu with buttons to save, enter, leave, rename, or delete persistent mirrors; Esc or the X button closes it.
-- Persistent mirror selectors such as `slot_1` are suggested by commands, so players do not need to copy raw UUIDs.
-- The status command reports both temporary mirror slots and persistent mirror slots.
-- The repair command scans for interrupted dead data and skips live player state.
-
-### Performance and Cleanup
+## Administration and Cleanup
 
 - Heightmap scanning skips empty air columns during copy.
 - Section-level operations and sequential queues reduce server load.
@@ -76,17 +79,17 @@ InstantWorldMirror creates temporary or persistent mirror worlds from the place 
 World Reflection Mirror: glass, obsidian, and an ender pearl.
 
 ```
-[Glass]    [Obsidian] [Glass]
+[Glass]    [Obsidian]    [Glass]
 [Obsidian] [Ender Pearl] [Obsidian]
-[Glass]    [Obsidian] [Glass]
+[Glass]    [Obsidian]    [Glass]
 ```
 
 Heaven Mirror: glowstone, redstone, and an ender pearl.
 
 ```
-[Glowstone]    [Redstone Dust] [Glowstone]
+[Glowstone]     [Redstone Dust] [Glowstone]
 [Redstone Dust] [Ender Pearl]   [Redstone Dust]
-[Glowstone]    [Redstone Dust] [Glowstone]
+[Glowstone]     [Redstone Dust] [Glowstone]
 ```
 
 First Dream Mirror: oak saplings, glass, oak logs, and an ender pearl.
@@ -180,13 +183,6 @@ Client config file: `config/instantworldmirror-client.toml`
 | Config | Default | Description |
 | --- | --- | --- |
 | `showCooldownHud` | false | Show cooldown timer HUD |
-
-## Notes
-
-- By default, items gained in mirror worlds are not kept when returning.
-- Temporary mirror worlds clean themselves up after players leave.
-- Persistent mirror worlds stay available until deleted by their owner or an operator.
-- Existing modded accessory or capability inventories are not intentionally cleared by this mod; only vanilla inventory and ender chest are saved and restored.
 
 ## Downloads
 
