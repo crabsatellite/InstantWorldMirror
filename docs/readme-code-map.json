@@ -41,7 +41,7 @@
         "Right-click a solid block with any mirror to create an entry portal.",
         "Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal.",
         "If that portal is far from the entrance, it returns you to the matching position in the original world.",
-        "Hold right-click in the air inside a mirror world to teleport back to that mirror world's entrance point without leaving it.",
+        "Hold right-click in the air inside a mirror world to return to that mirror world's entrance point without leaving the mirror world.",
         "Heaven Mirror worlds cannot create return portals; use the original entrance or `/iwm return`.",
         "Each player can have only one mirror session open at a time.",
         "Other players can use the same entry portal after the creator enters first",
@@ -158,7 +158,7 @@
         "If you die in a mirror world, you return to the original world and your saved player state is restored.",
         "Weather, time, and dimension visual effects follow the original world.",
         "Survival and Adventure players cannot use dimension portals from mirror worlds",
-        "Nether portal creation is blocked there."
+        "Nether portals cannot be created there."
       ],
       "code": [
         {
@@ -236,7 +236,7 @@
         "The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item.",
         "The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.",
         "The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.",
-        "In Survival, Permanence comes from regular enchanting and villager trading; Renewal is rare loot."
+        "In Survival, Permanence can appear through normal enchanting and villager trades; Renewal appears only as rare loot."
       ],
       "code": [
         {
@@ -336,9 +336,9 @@
       "id": "world_copy_and_mob_rules",
       "readmeTexts": [
         "A copied mirror world includes blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.",
-        "Mob spawning is locked down by default: natural, structure, and spawner spawns are blocked",
+        "Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked",
         "player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work",
-        "Admins can use config or `/iwm mob` to control that rule and whether unopened generated loot is kept."
+        "Admins can use config or `/iwm mob` to control that rule and whether unopened generated loot containers keep their loot."
       ],
       "code": [
         {
@@ -428,7 +428,8 @@
       "id": "heaven_sandbox",
       "readmeTexts": [
         "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, switches you to Creative, then restores the saved state when you leave.",
-        "Heaven Mirror also gives you a matching mirror in the sandbox, keeping Permanence if the mirror had it"
+        "Heaven Mirror also gives you a matching mirror inside the sandbox.",
+        "If your original mirror had Permanence, the sandbox copy keeps it"
       ],
       "code": [
         {
@@ -485,7 +486,7 @@
         "To enter that saved mirror later, hold a mirror of the same type with Permanence.",
         "The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.",
         "Interrupted persistent saves are repaired on server startup or with `/iwm repair`",
-        "`/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and blocks new mirror creation until the required restart."
+        "`/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and prevents new mirror worlds until the required restart."
       ],
       "code": [
         {
@@ -577,7 +578,7 @@
     {
       "id": "persistent_menu_and_selectors",
       "readmeTexts": [
-        "Shift-right-click a Permanence-enchanted mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors.",
+        "Shift-right-click while holding a Permanence-enchanted mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors.",
         "Commands suggest selectors such as `slot_1`"
       ],
       "code": [
@@ -694,7 +695,7 @@
       "readmeTexts": [
         "`/iwm status` | Show temporary and persistent mirror slots",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
-        "`/iwm purge` | Delete temporary mirror world folders and block new mirror creation until restart"
+        "`/iwm purge` | Delete temporary mirror world folders and prevent new mirror worlds until restart"
       ],
       "code": [
         {
@@ -755,7 +756,7 @@
         "`/iwm persistent revoke <player>` | Revoke persistent mirror creation",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
         "`/iwm forceclear <dimension>` | Force-clear a temporary mirror dimension",
-        "`/iwm purge` | Delete temporary mirror world folders and block new mirror creation until restart"
+        "`/iwm purge` | Delete temporary mirror world folders and prevent new mirror worlds until restart"
       ],
       "code": [
         {
