@@ -1269,7 +1269,7 @@
       "method": "forceClearDimension",
       "texts": [
         "player.teleportTo(targetLevel,",
-        "boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false)",
+        "boolean allowItemTransfer = getItemTransferPermission(playerId)",
         "finishPlayerMirrorState(player, allowItemTransfer)",
         "cleanupPlayerTrackingData(playerId)"
       ]

@@ -39,7 +39,9 @@
       "id": "portal_flow",
       "readmeTexts": [
         "Right-click a solid block with any mirror to create an entry portal.",
-        "Inside a World Reflection Mirror or First Dream Mirror world, hold right-click with the mirror to return to the entrance.",
+        "Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal.",
+        "If that portal is far from the entrance, it returns you to the matching position in the original world.",
+        "Hold right-click in the air inside a mirror world to teleport back to that mirror world's entrance point without leaving it.",
         "Heaven Mirror worlds cannot create return portals; use the original entrance or `/iwm return`.",
         "Each player can have only one mirror session open at a time.",
         "Other players can use the same entry portal after the creator enters first",
@@ -59,7 +61,7 @@
           ]
         },
         {
-          "label": "hold right-click return flow",
+          "label": "hold right-click mirror spawn flow",
           "adapter": "method_contains_in_order",
           "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
           "method": "use",
@@ -67,6 +69,25 @@
             "PersistentMirrorManager.openMirrorMenu",
             "ModDimensions.isAnyMirrorWorld",
             "player.startUsingItem"
+          ]
+        },
+        {
+          "label": "hold right-click spawn packet",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/network/TeleportToSpawnPacket.java",
+          "texts": [
+            "MirrorWorldManager.teleportToMirrorSpawn(serverPlayer)",
+            "DimensionMirrorItem.getRemainingCooldownMillis"
+          ]
+        },
+        {
+          "label": "distant return portal coordinates",
+          "adapter": "method_contains_in_order",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "returnToOverworldFromPosition",
+          "texts": [
+            "portalPos.closerThan(originalPos, 16.0)",
+            "returnToOverworldAtPosition(player, portalPos)"
           ]
         },
         {
@@ -136,7 +157,8 @@
       "readmeTexts": [
         "If you die in a mirror world, you return to the original world and your saved player state is restored.",
         "Weather, time, and dimension visual effects follow the original world.",
-        "Nether and End portals are blocked inside mirror worlds."
+        "Survival and Adventure players cannot use dimension portals from mirror worlds",
+        "Nether portal creation is blocked there."
       ],
       "code": [
         {
@@ -200,6 +222,7 @@
           "texts": [
             "ModDimensions.isAnyMirrorWorld",
             "MirrorWorldManager.isBeingTeleportedByMod",
+            "gameType != GameType.SURVIVAL && gameType != GameType.ADVENTURE",
             "event.setCanceled(true)"
           ]
         }
@@ -301,7 +324,9 @@
       "id": "world_copy_and_mob_rules",
       "readmeTexts": [
         "A copied mirror world includes blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.",
-        "Natural mob spawning is off by default. Admins can use config or `/iwm mob` to control natural spawning and whether unopened generated loot is kept."
+        "Mob spawning is locked down by default: natural, structure, and spawner spawns are blocked",
+        "player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work",
+        "Admins can use config or `/iwm mob` to control that rule and whether unopened generated loot is kept."
       ],
       "code": [
         {
@@ -325,6 +350,10 @@
           "texts": [
             "MirrorWorldManager.hasGeneratedContentRefresh",
             "MirrorConfig.isMobSpawningEnabled",
+            "MobSpawnType.SPAWN_EGG",
+            "MobSpawnType.BREEDING",
+            "MobSpawnType.BUCKET",
+            "MobSpawnType.COMMAND",
             "event.setSpawnCancelled(true)"
           ]
         },
@@ -387,7 +416,7 @@
       "id": "heaven_sandbox",
       "readmeTexts": [
         "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, switches you to Creative, then restores the saved state when you leave.",
-        "Heaven Mirror also gives you a matching mirror in the sandbox"
+        "Heaven Mirror also gives you a matching mirror in the sandbox, keeping Permanence if the mirror had it"
       ],
       "code": [
         {
@@ -408,6 +437,16 @@
             "player.getEnderChestInventory().clearContent()",
             "player.setGameMode(GameType.CREATIVE)",
             "giveSandboxMirror"
+          ]
+        },
+        {
+          "label": "sandbox mirror keeps permanence",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "texts": [
+            "private static void giveSandboxMirror",
+            "persistentAccess",
+            "ModEnchantments.applyPermanence"
           ]
         },
         {
@@ -434,7 +473,7 @@
         "To enter that saved mirror later, hold a mirror of the same type with Permanence.",
         "The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.",
         "Interrupted persistent saves are repaired on server startup or with `/iwm repair`",
-        "`/iwm purge` deletes only temporary mirror world folders and never deletes persistent mirror records."
+        "`/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and blocks new mirror creation until the required restart."
       ],
       "code": [
         {
@@ -515,6 +554,7 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
           "method": "purgeCommand",
           "texts": [
+            "MirrorWorldManager.enablePurgeMode()",
             "temporary mirror world directories only",
             "dimensionsPath.resolve(\"mirror_world_\" + i)",
             "deleteDirectoryRecursively(mirrorWorldPath)"
@@ -525,7 +565,7 @@
     {
       "id": "persistent_menu_and_selectors",
       "readmeTexts": [
-        "Shift-right-click a mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors.",
+        "Shift-right-click a Permanence-enchanted mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors.",
         "Commands suggest selectors such as `slot_1`"
       ],
       "code": [
@@ -537,6 +577,15 @@
           "texts": [
             "player.isShiftKeyDown()",
             "PersistentMirrorManager.openMirrorMenu"
+          ]
+        },
+        {
+          "label": "persistent menu requires permanence",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "texts": [
+            "DimensionMirrorItem.hasPermanence",
+            "message.instantworldmirror.permanence_required"
           ]
         },
         {
@@ -633,7 +682,7 @@
       "readmeTexts": [
         "`/iwm status` | Show temporary and persistent mirror slots",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
-        "`/iwm purge` | Delete temporary mirror world folders; restart required"
+        "`/iwm purge` | Delete temporary mirror world folders and block new mirror creation until restart"
       ],
       "code": [
         {
@@ -694,7 +743,7 @@
         "`/iwm persistent revoke <player>` | Revoke persistent mirror creation",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
         "`/iwm forceclear <dimension>` | Force-clear a temporary mirror dimension",
-        "`/iwm purge` | Delete temporary mirror world folders; restart required"
+        "`/iwm purge` | Delete temporary mirror world folders and block new mirror creation until restart"
       ],
       "code": [
         {
@@ -837,6 +886,16 @@
             "getStaleSessionCleanupTicks",
             "isMobSpawningEnabled",
             "getMobSpawningStatus"
+          ]
+        },
+        {
+          "label": "item transfer config default consumer",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "texts": [
+            "getItemTransferPermission",
+            "MirrorConfig.ALLOW_ITEM_TRANSFER.get()",
+            "finishPlayerMirrorState"
           ]
         },
         {
