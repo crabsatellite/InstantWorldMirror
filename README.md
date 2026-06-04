@@ -89,12 +89,12 @@ Heaven Mirror: glowstone, redstone, and an ender pearl.
 [Glowstone]    [Redstone Dust] [Glowstone]
 ```
 
-First Dream Mirror: glowstone, dirt, redstone, and an ender pearl.
+First Dream Mirror: oak saplings, glass, oak logs, and an ender pearl.
 
 ```
-[Glowstone] [Dirt]        [Glowstone]
-[Redstone]  [Ender Pearl] [Redstone]
-[Glowstone] [Dirt]        [Glowstone]
+[Oak Sapling] [Glass]       [Oak Sapling]
+[Oak Log]     [Ender Pearl] [Oak Log]
+[Oak Sapling] [Glass]       [Oak Sapling]
 ```
 
 ## Commands

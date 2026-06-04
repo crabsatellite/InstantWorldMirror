@@ -1,15 +1,15 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": ["GDG", "RER", "GDG"],
+  "pattern": ["SGS", "OEO", "SGS"],
   "key": {
+    "S": {
+      "item": "minecraft:oak_sapling"
+    },
     "G": {
-      "item": "minecraft:glowstone"
+      "item": "minecraft:glass"
     },
-    "D": {
-      "item": "minecraft:dirt"
-    },
-    "R": {
-      "item": "minecraft:redstone"
+    "O": {
+      "tag": "minecraft:oak_logs"
     },
     "E": {
       "item": "minecraft:ender_pearl"
