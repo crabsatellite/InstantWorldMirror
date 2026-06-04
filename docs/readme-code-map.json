@@ -488,7 +488,7 @@
       "readmeTexts": [
         "World Reflection Mirror: glass, obsidian, and an ender pearl.",
         "Heaven Mirror: glowstone, redstone, and an ender pearl.",
-        "First Dream Mirror: glowstone, dirt, redstone, and an ender pearl."
+        "First Dream Mirror: oak saplings, glass, oak logs, and an ender pearl."
       ],
       "code": [
         {
@@ -518,9 +518,9 @@
           "adapter": "file_contains_all",
           "file": "src/main/resources/data/instantworldmirror/recipes/first_dream_mirror.json",
           "texts": [
-            "minecraft:glowstone",
-            "minecraft:dirt",
-            "minecraft:redstone",
+            "minecraft:oak_sapling",
+            "minecraft:glass",
+            "minecraft:oak_logs",
             "minecraft:ender_pearl",
             "instantworldmirror:first_dream_mirror"
           ]
