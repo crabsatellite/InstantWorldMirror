@@ -27,6 +27,9 @@ Use the World Reflection Mirror for normal testing, Heaven Mirror for Creative-m
 - Inside a normal mirror world, hold right-click with the World Reflection Mirror or First Dream Mirror to return to the entrance.
 - Heaven Mirror worlds can only leave through the original entrance.
 - Death in a mirror world returns the player to the source world and restores saved state.
+- A player can only have one active mirror session at a time.
+- Other players can enter the same entry portal after the portal creator enters first; if the creator leaves a temporary session, the other players are returned too.
+- If a player disconnects or rejoins while mirror state is saved, the mod restores the saved source position, inventory, and state when possible.
 - Temporary mirror worlds clean themselves up after players leave.
 
 ## World Rules
@@ -50,15 +53,23 @@ Heaven Mirror gives the player a matching mirror inside the sandbox so the menu 
 - Survival use has a configurable cooldown; Efficiency reduces both normal mirror use cooldown and Renewal refresh cooldown by 20% per level, down to a 30 second minimum.
 - Creative mode bypasses mirror use cooldowns and Renewal refresh cooldowns.
 - A mirror enchanted with Permanence can save a completed temporary mirror as a persistent mirror, if the player is an operator or has been granted permission.
-- Renewal can only be applied to the First Dream Mirror. When mob spawning and loot generation are disabled, an enchanted First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown.
+- The temporary session must have been created with a Permanence-enchanted mirror, and persistent re-entry requires a Permanence-enchanted mirror of the same mirror type.
+- Renewal can only be applied to the First Dream Mirror. When natural mob spawning is disabled by config or `/iwm mob off`, an enchanted First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown.
+- Normal mirror use cooldown is tracked per player; Renewal cooldown is stored on the First Dream Mirror item itself. The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror-use cooldown.
+- In Creative mode, the World Mirrors tab includes all three mirrors and enchanted books for Permanence and Renewal.
+- In survival, Permanence is available through regular enchanting and trading; Renewal is intended as rare loot.
 
 ## Persistent Mirrors
 
-Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions.
+Persistent mirror worlds use a separate persistent dimension pool from temporary mirror sessions. The persistent pool has eight server-wide slots.
+
+A completed temporary mirror can be saved only if that session was created with a Permanence-enchanted mirror, and the saved mirror keeps that mirror type. Entering a saved persistent mirror also requires holding a Permanence-enchanted mirror of the same mirror type.
 
 Shift-right-click opens a centered mirror menu with buttons to save, enter, leave, rename, or delete persistent mirrors; Esc or the X button closes it. Persistent mirror selectors such as `slot_1` are suggested by commands, so players do not need to copy raw UUIDs.
 
 The status command reports both temporary mirror slots and persistent mirror slots. The repair command scans for interrupted dead data and skips live player state. Persistent mirror worlds stay available until deleted by their owner or an operator.
+
+Interrupted persistent saves are repaired on startup or by `/iwm repair`; `/iwm purge` only deletes temporary mirror world folders and never deletes persistent mirror records.
 
 ## Administration and Cleanup
 
