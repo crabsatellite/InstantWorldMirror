@@ -24,7 +24,8 @@ Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testi
 
 - Right-click a solid block with any mirror to create an entry portal.
 - When the portal finishes copying or generating the area, step in to enter the mirror world.
-- Inside a World Reflection Mirror or First Dream Mirror world, hold right-click with the mirror to return to the entrance.
+- Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal. If that portal is far from the entrance, it returns you to the matching position in the original world.
+- Hold right-click in the air inside a mirror world to teleport back to that mirror world's entrance point without leaving it.
 - Heaven Mirror worlds cannot create return portals; use the original entrance or `/iwm return`.
 - If you die in a mirror world, you return to the original world and your saved player state is restored.
 - Each player can have only one mirror session open at a time.
@@ -38,7 +39,7 @@ A copied mirror world includes blocks, block entities, biomes, structures, heigh
 
 First Dream Mirror uses the current seed and chunk generator from the original world to regenerate terrain, structures, biomes, caves, surfaces, and features. It keeps your current game mode on entry and uses the same inventory rules as World Reflection Mirror.
 
-Natural mob spawning is off by default. Admins can use config or `/iwm mob` to control natural spawning and whether unopened generated loot is kept. Weather, time, and dimension visual effects follow the original world. Nether and End portals are blocked inside mirror worlds.
+Mob spawning is locked down by default: natural, structure, and spawner spawns are blocked, while player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work. Admins can use config or `/iwm mob` to control that rule and whether unopened generated loot is kept. Weather, time, and dimension visual effects follow the original world. Survival and Adventure players cannot use dimension portals from mirror worlds, and Nether portal creation is blocked there.
 
 By default, items found or created inside mirror worlds are not kept when you return. The mod only saves and restores vanilla inventory and ender chest; it does not deliberately clear modded accessory or capability inventories.
 
@@ -46,7 +47,7 @@ By default, items found or created inside mirror worlds are not kept when you re
 
 When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, switches you to Creative, then restores the saved state when you leave.
 
-Heaven Mirror also gives you a matching mirror in the sandbox, so the menu and return flow still work.
+Heaven Mirror also gives you a matching mirror in the sandbox, keeping Permanence if the mirror had it, so the menu and return flow still work.
 
 ## Enchantments and Cooldowns
 
@@ -65,11 +66,11 @@ Persistent mirrors do not use the temporary session slots. They use a separate p
 
 A completed temporary mirror can be saved only if it was created with a mirror that has Permanence. The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.
 
-Shift-right-click a mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors. Esc or the X button closes it. Commands suggest selectors such as `slot_1`, so players do not need to copy UUIDs.
+Shift-right-click a Permanence-enchanted mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors. Esc or the X button closes it. Commands suggest selectors such as `slot_1`, so players do not need to copy UUIDs.
 
 `/iwm status` reports both temporary slots and persistent slots. `/iwm repair` scans for interrupted mirror data and skips mirrors that are still in use. Persistent mirrors stay until their owner or an operator deletes them.
 
-Interrupted persistent saves are repaired on server startup or with `/iwm repair`. `/iwm purge` deletes only temporary mirror world folders and never deletes persistent mirror records.
+Interrupted persistent saves are repaired on server startup or with `/iwm repair`. `/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and blocks new mirror creation until the required restart.
 
 ## Administration and Cleanup
 
@@ -133,7 +134,7 @@ All commands start with `/iwm`.
 | `/iwm persistent revoke <player>` | Revoke persistent mirror creation | OP level 3 |
 | `/iwm repair` | Repair interrupted mirror data without clearing active mirrors | OP level 3 |
 | `/iwm forceclear <dimension>` | Force-clear a temporary mirror dimension | OP level 3 |
-| `/iwm purge` | Delete temporary mirror world folders; restart required | OP level 3 |
+| `/iwm purge` | Delete temporary mirror world folders and block new mirror creation until restart | OP level 3 |
 
 ## Configuration
 

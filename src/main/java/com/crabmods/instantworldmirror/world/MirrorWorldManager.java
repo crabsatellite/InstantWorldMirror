@@ -708,7 +708,7 @@ public class MirrorWorldManager {
         }
 
         // Phase 3: Handle inventory (no lock needed, operates on player data)
-        boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+        boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
         finishPlayerMirrorState(player, allowItemTransfer);
 
         // Phase 4: Execute teleportation (no lock needed)
@@ -878,7 +878,7 @@ public class MirrorWorldManager {
                     safePos, player.getName().getString(), targetMirrorPos);
 
             // Handle inventory
-            boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+            boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
             finishPlayerMirrorState(player, allowItemTransfer);
 
             // Mark player as being teleported by the mod
@@ -1709,7 +1709,7 @@ public class MirrorWorldManager {
                             player.getName().getString(), sessionId);
                     
                     // Restore inventory (external exit should restore items like normal return)
-                    boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false);
+                    boolean allowItemTransfer = getItemTransferPermission(playerId);
                     finishPlayerMirrorState(player, allowItemTransfer);
                     
                     boolean sessionNowEmpty = session.removePlayer(playerId);
@@ -1820,7 +1820,7 @@ public class MirrorWorldManager {
     }
 
     public static void restorePlayerForMirrorExit(ServerPlayer player) {
-        boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(player.getUUID(), false);
+        boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
         finishPlayerMirrorState(player, allowItemTransfer);
         cleanupPlayerTrackingData(player.getUUID());
     }
@@ -2352,7 +2352,7 @@ public class MirrorWorldManager {
                     }
                     
                     // Restore or clear their saved mirror state using the same rules as a normal return.
-                    boolean allowItemTransfer = playerItemTransferPermission.getOrDefault(playerId, false);
+                    boolean allowItemTransfer = getItemTransferPermission(playerId);
                     finishPlayerMirrorState(player, allowItemTransfer);
                     
                     // Remove from tracking maps
