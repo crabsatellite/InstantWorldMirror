@@ -40,7 +40,7 @@
       "readmeTexts": [
         "Right-click a solid block with any mirror to create an entry portal.",
         "Inside a World Reflection Mirror or First Dream Mirror world, hold right-click with the mirror to return to the entrance.",
-        "Heaven Mirror worlds can only leave through the original entrance.",
+        "Heaven Mirror worlds cannot create return portals; use the original entrance or `/iwm return`.",
         "Each player can have only one mirror session open at a time.",
         "Other players can use the same entry portal after the creator enters first",
         "If you disconnect and rejoin while the mod still has your mirror-world save state"
@@ -67,6 +67,27 @@
             "PersistentMirrorManager.openMirrorMenu",
             "ModDimensions.isAnyMirrorWorld",
             "player.startUsingItem"
+          ]
+        },
+        {
+          "label": "heaven mirror blocks return portal creation",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "method": "useOn",
+          "texts": [
+            "kind.isSandbox() || MirrorWorldManager.isPlayerInSandboxSession(serverPlayer)",
+            "message.instantworldmirror.heaven_return_restricted",
+            "return InteractionResult.FAIL"
+          ]
+        },
+        {
+          "label": "return command works in mirror worlds",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "returnCommand",
+          "texts": [
+            "MirrorWorldManager.isInMirrorWorld(player)",
+            "MirrorWorldManager.forceReturn(player)"
           ]
         },
         {
@@ -191,7 +212,7 @@
         "Creative mode ignores both the normal mirror cooldown and the Renewal cooldown.",
         "The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item.",
         "The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.",
-        "In Creative mode, the World Mirrors tab includes all three mirrors plus Permanence and Renewal enchanted books.",
+        "The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.",
         "In Survival, Permanence comes from regular enchanting and villager trading; Renewal is rare loot."
       ],
       "code": [
@@ -669,7 +690,7 @@
     {
       "id": "command_table_coverage",
       "readmeTexts": [
-        "`/iwm return` | Return to the source world from a mirror world",
+        "`/iwm return` | Return to the original world from a mirror world",
         "`/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds",
         "`/iwm allow <player>` | Allow a player to use mirror worlds",
         "`/iwm deny <player>` | Deny a player from using mirror worlds",
@@ -786,7 +807,7 @@
         "`copyBiomes` | true | Copy biome data",
         "`copyStructures` | true | Copy structure data",
         "`copyHeightmaps` | true | Copy heightmap data",
-        "`maxMirrorWorldsPerPlayer` | 1 | Maximum concurrent mirror sessions per player",
+        "`maxMirrorWorldsPerPlayer` | 1 | Reserved session limit setting; current behavior allows one active session per player",
         "`staleSessionCleanupInterval` | 300 | Stale session cleanup interval in seconds",
         "`showCooldownHud` | false | Show cooldown timer HUD"
       ],
@@ -837,6 +858,15 @@
           "texts": [
             "define(\"showCooldownHud\", false)",
             "shouldShowCooldownHud"
+          ]
+        },
+        {
+          "label": "current single active session runtime",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "MirrorWorldManager.hasActiveSession(player.getUUID())",
+            "message.instantworldmirror.already_has_session"
           ]
         }
       ]
