@@ -484,6 +484,181 @@
       ]
     },
     {
+      "id": "command_table_coverage",
+      "readmeTexts": [
+        "`/iwm return` | Return to the source world from a mirror world",
+        "`/iwm mob on/off/status` | Control natural mob spawning and generated loot preservation in mirror worlds",
+        "`/iwm allow <player>` | Allow a player to use mirror worlds",
+        "`/iwm deny <player>` | Deny a player from using mirror worlds",
+        "`/iwm itemtransfer <player> <true/false>` | Control whether a player can bring items back",
+        "`/iwm status` | Show temporary and persistent mirror slot status",
+        "`/iwm persistent menu` | Open the persistent mirror menu",
+        "`/iwm persistent save [name]` | Save the current temporary mirror as persistent",
+        "`/iwm persistent enter <selector>` | Enter a persistent mirror by suggested selector",
+        "`/iwm persistent leave` | Leave the current persistent mirror",
+        "`/iwm persistent delete <selector>` | Delete a persistent mirror by suggested selector",
+        "`/iwm persistent rename <selector> <name>` | Rename a persistent mirror by suggested selector",
+        "`/iwm persistent grant <player>` | Grant persistent mirror creation",
+        "`/iwm persistent revoke <player>` | Revoke persistent mirror creation",
+        "`/iwm repair` | Automatically repair interrupted dead mirror data without clearing live state",
+        "`/iwm forceclear <dimension>` | Force clear a temporary mirror dimension",
+        "`/iwm purge` | Delete temporary mirror world save folders and require a restart"
+      ],
+      "code": [
+        {
+          "label": "all documented command literals",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "method": "register",
+          "texts": [
+            "Commands.literal(\"return\")",
+            "Commands.literal(\"mob\")",
+            "Commands.literal(\"allow\")",
+            "Commands.literal(\"deny\")",
+            "Commands.literal(\"itemtransfer\")",
+            "Commands.literal(\"status\")",
+            "Commands.literal(\"persistent\")",
+            "Commands.literal(\"menu\")",
+            "Commands.literal(\"save\")",
+            "Commands.literal(\"enter\")",
+            "Commands.literal(\"leave\")",
+            "Commands.literal(\"delete\")",
+            "Commands.literal(\"rename\")",
+            "Commands.literal(\"grant\")",
+            "Commands.literal(\"revoke\")",
+            "Commands.literal(\"forceclear\")",
+            "Commands.literal(\"repair\")",
+            "Commands.literal(\"purge\")"
+          ]
+        },
+        {
+          "label": "documented command handlers",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "texts": [
+            "returnCommand",
+            "mobOnCommand",
+            "mobOffCommand",
+            "mobStatusCommand",
+            "allowCommand",
+            "denyCommand",
+            "itemTransferCommand",
+            "statusCommand",
+            "persistentMenuCommand",
+            "persistentSaveCommand",
+            "persistentEnterCommand",
+            "persistentLeaveCommand",
+            "persistentDeleteCommand",
+            "persistentRenameCommand",
+            "persistentGrantCommand",
+            "forceClearCommand",
+            "repairCommand",
+            "purgeCommand"
+          ]
+        },
+        {
+          "label": "command suggestions",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
+          "texts": [
+            "MIRROR_DIMENSION_SUGGESTIONS",
+            "PERSISTENT_RECORD_SUGGESTIONS",
+            "PERSISTENT_NAME_SUGGESTIONS",
+            ".suggests(MIRROR_DIMENSION_SUGGESTIONS)",
+            ".suggests(PERSISTENT_RECORD_SUGGESTIONS)",
+            ".suggests(PERSISTENT_NAME_SUGGESTIONS)"
+          ]
+        },
+        {
+          "label": "persistent command permissions",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "texts": [
+            "canCreatePersistentMirror",
+            "player.hasPermissions(3)",
+            "hasCreationGrant",
+            "canEnterRecord",
+            "canManageRecord",
+            "setCreationGrant"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "configuration_table_coverage",
+      "readmeTexts": [
+        "`dimensionPoolSize` | 4 | Temporary mirror dimension pool size, 1-8",
+        "`copyChunkRadius` | 10 | Copy radius in chunks",
+        "`copyChunksPerTick` | 2 | Chunks copied per tick",
+        "`cleanupChunksPerTick` | 4 | Chunks cleaned per tick",
+        "`edgeCleanupRadius` | 3 | Extra radius for edge cleanup scan",
+        "`entryPortalLifetime` | 300 | Entry portal lifetime in seconds after copy completes",
+        "`returnPortalLifetime` | -1 | Return portal lifetime in seconds",
+        "`maxPortalLoadingTime` | 600 | Maximum portal loading time in seconds",
+        "`allowItemTransfer` | false | Whether players can bring mirror-world items back by default",
+        "`mirrorCooldown` | 300 | Mirror use cooldown in seconds, reduced by Efficiency",
+        "`copyEntities` | false | Whether to copy mob entities",
+        "`copyDecorationEntities` | true | Whether to copy decoration entities",
+        "`enableMobSpawning` | false | Whether natural mob spawning is allowed in mirror worlds",
+        "`copyBiomes` | true | Copy biome data",
+        "`copyStructures` | true | Copy structure data",
+        "`copyHeightmaps` | true | Copy heightmap data",
+        "`maxMirrorWorldsPerPlayer` | 1 | Maximum concurrent mirror sessions per player",
+        "`staleSessionCleanupInterval` | 300 | Stale session cleanup interval in seconds",
+        "`showCooldownHud` | false | Show cooldown timer HUD"
+      ],
+      "code": [
+        {
+          "label": "common config definitions",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
+          "texts": [
+            "defineInRange(\"dimensionPoolSize\", 4, 1, 8)",
+            "defineInRange(\"copyChunkRadius\", 10, 1, 32)",
+            "defineInRange(\"copyChunksPerTick\", 2, 1, 10)",
+            "defineInRange(\"cleanupChunksPerTick\", 4, 1, 20)",
+            "defineInRange(\"edgeCleanupRadius\", 3, 0, 16)",
+            "defineInRange(\"entryPortalLifetime\", 300, -1, 3600)",
+            "defineInRange(\"returnPortalLifetime\", -1, -1, 3600)",
+            "defineInRange(\"maxPortalLoadingTime\", 600, 60, 3600)",
+            "define(\"allowItemTransfer\", false)",
+            "defineInRange(\"mirrorCooldown\", 300, 0, 3600)",
+            "define(\"copyEntities\", false)",
+            "define(\"copyDecorationEntities\", true)",
+            "define(\"enableMobSpawning\", false)",
+            "define(\"copyBiomes\", true)",
+            "define(\"copyStructures\", true)",
+            "define(\"copyHeightmaps\", true)",
+            "defineInRange(\"maxMirrorWorldsPerPlayer\", 1, 1, 5)",
+            "defineInRange(\"staleSessionCleanupInterval\", 300, 0, 3600)"
+          ]
+        },
+        {
+          "label": "config runtime consumers",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
+          "texts": [
+            "getEntryPortalLifetimeTicks",
+            "getReturnPortalLifetimeTicks",
+            "getMaxPortalLoadingTicks",
+            "getMirrorCooldownTicks",
+            "getStaleSessionCleanupTicks",
+            "isMobSpawningEnabled",
+            "getMobSpawningStatus"
+          ]
+        },
+        {
+          "label": "client config definition",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/client/ClientConfig.java",
+          "texts": [
+            "define(\"showCooldownHud\", false)",
+            "shouldShowCooldownHud"
+          ]
+        }
+      ]
+    },
+    {
       "id": "recipes",
       "readmeTexts": [
         "World Reflection Mirror: glass, obsidian, and an ender pearl.",
