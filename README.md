@@ -25,7 +25,7 @@ Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testi
 - Right-click a solid block with any mirror to create an entry portal.
 - When the portal finishes copying or generating the area, step in to enter the mirror world.
 - Inside a World Reflection Mirror or First Dream Mirror world, hold right-click with the mirror to return to the entrance.
-- Heaven Mirror worlds can only leave through the original entrance.
+- Heaven Mirror worlds cannot create return portals; use the original entrance or `/iwm return`.
 - If you die in a mirror world, you return to the original world and your saved player state is restored.
 - Each player can have only one mirror session open at a time.
 - Other players can use the same entry portal after the creator enters first; if the creator leaves a temporary session, everyone else is sent back too.
@@ -56,7 +56,7 @@ Heaven Mirror also gives you a matching mirror in the sandbox, so the menu and r
 - To save a persistent mirror, the temporary session must have been created with a mirror that has Permanence. To enter that saved mirror later, hold a mirror of the same type with Permanence.
 - Renewal only works on First Dream Mirror. If natural mob spawning is off in config or through `/iwm mob off`, a Renewal First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown.
 - The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item. The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.
-- In Creative mode, the World Mirrors tab includes all three mirrors plus Permanence and Renewal enchanted books.
+- The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.
 - In Survival, Permanence is a regular mirror enchantment; Renewal is treasure-only.
 
 ## Persistent Mirrors
@@ -117,7 +117,7 @@ All commands start with `/iwm`.
 
 | Command | Description | Permission |
 | --- | --- | --- |
-| `/iwm return` | Return to the source world from a mirror world | All players |
+| `/iwm return` | Return to the original world from a mirror world | All players |
 | `/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds | OP level 2 |
 | `/iwm allow <player>` | Allow a player to use mirror worlds | OP level 2 |
 | `/iwm deny <player>` | Deny a player from using mirror worlds | OP level 2 |
@@ -184,7 +184,7 @@ Config file: `config/instantworldmirror-common.toml`
 
 | Config | Default | Description |
 | --- | --- | --- |
-| `maxMirrorWorldsPerPlayer` | 1 | Maximum concurrent mirror sessions per player |
+| `maxMirrorWorldsPerPlayer` | 1 | Reserved session limit setting; current behavior allows one active session per player |
 | `staleSessionCleanupInterval` | 300 | Stale session cleanup interval in seconds |
 
 ### Client Settings
