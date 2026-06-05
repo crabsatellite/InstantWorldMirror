@@ -1,18 +1,20 @@
 {
   "homepage": "https://github.com/crabsatellite/InstantWorldMirror",
   "promos": {
-    "1.21.1-latest": "1.1.1",
-    "1.21.1-recommended": "1.1.1",
-    "1.20.1-latest": "1.1.1",
-    "1.20.1-recommended": "1.1.1"
+    "1.21.1-latest": "1.2",
+    "1.21.1-recommended": "1.1",
+    "1.20.1-latest": "1.2",
+    "1.20.1-recommended": "1.1"
   },
   "1.21.1": {
     "1.0.0": "Initial release",
     "1.0.1": "Fix singleplayer lighting issue"
-    "1.1.1": "New item: Heaven Mirror"
+    "1.1": "New item: Heaven Mirror"
+    "1.2": "New item: First Dream Mirror"
   },
   "1.20.1": {
     "1.0.1": "Initial release for 1.20.1"
-    "1.1.1": "New item: Heaven Mirror"
+    "1.1": "New item: Heaven Mirror"
+    "1.2": "New item: First Dream Mirror"
   }
 }
