@@ -88,6 +88,8 @@
 - [x] `manager.save_requires_persistent_access` - found text
 - [x] `manager.save_retains_temporary_source` - method contains ordered text
 - [x] `manager.server_stop_marks_active_dimensions` - method contains ordered text
+- [x] `manager.shared_item_transfer_pipeline` - method contains ordered text
+- [x] `manager.shared_item_transfer_snapshot` - all text found
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text
@@ -98,6 +100,7 @@
 - [x] `runtime.gametest_smoke_script` - all text found
 - [x] `runtime.gametest_source_registered` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found
+- [x] `runtime.shared_item_transfer_behavior` - all text found
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.prep_receives_persistent_access` - found text
 - [x] `session.generated_content_refresh_field` - all text found

@@ -71,6 +71,10 @@ public class MirrorWorldManager {
     private static final String SAVED_FIRE_TICKS_KEY = InstantWorldMirror.MODID + "_saved_fire_ticks";
     private static final String SAVED_AIR_SUPPLY_KEY = InstantWorldMirror.MODID + "_saved_air_supply";
     private static final String SAVED_EFFECTS_KEY = InstantWorldMirror.MODID + "_saved_effects";
+    private static final String SAVED_MIRROR_FORGE_CAPS_KEY = InstantWorldMirror.MODID + "_saved_mirror_forge_caps";
+    private static final String SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY = InstantWorldMirror.MODID + "_saved_mirror_neoforge_attachments";
+    private static final String PLAYER_FORGE_CAPS_NBT_KEY = "ForgeCaps";
+    private static final String PLAYER_NEOFORGE_ATTACHMENTS_NBT_KEY = "neoforge:attachments";
 
     // Lock for thread-safe session operations
     private static final ReadWriteLock sessionLock = new ReentrantReadWriteLock();
@@ -1966,16 +1970,9 @@ public class MirrorWorldManager {
     }
 
     /**
-     * Save player inventory and state to persistent data.
-     * Normal sessions preserve the old survival-only inventory behavior; sandbox sessions always save full state.
+     * Save player inventory and state to persistent data for the shared item-transfer pipeline.
      */
     private static void savePlayerSnapshot(ServerPlayer player, boolean sandboxMode) {
-        if (!sandboxMode && !player.gameMode.isSurvival()) {
-            InstantWorldMirror.LOGGER.info("Skipping inventory save for non-survival player {}",
-                    player.getName().getString());
-            return;
-        }
-        
         CompoundTag persistentData = player.getPersistentData();
         persistentData.putBoolean(SANDBOX_SESSION_KEY, sandboxMode);
         
@@ -1998,6 +1995,7 @@ public class MirrorWorldManager {
         if (sandboxMode) {
             saveSandboxState(player, persistentData);
         }
+        saveMirrorModData(player, persistentData);
 
         InstantWorldMirror.LOGGER.info("Saved inventory and ender chest to persistent data for player {} ({} inventory items, {} ender chest items)",
                 player.getName().getString(), inventoryTag.size(), enderChestTag.size());
@@ -2036,6 +2034,7 @@ public class MirrorWorldManager {
             } else {
                 restoreSavedGameMode(player, persistentData);
             }
+            restoreMirrorModData(player, persistentData);
 
             player.inventoryMenu.broadcastChanges();
             player.containerMenu.broadcastChanges();
@@ -2050,8 +2049,14 @@ public class MirrorWorldManager {
     }
 
     private static void finishPlayerMirrorState(ServerPlayer player, boolean allowItemTransfer) {
+        CompoundTag persistentData = player.getPersistentData();
+        boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY);
         if (allowItemTransfer) {
-            restoreSavedGameMode(player, player.getPersistentData());
+            if (sandboxMode) {
+                restoreSandboxState(player, persistentData);
+            } else {
+                restoreSavedGameMode(player, persistentData);
+            }
             clearSavedData(player);
         } else {
             restorePlayerInventory(player);
@@ -2091,6 +2096,20 @@ public class MirrorWorldManager {
             }
         }
         persistentData.put(SAVED_EFFECTS_KEY, effects);
+    }
+
+    private static void saveMirrorModData(ServerPlayer player, CompoundTag persistentData) {
+        CompoundTag playerTag = player.saveWithoutId(new CompoundTag());
+        saveMirrorModDataKey(playerTag, persistentData, PLAYER_FORGE_CAPS_NBT_KEY, SAVED_MIRROR_FORGE_CAPS_KEY);
+        saveMirrorModDataKey(playerTag, persistentData, PLAYER_NEOFORGE_ATTACHMENTS_NBT_KEY, SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY);
+    }
+
+    private static void saveMirrorModDataKey(CompoundTag playerTag, CompoundTag persistentData, String playerKey, String savedKey) {
+        if (playerTag.contains(playerKey, Tag.TAG_COMPOUND)) {
+            persistentData.put(savedKey, playerTag.getCompound(playerKey).copy());
+        } else {
+            persistentData.remove(savedKey);
+        }
     }
 
     private static void prepareSandboxPlayer(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
@@ -2174,6 +2193,22 @@ public class MirrorWorldManager {
         }
     }
 
+    private static void restoreMirrorModData(ServerPlayer player, CompoundTag persistentData) {
+        CompoundTag playerTag = player.saveWithoutId(new CompoundTag());
+        restoreMirrorModDataKey(playerTag, persistentData, PLAYER_FORGE_CAPS_NBT_KEY, SAVED_MIRROR_FORGE_CAPS_KEY);
+        restoreMirrorModDataKey(playerTag, persistentData, PLAYER_NEOFORGE_ATTACHMENTS_NBT_KEY, SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY);
+        player.load(playerTag);
+        syncPlayerAbilitiesToGameMode(player);
+    }
+
+    private static void restoreMirrorModDataKey(CompoundTag playerTag, CompoundTag persistentData, String playerKey, String savedKey) {
+        if (persistentData.contains(savedKey, Tag.TAG_COMPOUND)) {
+            playerTag.put(playerKey, persistentData.getCompound(savedKey).copy());
+        } else {
+            playerTag.remove(playerKey);
+        }
+    }
+
     private static void restoreSavedGameMode(ServerPlayer player, CompoundTag persistentData) {
         if (persistentData.getBoolean(SAVED_GAME_MODE_PRESENT_KEY) || persistentData.contains(SAVED_GAME_MODE_KEY)) {
             GameType gameType = GameType.byId(persistentData.getInt(SAVED_GAME_MODE_KEY));
@@ -2201,7 +2236,9 @@ public class MirrorWorldManager {
         return persistentData.contains(SAVED_INVENTORY_KEY)
                 || persistentData.getBoolean(SAVED_GAME_MODE_PRESENT_KEY)
                 || persistentData.contains(SAVED_GAME_MODE_KEY)
-                || persistentData.contains(ORIGINAL_DIM_KEY);
+                || persistentData.contains(ORIGINAL_DIM_KEY)
+                || persistentData.contains(SAVED_MIRROR_FORGE_CAPS_KEY)
+                || persistentData.contains(SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY);
     }
 
     /**
@@ -2225,6 +2262,8 @@ public class MirrorWorldManager {
         persistentData.remove(SAVED_FIRE_TICKS_KEY);
         persistentData.remove(SAVED_AIR_SUPPLY_KEY);
         persistentData.remove(SAVED_EFFECTS_KEY);
+        persistentData.remove(SAVED_MIRROR_FORGE_CAPS_KEY);
+        persistentData.remove(SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY);
         persistentData.remove(ORIGINAL_POS_KEY + "_x");
         persistentData.remove(ORIGINAL_POS_KEY + "_y");
         persistentData.remove(ORIGINAL_POS_KEY + "_z");

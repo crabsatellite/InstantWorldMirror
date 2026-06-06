@@ -4,10 +4,12 @@
 | --- | --- | --- | --- |
 | `temporary.dimension_mirror` | `entry` | `covered` | `item.entry.passes_permanence_state`, `session.persistent_access_field` |
 | `temporary.dimension_mirror` | `save_gate` | `covered` | `manager.save_requires_persistent_access` |
+| `temporary.dimension_mirror` | `item_transfer` | `covered` | `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
 | `temporary.heaven_mirror` | `kind` | `covered` | `item.kind_from_stack`, `record.kind_saved_from_session` |
-| `temporary.heaven_mirror` | `sandbox` | `covered` | `sandbox.prep_receives_persistent_access` |
+| `temporary.heaven_mirror` | `sandbox` | `covered` | `sandbox.prep_receives_persistent_access`, `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
 | `temporary.first_dream_mirror` | `kind` | `covered` | `item.kind_from_stack`, `kind.first_dream_present`, `kind.first_dream_not_sandbox`, `kind.first_dream_pristine`, `enchantment.renewal_first_dream_only`, `enchantment.renewal_hard_to_get_registration` |
 | `temporary.first_dream_mirror` | `copy` | `covered` | `session.kind_field`, `copy.pristine_task_flag`, `copy.pristine_generator_features`, `copy.pristine_generator_pipeline`, `copy.pristine_scratch_world_skips_poi_updates`, `copy.pristine_loot_uses_mob_spawn_config`, `session.generated_content_refresh_field`, `copy.generated_content_refresh_task_flag`, `events.generated_content_refresh_allows_mob_spawn` |
+| `temporary.first_dream_mirror` | `item_transfer` | `covered` | `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
 | `permanent.dimension_mirror` | `enchantment` | `covered` | `enchantment.helper_present`, `enchantment.version_registration`, `enchantment.mirror_item_support` |
 | `permanent.dimension_mirror` | `enter_gate` | `covered` | `manager.enter_requires_matching_permanence`, `command.menu_uses_held_mirror` |
 | `permanent.heaven_mirror` | `sandbox_hotbar` | `covered` | `sandbox.applies_permanence_to_hotbar_mirror` |

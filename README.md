@@ -41,11 +41,11 @@ First Dream Mirror uses the current seed and chunk generator from the original w
 
 Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked, while player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work. Admins can use config or `/iwm mob` to control that rule and whether unopened generated loot containers keep their loot. Weather, time, and dimension visual effects follow the original world. Survival and Adventure players cannot use dimension portals from mirror worlds, and Nether portals cannot be created there.
 
-By default, items found or created inside mirror worlds are not kept when you return. The mod only saves and restores vanilla inventory and ender chest; it does not deliberately clear modded accessory or capability inventories.
+Items follow one shared transfer rule for all three mirrors. With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data so mirror-world items cannot leave through accessory or backpack slots. With item transfer on, all three mirrors allow items to leave, including Heaven Mirror's Creative-mode items.
 
 ## Heaven Sandbox
 
-When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, switches you to Creative, then restores the saved state when you leave.
+When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative. When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.
 
 Heaven Mirror also gives you a matching mirror inside the sandbox. If your original mirror had Permanence, the sandbox copy keeps it, so the menu and return flow still work.
 
@@ -122,7 +122,7 @@ All commands start with `/iwm`.
 | `/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds | OP level 2 |
 | `/iwm allow <player>` | Allow a player to use mirror worlds | OP level 2 |
 | `/iwm deny <player>` | Deny a player from using mirror worlds | OP level 2 |
-| `/iwm itemtransfer <player> <true/false>` | Set whether a player can bring items back | OP level 2 |
+| `/iwm itemtransfer <player> <true/false>` | Set whether a player can bring mirror-world items back from any mirror | OP level 2 |
 | `/iwm status` | Show temporary and persistent mirror slots | OP level 2 |
 | `/iwm persistent menu` | Open the persistent mirror menu | Player |
 | `/iwm persistent save [name]` | Save your current temporary mirror as persistent | OP level 3 or granted player |

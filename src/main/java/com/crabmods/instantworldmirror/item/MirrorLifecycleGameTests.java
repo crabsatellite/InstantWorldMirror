@@ -197,6 +197,7 @@ public final class MirrorLifecycleGameTests {
     public static void heavenSandboxKeepsPermanenceMirror(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.setItemTransferPermission(player.getUUID(), false);
         player.getInventory().items.set(3, new ItemStack(Items.DIAMOND));
         player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
 
@@ -212,7 +213,36 @@ public final class MirrorLifecycleGameTests {
         helper.assertTrue(player.getEnderChestInventory().getItem(0).isEmpty(),
                 "Sandbox entry must clear vanilla ender chest items");
 
+        player.getInventory().items.set(3, new ItemStack(Items.DIRT));
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
         MirrorWorldManager.restorePlayerForMirrorExit(player);
+        helper.assertTrue(player.getInventory().items.get(3).is(Items.DIAMOND),
+                "Heaven sandbox without item transfer must restore the saved vanilla inventory");
+        helper.assertTrue(player.getEnderChestInventory().getItem(0).is(Items.EMERALD),
+                "Heaven sandbox without item transfer must restore the saved ender chest");
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void heavenSandboxItemTransferPermissionAllowsCreativeItems(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.setItemTransferPermission(player.getUUID(), true);
+        player.getInventory().items.set(3, new ItemStack(Items.DIAMOND));
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, true, false);
+
+        player.getInventory().items.set(3, new ItemStack(Items.DIRT));
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "Heaven sandbox item transfer must still restore the original game mode");
+        helper.assertTrue(player.getInventory().items.get(3).is(Items.DIRT),
+                "Heaven sandbox item transfer permission must allow creative inventory items");
+        helper.assertTrue(player.getEnderChestInventory().getItem(0).is(Items.DIAMOND_BLOCK),
+                "Heaven sandbox item transfer permission must allow creative ender chest items");
         helper.succeed();
     }
 
@@ -246,7 +276,10 @@ public final class MirrorLifecycleGameTests {
         helper.assertTrue(player.getInventory().items.get(0).is(Items.REDSTONE),
                 "First dream creative entry must not clear the player's hotbar");
 
+        player.getInventory().items.set(0, new ItemStack(Items.DIRT));
         MirrorWorldManager.restorePlayerForMirrorExit(player);
+        helper.assertTrue(player.getInventory().items.get(0).is(Items.REDSTONE),
+                "First dream without item transfer must restore the saved creative hotbar");
         helper.succeed();
     }
 
@@ -302,6 +335,27 @@ public final class MirrorLifecycleGameTests {
                 "Restored survival mode must keep block breaking permission");
         helper.assertFalse(player.getAbilities().instabuild,
                 "Restored survival mode must clear creative instabuild");
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void nonSandboxItemTransferPermissionAllowsMirrorItems(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.setItemTransferPermission(player.getUUID(), true);
+        player.getInventory().items.set(4, new ItemStack(Items.DIAMOND, 2));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
+
+        player.setGameMode(GameType.CREATIVE);
+        player.getInventory().items.set(4, new ItemStack(Items.DIRT));
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "Default mirror item transfer must still restore the original game mode");
+        helper.assertTrue(player.getInventory().items.get(4).is(Items.DIRT),
+                "Default mirror item transfer permission must allow mirror-world items");
         helper.succeed();
     }
 

@@ -19,6 +19,16 @@
     },
     {
       "checks": [
+        "manager.shared_item_transfer_snapshot",
+        "manager.shared_item_transfer_pipeline",
+        "runtime.shared_item_transfer_behavior"
+      ],
+      "route": "temporary.dimension_mirror",
+      "stage": "item_transfer",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "item.kind_from_stack",
         "record.kind_saved_from_session"
       ],
@@ -28,7 +38,10 @@
     },
     {
       "checks": [
-        "sandbox.prep_receives_persistent_access"
+        "sandbox.prep_receives_persistent_access",
+        "manager.shared_item_transfer_snapshot",
+        "manager.shared_item_transfer_pipeline",
+        "runtime.shared_item_transfer_behavior"
       ],
       "route": "temporary.heaven_mirror",
       "stage": "sandbox",
@@ -61,6 +74,16 @@
       ],
       "route": "temporary.first_dream_mirror",
       "stage": "copy",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "manager.shared_item_transfer_snapshot",
+        "manager.shared_item_transfer_pipeline",
+        "runtime.shared_item_transfer_behavior"
+      ],
+      "route": "temporary.first_dream_mirror",
+      "stage": "item_transfer",
       "status": "covered"
     },
     {

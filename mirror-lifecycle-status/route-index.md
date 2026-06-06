@@ -8,6 +8,7 @@ Unenchanted World Reflection Mirror stays temporary
 
 - `entry`: covered - Entry portal records whether the held mirror has permanence
 - `save_gate`: covered - Temporary sessions without permanence cannot be saved through commands
+- `item_transfer`: covered - Item transfer uses the shared save-or-restore pipeline
 
 ## temporary.heaven_mirror - covered
 
@@ -22,6 +23,7 @@ Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary
 
 - `kind`: covered - First Dream Mirror is a distinct default-state mirror kind
 - `copy`: covered - Temporary first dream sessions regenerate pristine terrain instead of copying current chunks
+- `item_transfer`: covered - First Dream uses the shared item transfer pipeline
 
 ## permanent.dimension_mirror - covered
 
