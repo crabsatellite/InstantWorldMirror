@@ -425,9 +425,57 @@
       ]
     },
     {
+      "id": "item_transfer_rule",
+      "readmeTexts": [
+        "Items follow one shared transfer rule for all three mirrors.",
+        "With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data",
+        "With item transfer on, all three mirrors allow items to leave, including Heaven Mirror's Creative-mode items."
+      ],
+      "code": [
+        {
+          "label": "shared item transfer save data",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "texts": [
+            "savePlayerSnapshot(player, false)",
+            "savePlayerSnapshot(player, true)",
+            "saveMirrorModData(player, persistentData)",
+            "PLAYER_FORGE_CAPS_NBT_KEY",
+            "PLAYER_NEOFORGE_ATTACHMENTS_NBT_KEY"
+          ]
+        },
+        {
+          "label": "shared item transfer exit branch",
+          "adapter": "method_contains_in_order",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "finishPlayerMirrorState",
+          "texts": [
+            "if (allowItemTransfer)",
+            "restoreSandboxState(player, persistentData)",
+            "restoreSavedGameMode(player, persistentData)",
+            "clearSavedData(player)",
+            "else",
+            "restorePlayerInventory(player)"
+          ]
+        },
+        {
+          "label": "shared item transfer restore data",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "restorePlayerInventory",
+          "texts": [
+            "restoreMirrorModData(player, persistentData)",
+            "restoreSavedGameMode(player, persistentData)",
+            "restoreSandboxState(player, persistentData)"
+          ]
+        }
+      ]
+    },
+    {
       "id": "heaven_sandbox",
       "readmeTexts": [
-        "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, switches you to Creative, then restores the saved state when you leave.",
+        "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative.",
+        "When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.",
         "Heaven Mirror also gives you a matching mirror inside the sandbox.",
         "If your original mirror had Permanence, the sandbox copy keeps it"
       ],
@@ -744,7 +792,7 @@
         "`/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds",
         "`/iwm allow <player>` | Allow a player to use mirror worlds",
         "`/iwm deny <player>` | Deny a player from using mirror worlds",
-        "`/iwm itemtransfer <player> <true/false>` | Set whether a player can bring items back",
+        "`/iwm itemtransfer <player> <true/false>` | Set whether a player can bring mirror-world items back from any mirror",
         "`/iwm status` | Show temporary and persistent mirror slots",
         "`/iwm persistent menu` | Open the persistent mirror menu",
         "`/iwm persistent save [name]` | Save your current temporary mirror as persistent",

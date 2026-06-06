@@ -21,6 +21,15 @@
           "checks": [
             "manager.save_requires_persistent_access"
           ]
+        },
+        {
+          "id": "item_transfer",
+          "title": "Item transfer uses the shared save-or-restore pipeline",
+          "checks": [
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
+          ]
         }
       ]
     },
@@ -40,7 +49,10 @@
           "id": "sandbox",
           "title": "Sandbox inventory setup is parameterized by permanence",
           "checks": [
-            "sandbox.prep_receives_persistent_access"
+            "sandbox.prep_receives_persistent_access",
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
           ]
         }
       ]
@@ -74,6 +86,15 @@
             "session.generated_content_refresh_field",
             "copy.generated_content_refresh_task_flag",
             "events.generated_content_refresh_allows_mob_spawn"
+          ]
+        },
+        {
+          "id": "item_transfer",
+          "title": "First Dream uses the shared item transfer pipeline",
+          "checks": [
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
           ]
         }
       ]
@@ -673,6 +694,46 @@
         "clearDimensionEffectsForPlayer(player, session.getDimensionIndex())",
         "cleanupPlayerTrackingData(player.getUUID())",
         "destroySession(session, server)"
+      ]
+    },
+    {
+      "id": "manager.shared_item_transfer_snapshot",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "texts": [
+        "savePlayerSnapshot(player, false)",
+        "savePlayerSnapshot(player, true)",
+        "saveMirrorModData(player, persistentData)",
+        "restoreMirrorModData(player, persistentData)",
+        "SAVED_MIRROR_FORGE_CAPS_KEY",
+        "SAVED_MIRROR_NEOFORGE_ATTACHMENTS_KEY"
+      ]
+    },
+    {
+      "id": "manager.shared_item_transfer_pipeline",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "finishPlayerMirrorState",
+      "texts": [
+        "boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY)",
+        "if (allowItemTransfer)",
+        "restoreSandboxState(player, persistentData)",
+        "restoreSavedGameMode(player, persistentData)",
+        "clearSavedData(player)",
+        "else",
+        "restorePlayerInventory(player)"
+      ]
+    },
+    {
+      "id": "runtime.shared_item_transfer_behavior",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "heavenSandboxItemTransferPermissionAllowsCreativeItems",
+        "nonSandboxItemTransferPermissionAllowsMirrorItems",
+        "Heaven sandbox without item transfer must restore the saved vanilla inventory",
+        "First dream without item transfer must restore the saved creative hotbar",
+        "Default mirror item transfer permission must allow mirror-world items"
       ]
     },
     {
@@ -1769,9 +1830,11 @@
         "renewalRefreshUsesItemCooldownAndCreativeBypass",
         "permanenceDoesNotResetEfficiencyCooldown",
         "heavenSandboxKeepsPermanenceMirror",
+        "heavenSandboxItemTransferPermissionAllowsCreativeItems",
         "firstDreamUsesDefaultPlayerState",
         "nonSandboxExitRestoresCreativeModeAfterMirrorModeChange",
         "nonSandboxInventoryRestoreIgnoresTemporaryMirrorMode",
+        "nonSandboxItemTransferPermissionAllowsMirrorItems",
         "persistentRecordsTrackSourceSession",
         "persistentDataRemovesUnreadyRecords",
         "repairDeadDataSkipsReadyPersistentRecords",
@@ -1788,11 +1851,14 @@
         "Renewal cooldown duration must be stored for the item cooldown bar",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
+        "MirrorWorldManager.setItemTransferPermission(player.getUUID(), true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",
         "First dream entry must keep creative mode",
+        "First dream without item transfer must restore the saved creative hotbar",
         "MirrorWorldManager.syncPlayerAbilitiesToGameMode(player)",
         "Restored creative mode must restore creative instabuild",
         "Default mirror must restore survival inventory even after a temporary creative change",
+        "Default mirror item transfer permission must allow mirror-world items",
         "data.getRecordBySourceSession(sourceSessionId)",
         "data.removeUnreadyRecords()",
         "PersistentMirrorManager.repairDeadPersistentData(player.getServer())",

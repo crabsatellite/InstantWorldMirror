@@ -666,6 +666,18 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "manager.shared_item_transfer_pipeline": {
+      "adapter": "method_contains_in_order",
+      "id": "manager.shared_item_transfer_pipeline",
+      "message": "method contains ordered text",
+      "passed": true
+    },
+    "manager.shared_item_transfer_snapshot": {
+      "adapter": "file_contains_all",
+      "id": "manager.shared_item_transfer_snapshot",
+      "message": "all text found",
+      "passed": true
+    },
     "manager.teleport_session_order": {
       "adapter": "method_contains_in_order",
       "id": "manager.teleport_session_order",
@@ -726,6 +738,12 @@
       "message": "all text found",
       "passed": true
     },
+    "runtime.shared_item_transfer_behavior": {
+      "adapter": "file_contains_all",
+      "id": "runtime.shared_item_transfer_behavior",
+      "message": "all text found",
+      "passed": true
+    },
     "sandbox.applies_permanence_to_hotbar_mirror": {
       "adapter": "file_contains",
       "id": "sandbox.applies_permanence_to_hotbar_mirror",
@@ -776,11 +794,11 @@
     }
   },
   "completion": {
-    "checkCount": 106,
+    "checkCount": 109,
     "complete": true,
     "coveredRouteCount": 14,
     "failedChecks": [],
-    "passedCheckCount": 106,
+    "passedCheckCount": 109,
     "routeCount": 14
   },
   "minecraftVersion": "1.21.1",
@@ -805,6 +823,16 @@
           "id": "save_gate",
           "status": "covered",
           "title": "Temporary sessions without permanence cannot be saved through commands"
+        },
+        {
+          "checks": [
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
+          ],
+          "id": "item_transfer",
+          "status": "covered",
+          "title": "Item transfer uses the shared save-or-restore pipeline"
         }
       ],
       "status": "covered",
@@ -824,7 +852,10 @@
         },
         {
           "checks": [
-            "sandbox.prep_receives_persistent_access"
+            "sandbox.prep_receives_persistent_access",
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
           ],
           "id": "sandbox",
           "status": "covered",
@@ -865,6 +896,16 @@
           "id": "copy",
           "status": "covered",
           "title": "Temporary first dream sessions regenerate pristine terrain instead of copying current chunks"
+        },
+        {
+          "checks": [
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior"
+          ],
+          "id": "item_transfer",
+          "status": "covered",
+          "title": "First Dream uses the shared item transfer pipeline"
         }
       ],
       "status": "covered",
