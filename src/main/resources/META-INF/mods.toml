@@ -10,7 +10,7 @@ version="${file.jarVersion}"
 displayName="World Mirrors"
 updateJSONURL="https://raw.githubusercontent.com/crabsatellite/InstantWorldMirror/changelog/changelog.json"
 displayURL=""
-logoFile="logo.png"
+# logoFile intentionally omitted; gallery logos live on the gallery branch.
 credits=""
 authors="CrabMods"
 description='''
