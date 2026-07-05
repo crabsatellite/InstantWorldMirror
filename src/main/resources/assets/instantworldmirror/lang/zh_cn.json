@@ -78,6 +78,7 @@
   "message.instantworldmirror.copy_started": "§a世界复制开始！请稍候...",
   "message.instantworldmirror.too_high": "§e无法在这么高的位置放置镜子——上方空间不足",
   "message.instantworldmirror.leaving_mirror_via_portal": "§e你正在通过传送门离开镜面世界，会话将被清理。",
+  "message.instantworldmirror.mirror_kind_disabled": "\u00a7c\u670d\u52a1\u5668\u5df2\u7981\u7528%s\u3002",
   "message.instantworldmirror.permanence_required": "这面镜子需要“永久”附魔才能使用永久世界。",
   "message.instantworldmirror.permanent_type_mismatch": "请使用创建此临时镜像时相同类型的镜子。",
   "message.instantworldmirror.permanent_session_required": "这个临时镜像创建时没有永久附魔。",

@@ -222,6 +222,17 @@ public class MirrorWorldManager {
             );
             return Optional.empty();
         }
+
+        if (!MirrorConfig.isMirrorKindEnabled(kind)) {
+            InstantWorldMirror.LOGGER.info("Player {} tried to create disabled mirror kind {}",
+                    player.getName().getString(), kind.id());
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.mirror_kind_disabled",
+                            Component.translatable(kind.translationKey())),
+                    true
+            );
+            return Optional.empty();
+        }
         
         sessionLock.writeLock().lock();
         try {

@@ -11,6 +11,7 @@
 - [x] `command.purge_temporary_pool_only` - composite passed
 - [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
+- [x] `config.mirror_kind_toggles` - all text found
 - [x] `copy.generated_content_refresh_task_flag` - all text found
 - [x] `copy.generated_content_refresh_uses_scratch_snapshot` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
@@ -63,14 +64,17 @@
 - [x] `kind.first_dream_not_sandbox` - method contains ordered text
 - [x] `kind.first_dream_present` - all text found
 - [x] `kind.first_dream_pristine` - all text found
+- [x] `lang.mirror_kind_disabled_message` - composite passed
 - [x] `lang.persistent_messages` - composite passed
 - [x] `lang.repair_messages` - composite passed
 - [x] `lang.status_persistent_messages` - composite passed
 - [x] `manager.copy_completion_releases_temporary_source` - method contains ordered text
 - [x] `manager.create_session_order` - method contains ordered text
+- [x] `manager.create_session_respects_mirror_kind_config` - method contains ordered text
 - [x] `manager.delete_persistent_order` - method contains ordered text
 - [x] `manager.delete_releases_unready_temporary_source` - method contains ordered text
 - [x] `manager.enter_persistent_order` - method contains ordered text
+- [x] `manager.enter_persistent_respects_mirror_kind_config` - method contains ordered text
 - [x] `manager.enter_requires_matching_permanence` - found text
 - [x] `manager.forceclear_restores_player_state` - method contains ordered text
 - [x] `manager.heaven_return_origin_gate` - method contains ordered text
@@ -94,6 +98,7 @@
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text
 - [x] `record.source_session_persisted` - all text found
+- [x] `runtime.disabled_mirror_kind_blocks_temporary_session` - method contains all text
 - [x] `runtime.gametest_behavior_coverage` - all text found
 - [x] `runtime.gametest_empty_template` - all text found
 - [x] `runtime.gametest_pristine_terrain_coverage` - all text found

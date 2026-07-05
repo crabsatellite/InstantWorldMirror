@@ -169,6 +169,9 @@ InstantWorldMirror 可以在你所在的位置创建临时或永久保存的镜�
 | --- | --- | --- |
 | `allowItemTransfer` | false | 默认是否允许玩家把镜世界物品带回 |
 | `mirrorCooldown` | 300 | 镜子使用冷却秒数，会被效率附魔降低 |
+| `enableWorldReflectionMirror` | true | 是否允许映界之镜创建或进入镜世界 |
+| `enableHeavenMirror` | true | 是否允许天堂之镜创建或进入镜世界 |
+| `enableFirstDreamMirror` | true | 是否允许初梦之镜创建或进入镜世界 |
 | `copyEntities` | false | 是否复制生物实体 |
 | `copyDecorationEntities` | true | 是否复制装饰实体 |
 | `enableMobSpawning` | false | 是否允许镜世界自然生物生成 |

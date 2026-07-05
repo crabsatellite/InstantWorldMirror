@@ -62,6 +62,12 @@ public final class MirrorLifecycleGameTests {
                 "First dream mirror must request pristine generated terrain");
         helper.assertFalse(MirrorKind.FIRST_DREAM.usesHeavenVisuals(),
                 "First dream mirror must not reuse heaven mirror visuals");
+        helper.assertTrue(MirrorConfig.isMirrorKindEnabled(MirrorKind.DIMENSION),
+                "World Reflection Mirror must be enabled by default");
+        helper.assertTrue(MirrorConfig.isMirrorKindEnabled(MirrorKind.HEAVEN),
+                "Heaven Mirror must be enabled by default");
+        helper.assertTrue(MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM),
+                "First Dream Mirror must be enabled by default");
         helper.assertFalse(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Fresh heaven mirror must not start permanent");
 
@@ -117,6 +123,36 @@ public final class MirrorLifecycleGameTests {
                 "Renewal must be applied exactly once");
         helper.assertTrue(firstDreamMirror.hasFoil(),
                 "Renewal enchanted first dream mirrors must show enchantment glint");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void disabledMirrorKindBlocksTemporarySessionCreation(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        clearDimensionPoolTestState(player);
+
+        try {
+            MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(false);
+
+            helper.assertFalse(MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM),
+                    "First Dream Mirror config toggle must disable only that kind");
+            helper.assertTrue(MirrorWorldManager.createSession(
+                            player, BlockPos.ZERO, MirrorKind.FIRST_DREAM, false).isEmpty(),
+                    "Disabled mirror kinds must not create temporary sessions");
+            helper.assertFalse(MirrorWorldManager.hasActiveSession(player.getUUID()),
+                    "A blocked mirror kind must not leave an active session behind");
+
+            MirrorSession allowedSession = MirrorWorldManager.createSession(
+                    player, BlockPos.ZERO.above(), MirrorKind.DIMENSION, false).orElseThrow();
+            helper.assertTrue(allowedSession.getKind() == MirrorKind.DIMENSION,
+                    "Disabling one mirror kind must not block other mirror kinds");
+        } finally {
+            MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(true);
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+        }
 
         helper.succeed();
     }

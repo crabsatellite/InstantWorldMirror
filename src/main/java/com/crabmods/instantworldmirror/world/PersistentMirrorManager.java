@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror.world;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.PersistentMirrorMenuPacket;
@@ -384,6 +385,14 @@ public class PersistentMirrorManager {
         PersistentMirrorRecord record = recordOpt.get();
         if (!record.ready()) {
             player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.copying"), false);
+            return false;
+        }
+
+        if (!MirrorConfig.isMirrorKindEnabled(record.kind())) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.mirror_kind_disabled",
+                            Component.translatable(record.kind().translationKey())),
+                    false);
             return false;
         }
 

@@ -12,7 +12,10 @@
           "title": "Entry portal records whether the held mirror has permanence",
           "checks": [
             "item.entry.passes_permanence_state",
-            "session.persistent_access_field"
+            "session.persistent_access_field",
+            "config.mirror_kind_toggles",
+            "manager.create_session_respects_mirror_kind_config",
+            "lang.mirror_kind_disabled_message"
           ]
         },
         {
@@ -42,7 +45,8 @@
           "title": "Mirror kind is still derived from the two mirror items",
           "checks": [
             "item.kind_from_stack",
-            "record.kind_saved_from_session"
+            "record.kind_saved_from_session",
+            "config.mirror_kind_toggles"
           ]
         },
         {
@@ -70,7 +74,9 @@
             "kind.first_dream_not_sandbox",
             "kind.first_dream_pristine",
             "enchantment.renewal_first_dream_only",
-            "enchantment.renewal_hard_to_get_registration"
+            "enchantment.renewal_hard_to_get_registration",
+            "config.mirror_kind_toggles",
+            "runtime.disabled_mirror_kind_blocks_temporary_session"
           ]
         },
         {
@@ -116,6 +122,7 @@
           "id": "enter_gate",
           "title": "Persistent world entry requires a matching enchanted mirror",
           "checks": [
+            "manager.enter_persistent_respects_mirror_kind_config",
             "manager.enter_requires_matching_permanence",
             "command.menu_uses_held_mirror"
           ]
@@ -280,6 +287,7 @@
           "id": "enter",
           "title": "Entering a persistent mirror checks readiness, matching enchanted mirror, access rights, and active-session exclusivity",
           "checks": [
+            "manager.enter_persistent_respects_mirror_kind_config",
             "manager.enter_persistent_order"
           ]
         },
@@ -635,6 +643,38 @@
       "text": "public boolean hasPersistentAccess()"
     },
     {
+      "id": "config.mirror_kind_toggles",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
+      "texts": [
+        "define(\"enableWorldReflectionMirror\", true)",
+        "define(\"enableHeavenMirror\", true)",
+        "define(\"enableFirstDreamMirror\", true)",
+        "isMirrorKindEnabled",
+        "case DIMENSION -> ENABLE_WORLD_REFLECTION_MIRROR.get()",
+        "case HEAVEN -> ENABLE_HEAVEN_MIRROR.get()",
+        "case FIRST_DREAM -> ENABLE_FIRST_DREAM_MIRROR.get()"
+      ]
+    },
+    {
+      "id": "manager.create_session_respects_mirror_kind_config",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "method": "createSession",
+      "signatureContains": [
+        "MirrorKind kind",
+        "boolean persistentAccess",
+        "boolean generatedContentRefresh"
+      ],
+      "texts": [
+        "if (purgeMode)",
+        "if (!MirrorConfig.isMirrorKindEnabled(kind))",
+        "message.instantworldmirror.mirror_kind_disabled",
+        "return Optional.empty()",
+        "sessionLock.writeLock().lock()"
+      ]
+    },
+    {
       "id": "manager.create_session_order",
       "adapter": "method_contains_in_order",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
@@ -656,6 +696,21 @@
         "session.setDimensionIndex(dimIndex)",
         "activeSessions.put(session.getSessionId(), session)",
         "playerOwnedSession.put(player.getUUID(), session.getSessionId())"
+      ]
+    },
+    {
+      "id": "runtime.disabled_mirror_kind_blocks_temporary_session",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "method": "disabledMirrorKindBlocksTemporarySessionCreation",
+      "texts": [
+        "MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(false)",
+        "MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM)",
+        "MirrorWorldManager.createSession(",
+        "MirrorKind.FIRST_DREAM",
+        "MirrorWorldManager.hasActiveSession(player.getUUID())",
+        "MirrorKind.DIMENSION",
+        "MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(true)"
       ]
     },
     {
@@ -1036,6 +1091,20 @@
       "text": "hasMatchingPermanenceMirror(player, record.kind())"
     },
     {
+      "id": "manager.enter_persistent_respects_mirror_kind_config",
+      "adapter": "method_contains_in_order",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "enterPersistentMirror",
+      "texts": [
+        "PersistentMirrorRecord record = recordOpt.get()",
+        "if (!record.ready())",
+        "if (!MirrorConfig.isMirrorKindEnabled(record.kind()))",
+        "message.instantworldmirror.mirror_kind_disabled",
+        "return false",
+        "if (!hasMatchingPermanenceMirror(player, record.kind()))"
+      ]
+    },
+    {
       "id": "manager.enter_persistent_order",
       "adapter": "method_contains_in_order",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
@@ -1043,6 +1112,7 @@
       "texts": [
         "PersistentMirrorData.get(server).getRecord(recordId)",
         "if (!record.ready())",
+        "if (!MirrorConfig.isMirrorKindEnabled(record.kind()))",
         "if (!hasMatchingPermanenceMirror(player, record.kind()))",
         "if (!canEnterRecord(player, record))",
         "if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player))",
@@ -1437,6 +1507,34 @@
             "command.instantworldmirror.persistent.selector_not_found",
             "command.instantworldmirror.persistent.grant.success",
             "enchantment.instantworldmirror.permanence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lang.mirror_kind_disabled_message",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json"
+        },
+        {
+          "adapter": "json_parse",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json"
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/en_us.json",
+          "texts": [
+            "message.instantworldmirror.mirror_kind_disabled"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/resources/assets/instantworldmirror/lang/zh_cn.json",
+          "texts": [
+            "message.instantworldmirror.mirror_kind_disabled"
           ]
         }
       ]

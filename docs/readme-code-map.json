@@ -887,6 +887,9 @@
         "`maxPortalLoadingTime` | 600 | Maximum portal loading time in seconds",
         "`allowItemTransfer` | false | Whether players can bring mirror-world items back by default",
         "`mirrorCooldown` | 300 | Mirror use cooldown in seconds, reduced by Efficiency",
+        "`enableWorldReflectionMirror` | true | Whether the World Reflection Mirror can create or enter mirror worlds",
+        "`enableHeavenMirror` | true | Whether the Heaven Mirror can create or enter mirror worlds",
+        "`enableFirstDreamMirror` | true | Whether the First Dream Mirror can create or enter mirror worlds",
         "`copyEntities` | false | Whether to copy mob entities",
         "`copyDecorationEntities` | true | Whether to copy decoration entities",
         "`enableMobSpawning` | false | Whether natural mob spawning is allowed in mirror worlds",
@@ -913,6 +916,9 @@
             "defineInRange(\"maxPortalLoadingTime\", 600, 60, 3600)",
             "define(\"allowItemTransfer\", false)",
             "defineInRange(\"mirrorCooldown\", 300, 0, 3600)",
+            "define(\"enableWorldReflectionMirror\", true)",
+            "define(\"enableHeavenMirror\", true)",
+            "define(\"enableFirstDreamMirror\", true)",
             "define(\"copyEntities\", false)",
             "define(\"copyDecorationEntities\", true)",
             "define(\"enableMobSpawning\", false)",
@@ -933,6 +939,7 @@
             "getMaxPortalLoadingTicks",
             "getMirrorCooldownTicks",
             "getStaleSessionCleanupTicks",
+            "isMirrorKindEnabled",
             "isMobSpawningEnabled",
             "getMobSpawningStatus"
           ]
@@ -945,6 +952,24 @@
             "getItemTransferPermission",
             "MirrorConfig.ALLOW_ITEM_TRANSFER.get()",
             "finishPlayerMirrorState"
+          ]
+        },
+        {
+          "label": "mirror type config entry consumers",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "texts": [
+            "MirrorConfig.isMirrorKindEnabled(kind)",
+            "message.instantworldmirror.mirror_kind_disabled"
+          ]
+        },
+        {
+          "label": "mirror type config persistent consumers",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "texts": [
+            "MirrorConfig.isMirrorKindEnabled(record.kind())",
+            "message.instantworldmirror.mirror_kind_disabled"
           ]
         },
         {
