@@ -12,7 +12,6 @@ import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorData;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
-import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -31,13 +30,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.LevelResource;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -576,37 +569,20 @@ public class ModCommands {
             return 0;
         }
 
-        int temporaryCleanupsRequeued = 0;
-        int liveStatesSkipped = 0;
-        for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
-            DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
-            if (state != DimensionPool.DimensionState.CLEANING || WorldCopyService.hasPendingCleanup(dimIndex)) {
-                continue;
-            }
-
-            ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
-            int playerCount = mirrorWorld != null ? mirrorWorld.players().size() : 0;
-            if (mirrorWorld == null || playerCount > 0) {
-                liveStatesSkipped++;
-                continue;
-            }
-
-            WorldCopyService.cleanupMirrorWorld(mirrorWorld, dimIndex);
-            temporaryCleanupsRequeued++;
-        }
+        int temporaryCleanupsRecovered = MirrorWorldManager.recoverTemporaryMirrorCleanups(server);
 
         PersistentMirrorManager.DeadDataRepairResult persistentResult =
                 PersistentMirrorManager.repairDeadPersistentData(server);
-        int skipped = liveStatesSkipped + persistentResult.liveRecordsSkipped();
-        int repaired = temporaryCleanupsRequeued
+        int skipped = persistentResult.liveRecordsSkipped();
+        int repaired = temporaryCleanupsRecovered
                 + persistentResult.recordsRemoved()
                 + persistentResult.worldsCleaned();
-        final int finalTemporaryCleanupsRequeued = temporaryCleanupsRequeued;
+        final int finalTemporaryCleanupsRecovered = temporaryCleanupsRecovered;
         final int finalSkipped = skipped;
 
         source.sendSuccess(() -> Component.translatable(
                 "command.instantworldmirror.repair.success",
-                finalTemporaryCleanupsRequeued,
+                finalTemporaryCleanupsRecovered,
                 persistentResult.recordsRemoved(),
                 persistentResult.worldsCleaned(),
                 finalSkipped
@@ -616,16 +592,17 @@ public class ModCommands {
     }
     
     /**
-     * /iwm purge - Completely delete temporary mirror world save files.
+     * /iwm purge - Force temporary mirror worlds into cleanup.
      * Persistent mirrors are never touched here; interrupted persistent data is handled by /iwm repair.
-     * This marks temporary worlds for deletion and requires a server restart to take effect
+     * Runtime file deletion is intentionally avoided because loaded dimensions can keep files locked.
      * Requires permission level 3 or above
      * 
      * Process:
      * 1. Enable purge mode to prevent new mirror sessions
      * 2. Force return all players in mirror worlds to overworld spawn
-     * 3. Delete temporary mirror world save directories
-     * 4. Notify that restart is required
+     * 3. Remove mirror portal entities
+     * 4. Requeue temporary mirror cleanup tasks
+     * 5. Notify that restart is required
      */
     private static int purgeCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
@@ -664,76 +641,20 @@ public class ModCommands {
             ), true);
         }
         
-        // Step 4: Delete temporary mirror world save directories
-        Path worldPath = server.getWorldPath(LevelResource.ROOT);
-        Path dimensionsPath = worldPath.resolve("dimensions").resolve(InstantWorldMirror.MODID);
-        
-        int deletedCount = 0;
-        int failedCount = 0;
-        
-        // Delete temporary mirror world directories only; persistent worlds are live player data.
-        for (int i = 0; i < ModDimensions.MAX_MIRROR_WORLD_POOL_SIZE; i++) {
-            Path mirrorWorldPath = dimensionsPath.resolve("mirror_world_" + i);
-            if (Files.exists(mirrorWorldPath)) {
-                try {
-                    // Recursively delete the directory
-                    deleteDirectoryRecursively(mirrorWorldPath);
-                    deletedCount++;
-                    InstantWorldMirror.LOGGER.info("Deleted mirror world directory: {}", mirrorWorldPath);
-                } catch (IOException e) {
-                    failedCount++;
-                    InstantWorldMirror.LOGGER.error("Failed to delete mirror world directory: {}", mirrorWorldPath, e);
-                }
-            }
-        }
-        
-        final int finalDeletedCount = deletedCount;
-        final int finalFailedCount = failedCount;
+        // Step 4: Requeue cleanup instead of deleting loaded dimension folders at runtime.
+        int recoveredCleanups = MirrorWorldManager.recoverTemporaryMirrorCleanups(server);
         final int finalPlayersReturned = totalPlayersReturned;
-        
-        if (deletedCount > 0) {
-            source.sendSuccess(() -> Component.translatable(
-                    "command.instantworldmirror.purge.success",
-                    finalDeletedCount, finalPlayersReturned
-            ), true);
-            
-            // Warn about restart requirement
-            source.sendSuccess(() -> Component.translatable(
-                    "command.instantworldmirror.purge.restart_required"
-            ), false);
-        }
-        
-        if (failedCount > 0) {
-            source.sendFailure(Component.translatable(
-                    "command.instantworldmirror.purge.partial_failure",
-                    finalFailedCount
-            ));
-        }
-        
-        if (deletedCount == 0 && failedCount == 0) {
-            source.sendSuccess(() -> Component.translatable(
-                    "command.instantworldmirror.purge.nothing_to_delete"
-            ), false);
-        }
-        
-        return deletedCount > 0 ? 1 : 0;
-    }
-    
-    /**
-     * Recursively delete a directory and all its contents
-     */
-    private static void deleteDirectoryRecursively(Path directory) throws IOException {
-        if (Files.exists(directory)) {
-            try (Stream<Path> walk = Files.walk(directory)) {
-                walk.sorted(Comparator.reverseOrder())
-                    .forEach(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            throw new RuntimeException("Failed to delete: " + path, e);
-                        }
-                    });
-            }
-        }
+        final int finalRecoveredCleanups = recoveredCleanups;
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.instantworldmirror.purge.cleanup_queued",
+                finalRecoveredCleanups, finalPlayersReturned
+        ), true);
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.instantworldmirror.purge.restart_required"
+        ), false);
+
+        return 1;
     }
 }

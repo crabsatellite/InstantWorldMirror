@@ -79,21 +79,7 @@ public class DimensionPool {
                 DimensionPoolData.DATA_NAME
         );
         
-        // Restore CLEANING states
-        int poolSize = ModDimensions.getPoolSize();
-        for (int i = 0; i < poolSize; i++) {
-            if (data.isMarkedForCleanup(i)) {
-                dimensionStates.put(i, DimensionState.CLEANING);
-                InstantWorldMirror.LOGGER.debug("Restored dimension {} to CLEANING state", i);
-                
-                // Queue cleanup task for this dimension
-                ServerLevel mirrorWorld = server.getLevel(ModDimensions.getMirrorWorld(i));
-                if (mirrorWorld != null) {
-                    WorldCopyService.cleanupMirrorWorld(mirrorWorld, i);
-                    InstantWorldMirror.LOGGER.debug("Re-queued cleanup task for dimension {}", i);
-                }
-            }
-        }
+        recoverMarkedCleanupDimensions(server, data);
     }
 
     /**
@@ -242,10 +228,135 @@ public class DimensionPool {
     }
 
     /**
+     * Recover temporary mirror dimensions left dirty by a previous shutdown or crash.
+     * This is intentionally startup-only: live allocated dimensions are also marked dirty
+     * until they finish cleanup, so runtime recovery must go through MirrorWorldManager.
+     */
+    private static void recoverMarkedCleanupDimensions(MinecraftServer server, DimensionPoolData data) {
+        int poolSize = ModDimensions.getPoolSize();
+        for (int i = 0; i < poolSize; i++) {
+            if (!data.isMarkedForCleanup(i)) {
+                continue;
+            }
+
+            UUID sessionId = dimensionToSession.remove(i);
+            if (sessionId != null) {
+                sessionToDimension.remove(sessionId);
+            }
+            dimensionToSource.remove(i);
+            dimensionStates.put(i, DimensionState.CLEANING);
+            InstantWorldMirror.LOGGER.info("Recovering temporary mirror dimension {} from saved cleanup marker", i);
+
+            ServerLevel mirrorWorld = server.getLevel(ModDimensions.getMirrorWorld(i));
+            if (mirrorWorld == null) {
+                if (!hasSavedCleanupWork(data, i) && !hasMirrorWorldRegionFiles(server, i)) {
+                    markDimensionAvailable(i);
+                    InstantWorldMirror.LOGGER.info(
+                            "Released temporary mirror dimension {} from saved cleanup marker because no mirror world or saved cleanup work exists",
+                            i);
+                    continue;
+                }
+
+                InstantWorldMirror.LOGGER.warn(
+                        "Temporary mirror dimension {} is marked for cleanup but is not loaded yet; repair will retry later",
+                        i);
+                continue;
+            }
+
+            if (!mirrorWorld.players().isEmpty()) {
+                InstantWorldMirror.LOGGER.warn(
+                        "Temporary mirror dimension {} is marked for cleanup but still has {} player(s); leaving it for runtime recovery",
+                        i, mirrorWorld.players().size());
+                continue;
+            }
+
+            if (!WorldCopyService.hasPendingCleanup(i)) {
+                WorldCopyService.cleanupMirrorWorld(mirrorWorld, i);
+                InstantWorldMirror.LOGGER.info("Re-queued cleanup for recovered temporary mirror dimension {}", i);
+            }
+        }
+    }
+
+    /**
      * Get dimension state
      */
     public static DimensionState getDimensionState(int dimIndex) {
         return dimensionStates.getOrDefault(dimIndex, DimensionState.AVAILABLE);
+    }
+
+    /**
+     * Return whether saved world data says this temporary dimension still needs cleanup.
+     */
+    public static boolean isMarkedForCleanup(int dimIndex) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
+                    DimensionPoolData.DATA_NAME
+            );
+            return data.isMarkedForCleanup(dimIndex);
+        }
+        return false;
+    }
+
+    /**
+     * Return whether persistent cleanup metadata contains a recoverable cleanup range.
+     */
+    public static boolean hasSavedCleanupWork(int dimIndex) {
+        if (serverRef != null) {
+            ServerLevel overworld = serverRef.overworld();
+            DimensionPoolData data = overworld.getDataStorage().computeIfAbsent(
+                    DimensionPoolData::load,
+                    DimensionPoolData::new,
+                    DimensionPoolData.DATA_NAME
+            );
+            return hasSavedCleanupWork(data, dimIndex);
+        }
+        return false;
+    }
+
+    private static boolean hasSavedCleanupWork(DimensionPoolData data, int dimIndex) {
+        return data.getCopyCenter(dimIndex) != null
+                || !data.getModifiedChunks(dimIndex).isEmpty()
+                || data.getCleanupProgress(dimIndex) > 0;
+    }
+
+    /**
+     * Return whether the temporary mirror dimension has on-disk region data.
+     */
+    public static boolean hasMirrorWorldRegionFiles(MinecraftServer server, int dimIndex) {
+        int poolSize = ModDimensions.getPoolSize();
+        if (dimIndex < 0 || dimIndex >= poolSize) {
+            return false;
+        }
+
+        try {
+            java.nio.file.Path worldFolder = server.getWorldPath(
+                    net.minecraft.world.level.storage.LevelResource.ROOT);
+            String dimensionPath = ModDimensions.getMirrorWorld(dimIndex)
+                    .location()
+                    .toString()
+                    .replace(":", "/");
+            java.nio.file.Path regionFolder = worldFolder
+                    .resolve("dimensions")
+                    .resolve(dimensionPath)
+                    .resolve("region");
+
+            if (!java.nio.file.Files.isDirectory(regionFolder)) {
+                return false;
+            }
+
+            try (java.nio.file.DirectoryStream<java.nio.file.Path> stream =
+                         java.nio.file.Files.newDirectoryStream(regionFolder, "r.*.*.mca")) {
+                return stream.iterator().hasNext();
+            }
+        } catch (java.io.IOException e) {
+            InstantWorldMirror.LOGGER.warn(
+                    "Could not inspect temporary mirror dimension {} region files; leaving cleanup marker in place",
+                    dimIndex, e);
+            return true;
+        }
     }
 
     /**

@@ -2456,6 +2456,86 @@ public class MirrorWorldManager {
     }
 
     /**
+     * Requeue cleanup for temporary mirror dimensions left dirty by an interrupted
+     * session, crash, or failed force clear. Returns the number of cleanup tasks
+     * started or restarted.
+     */
+    public static int recoverTemporaryMirrorCleanups(MinecraftServer server) {
+        sessionLock.writeLock().lock();
+        try {
+            return recoverTemporaryMirrorCleanupsLocked(server);
+        } finally {
+            sessionLock.writeLock().unlock();
+        }
+    }
+
+    private static int recoverTemporaryMirrorCleanupsLocked(MinecraftServer server) {
+        int recoveredDimensions = 0;
+        int poolSize = ModDimensions.getPoolSize();
+        for (int dimIndex = 0; dimIndex < poolSize; dimIndex++) {
+            DimensionPool.DimensionState state = DimensionPool.getDimensionState(dimIndex);
+            boolean markedForCleanup = DimensionPool.isMarkedForCleanup(dimIndex);
+            boolean pendingCleanup = WorldCopyService.hasPendingCleanup(dimIndex);
+            UUID sessionId = DimensionPool.getSessionForDimension(dimIndex);
+            MirrorSession session = sessionId != null ? activeSessions.get(sessionId) : null;
+            boolean hasLiveSession = session != null && !session.isDestroyed();
+
+            ServerLevel mirrorLevel = DimensionPool.getDimensionLevel(server, dimIndex);
+            int playerCount = mirrorLevel != null ? mirrorLevel.players().size() : 0;
+
+            if (hasLiveSession || playerCount > 0) {
+                continue;
+            }
+
+            boolean shouldQueueCleanup = false;
+            if (state == DimensionPool.DimensionState.IN_USE && (sessionId == null || session == null || session.isDestroyed())) {
+                InstantWorldMirror.LOGGER.warn(
+                        "Recovering orphaned temporary mirror dimension {} (state IN_USE, session {})",
+                        dimIndex, sessionId);
+                DimensionPool.forceReleaseDimension(dimIndex);
+                state = DimensionPool.DimensionState.CLEANING;
+                shouldQueueCleanup = true;
+            } else if (markedForCleanup && state != DimensionPool.DimensionState.CLEANING) {
+                InstantWorldMirror.LOGGER.warn(
+                        "Recovering temporary mirror dimension {} from saved cleanup marker (state {})",
+                        dimIndex, state);
+                DimensionPool.markDimensionCleaning(dimIndex);
+                state = DimensionPool.DimensionState.CLEANING;
+                shouldQueueCleanup = true;
+            } else if (state == DimensionPool.DimensionState.CLEANING && !pendingCleanup) {
+                shouldQueueCleanup = true;
+            }
+
+            if (!shouldQueueCleanup || pendingCleanup) {
+                continue;
+            }
+
+            if (mirrorLevel == null) {
+                if (!DimensionPool.hasSavedCleanupWork(dimIndex)
+                        && !DimensionPool.hasMirrorWorldRegionFiles(server, dimIndex)) {
+                    DimensionPool.markDimensionAvailable(dimIndex);
+                    recoveredDimensions++;
+                    InstantWorldMirror.LOGGER.info(
+                            "Released temporary mirror dimension {} without cleanup because no mirror world or saved cleanup work exists",
+                            dimIndex);
+                    continue;
+                }
+
+                InstantWorldMirror.LOGGER.warn(
+                        "Temporary mirror dimension {} needs cleanup but is not loaded; recovery will retry later",
+                        dimIndex);
+                continue;
+            }
+
+            WorldCopyService.cleanupMirrorWorld(mirrorLevel, dimIndex);
+            recoveredDimensions++;
+            InstantWorldMirror.LOGGER.info("Re-queued cleanup for temporary mirror dimension {}", dimIndex);
+        }
+
+        return recoveredDimensions;
+    }
+
+    /**
      * Cleanup stale/orphaned sessions and dimensions
      * This is a fallback mechanism that runs periodically to catch:
      * 1. Sessions with no players that weren't properly cleaned up
@@ -2516,6 +2596,8 @@ public class MirrorWorldManager {
                     }
                 }
             }
+
+            cleanedDimensions += recoverTemporaryMirrorCleanupsLocked(server);
             
             if (cleanedSessions > 0 || cleanedDimensions > 0) {
                 InstantWorldMirror.LOGGER.info("Stale cleanup completed: {} sessions, {} dimensions", 

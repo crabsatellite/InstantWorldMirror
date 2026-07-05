@@ -360,6 +360,26 @@ public final class MirrorLifecycleGameTests {
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void firstDreamItemTransferPermissionAllowsMirrorItems(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.setItemTransferPermission(player.getUUID(), true);
+        player.getInventory().items.set(4, new ItemStack(Items.DIAMOND, 2));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, false);
+
+        player.getInventory().items.set(4, new ItemStack(Items.DIRT));
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
+                "First dream item transfer must still restore the original game mode");
+        helper.assertTrue(player.getInventory().items.get(4).is(Items.DIRT),
+                "First dream item transfer permission must allow mirror-world items");
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
         UUID recordId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -497,6 +517,59 @@ public final class MirrorLifecycleGameTests {
 
         WorldCopyService.clearAllTasks();
         clearDimensionPoolTestState(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void startupRecoveryHandlesInterruptedTemporaryCleanup(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        clearDimensionPoolTestState(player);
+
+        MirrorSession activeSession = MirrorWorldManager.createSession(
+                player, BlockPos.ZERO, MirrorKind.FIRST_DREAM, false).orElseThrow();
+        int dimIndex = activeSession.getDimensionIndex();
+
+        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
+                "Allocated temporary dimensions must persist a cleanup marker before any crash");
+
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        WorldCopyService.clearAllTasks();
+        helper.assertFalse(WorldCopyService.hasPendingCleanup(dimIndex),
+                "Crash simulation must leave no in-memory cleanup task");
+
+        DimensionPool.initializeWithServer(player.getServer());
+
+        if (DimensionPool.getDimensionLevel(player.getServer(), dimIndex) == null) {
+            helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.AVAILABLE,
+                    "Startup recovery must release empty dirty temporary dimensions when the mirror world is unavailable");
+            helper.assertFalse(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
+                    "Startup recovery must clear empty cleanup markers after releasing the temporary dimension");
+            helper.assertFalse(WorldCopyService.hasPendingCleanup(dimIndex),
+                    "Startup recovery must not queue cleanup without a loaded mirror world or saved cleanup work");
+        } else {
+            helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.CLEANING,
+                    "Startup recovery must restore dirty temporary dimensions to CLEANING");
+            helper.assertTrue(WorldCopyService.hasPendingCleanup(dimIndex),
+                    "Startup recovery must requeue cleanup for dirty temporary dimensions");
+        }
+
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void mirrorCopySkipsNativePhysicsNamespaces(GameTestHelper helper) {
+        helper.assertTrue(WorldCopyService.isCopyUnsafeNativePhysicsNamespace("sable"),
+                "Sable physics objects must not be copied into disposable mirror dimensions");
+        helper.assertTrue(WorldCopyService.isCopyUnsafeNativePhysicsNamespace("sable_rapier"),
+                "Sable Rapier native objects must not be copied into disposable mirror dimensions");
+        helper.assertTrue(WorldCopyService.isCopyUnsafeNativePhysicsNamespace("synaxis"),
+                "Synaxis objects backed by Sable physics must not be copied into disposable mirror dimensions");
+        helper.assertFalse(WorldCopyService.isCopyUnsafeNativePhysicsNamespace("minecraft"),
+                "Vanilla content must remain copyable");
+        helper.assertFalse(WorldCopyService.isCopyUnsafeNativePhysicsNamespace(null),
+                "Missing namespaces must not be treated as native physics content");
         helper.succeed();
     }
 
