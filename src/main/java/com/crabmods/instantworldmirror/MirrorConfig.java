@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror;
 
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -80,6 +81,26 @@ public class MirrorConfig {
                     "Efficiency 5 = minimum cooldown of 30 seconds.",
                     "Creative mode players have no cooldown.")
             .defineInRange("mirrorCooldown", 300, 0, 3600);
+
+    // ==================== Mirror Type Toggles ====================
+
+    public static final ModConfigSpec.BooleanValue ENABLE_WORLD_REFLECTION_MIRROR = BUILDER
+            .comment("Enable the World Reflection Mirror (default: true)",
+                    "When false, players cannot create new temporary or enter persistent World Reflection Mirror worlds.",
+                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
+            .define("enableWorldReflectionMirror", true);
+
+    public static final ModConfigSpec.BooleanValue ENABLE_HEAVEN_MIRROR = BUILDER
+            .comment("Enable the Heaven Mirror (default: true)",
+                    "When false, players cannot create new temporary or enter persistent Heaven Mirror worlds.",
+                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
+            .define("enableHeavenMirror", true);
+
+    public static final ModConfigSpec.BooleanValue ENABLE_FIRST_DREAM_MIRROR = BUILDER
+            .comment("Enable the First Dream Mirror (default: true)",
+                    "When false, players cannot create new temporary or enter persistent First Dream Mirror worlds.",
+                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
+            .define("enableFirstDreamMirror", true);
 
     // ==================== Mob Spawning ====================
     
@@ -177,6 +198,14 @@ public class MirrorConfig {
             return runtimeMobSpawningEnabled ? "on (runtime)" : "off (runtime)";
         }
         return ENABLE_MOB_SPAWNING.get() ? "on (config)" : "off (config)";
+    }
+
+    public static boolean isMirrorKindEnabled(MirrorKind kind) {
+        return switch (kind) {
+            case DIMENSION -> ENABLE_WORLD_REFLECTION_MIRROR.get();
+            case HEAVEN -> ENABLE_HEAVEN_MIRROR.get();
+            case FIRST_DREAM -> ENABLE_FIRST_DREAM_MIRROR.get();
+        };
     }
 
     /**

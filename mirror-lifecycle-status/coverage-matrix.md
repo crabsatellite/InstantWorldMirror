@@ -2,16 +2,16 @@
 
 | Route | Stage | Status | Checks |
 | --- | --- | --- | --- |
-| `temporary.dimension_mirror` | `entry` | `covered` | `item.entry.passes_permanence_state`, `session.persistent_access_field` |
+| `temporary.dimension_mirror` | `entry` | `covered` | `item.entry.passes_permanence_state`, `session.persistent_access_field`, `config.mirror_kind_toggles`, `manager.create_session_respects_mirror_kind_config`, `lang.mirror_kind_disabled_message` |
 | `temporary.dimension_mirror` | `save_gate` | `covered` | `manager.save_requires_persistent_access` |
 | `temporary.dimension_mirror` | `item_transfer` | `covered` | `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
-| `temporary.heaven_mirror` | `kind` | `covered` | `item.kind_from_stack`, `record.kind_saved_from_session` |
+| `temporary.heaven_mirror` | `kind` | `covered` | `item.kind_from_stack`, `record.kind_saved_from_session`, `config.mirror_kind_toggles` |
 | `temporary.heaven_mirror` | `sandbox` | `covered` | `sandbox.prep_receives_persistent_access`, `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
-| `temporary.first_dream_mirror` | `kind` | `covered` | `item.kind_from_stack`, `kind.first_dream_present`, `kind.first_dream_not_sandbox`, `kind.first_dream_pristine`, `enchantment.renewal_first_dream_only`, `enchantment.renewal_hard_to_get_registration` |
+| `temporary.first_dream_mirror` | `kind` | `covered` | `item.kind_from_stack`, `kind.first_dream_present`, `kind.first_dream_not_sandbox`, `kind.first_dream_pristine`, `enchantment.renewal_first_dream_only`, `enchantment.renewal_hard_to_get_registration`, `config.mirror_kind_toggles`, `runtime.disabled_mirror_kind_blocks_temporary_session` |
 | `temporary.first_dream_mirror` | `copy` | `covered` | `session.kind_field`, `copy.pristine_task_flag`, `copy.pristine_generator_features`, `copy.pristine_generator_pipeline`, `copy.pristine_scratch_world_skips_poi_updates`, `copy.pristine_loot_uses_mob_spawn_config`, `session.generated_content_refresh_field`, `copy.generated_content_refresh_task_flag`, `events.generated_content_refresh_allows_mob_spawn` |
 | `temporary.first_dream_mirror` | `item_transfer` | `covered` | `manager.shared_item_transfer_snapshot`, `manager.shared_item_transfer_pipeline`, `runtime.shared_item_transfer_behavior` |
 | `permanent.dimension_mirror` | `enchantment` | `covered` | `enchantment.helper_present`, `enchantment.version_registration`, `enchantment.mirror_item_support` |
-| `permanent.dimension_mirror` | `enter_gate` | `covered` | `manager.enter_requires_matching_permanence`, `command.menu_uses_held_mirror` |
+| `permanent.dimension_mirror` | `enter_gate` | `covered` | `manager.enter_persistent_respects_mirror_kind_config`, `manager.enter_requires_matching_permanence`, `command.menu_uses_held_mirror` |
 | `permanent.heaven_mirror` | `sandbox_hotbar` | `covered` | `sandbox.applies_permanence_to_hotbar_mirror` |
 | `permanent.heaven_mirror` | `persistent_enter` | `covered` | `manager.persistent_enter_passes_access` |
 | `active_use_lifecycle` | `block_use` | `covered` | `item.block_use_order`, `item.cooldown_applies_after_success` |
@@ -27,7 +27,7 @@
 | `death_external_logout_lifecycle` | `logout` | `covered` | `events.logout_cleanup_order`, `events.logout_clears_persistent_tracking` |
 | `death_external_logout_lifecycle` | `shutdown` | `covered` | `events.server_stop_clears_all_lifecycle_state`, `dimension_pool.allocate_marks_cleanup_dirty`, `manager.server_stop_marks_active_dimensions`, `dimension_pool.cleaning_removes_allocations` |
 | `persistent.record_lifecycle` | `save` | `covered` | `manager.save_persistent_order`, `manager.save_retains_temporary_source`, `manager.copy_completion_releases_temporary_source`, `manager.save_rejects_duplicate_session`, `record.source_session_persisted`, `data.source_session_lookup`, `record.selector_present`, `data.selector_lookup` |
-| `persistent.record_lifecycle` | `enter` | `covered` | `manager.enter_persistent_order` |
+| `persistent.record_lifecycle` | `enter` | `covered` | `manager.enter_persistent_respects_mirror_kind_config`, `manager.enter_persistent_order` |
 | `persistent.record_lifecycle` | `rename` | `covered` | `manager.rename_record_order`, `manager.menu_uses_selectors`, `client.persistent_popup_controls` |
 | `persistent.record_lifecycle` | `leave` | `covered` | `manager.leave_persistent_order` |
 | `persistent.record_lifecycle` | `delete` | `covered` | `manager.delete_persistent_order`, `manager.delete_releases_unready_temporary_source`, `copy.persistent_cancel_task` |

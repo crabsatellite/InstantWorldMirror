@@ -169,6 +169,9 @@ Config file: `config/instantworldmirror-common.toml`
 | --- | --- | --- |
 | `allowItemTransfer` | false | Whether players can bring mirror-world items back by default |
 | `mirrorCooldown` | 300 | Mirror use cooldown in seconds, reduced by Efficiency |
+| `enableWorldReflectionMirror` | true | Whether the World Reflection Mirror can create or enter mirror worlds |
+| `enableHeavenMirror` | true | Whether the Heaven Mirror can create or enter mirror worlds |
+| `enableFirstDreamMirror` | true | Whether the First Dream Mirror can create or enter mirror worlds |
 | `copyEntities` | false | Whether to copy mob entities |
 | `copyDecorationEntities` | true | Whether to copy decoration entities |
 | `enableMobSpawning` | false | Whether natural mob spawning is allowed in mirror worlds |
