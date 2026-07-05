@@ -1280,9 +1280,7 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
       "method": "repairCommand",
       "texts": [
-        "DimensionPool.DimensionState.CLEANING",
-        "WorldCopyService.hasPendingCleanup(dimIndex)",
-        "mirrorWorld.players().size()",
+        "MirrorWorldManager.recoverTemporaryMirrorCleanups(server)",
         "PersistentMirrorManager.repairDeadPersistentData(server)",
         "command.instantworldmirror.repair.success"
       ]
@@ -1296,9 +1294,9 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
           "method": "purgeCommand",
           "texts": [
-            "dimensionsPath.resolve(\"mirror_world_\" + i)",
-            "deleteDirectoryRecursively(mirrorWorldPath)",
-            "temporary mirror world directories only"
+            "MirrorWorldManager.forceClearDimension(i, server)",
+            "MirrorWorldManager.recoverTemporaryMirrorCleanups(server)",
+            "command.instantworldmirror.purge.cleanup_queued"
           ]
         },
         {
@@ -1306,6 +1304,9 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
           "method": "purgeCommand",
           "texts": [
+            "dimensionsPath.resolve",
+            "deleteDirectoryRecursively",
+            "Files.delete",
             "persistent_mirror_world_"
           ]
         }

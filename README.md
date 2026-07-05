@@ -70,7 +70,7 @@ Shift-right-click while holding a Permanence-enchanted mirror to open the center
 
 `/iwm status` reports both temporary slots and persistent slots. `/iwm repair` scans for interrupted mirror data and skips mirrors that are still in use. Persistent mirrors stay until their owner or an operator deletes them.
 
-Interrupted persistent saves are repaired on server startup or with `/iwm repair`. `/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and prevents new mirror worlds until the required restart.
+Interrupted persistent saves are repaired on server startup or with `/iwm repair`. `/iwm purge` force-cleans temporary mirror worlds without deleting loaded dimension folders at runtime, never deletes persistent mirror records, and prevents new mirror worlds until the required restart.
 
 ## Administration and Cleanup
 
@@ -134,7 +134,7 @@ All commands start with `/iwm`.
 | `/iwm persistent revoke <player>` | Revoke persistent mirror creation | OP level 3 |
 | `/iwm repair` | Repair interrupted mirror data without clearing active mirrors | OP level 3 |
 | `/iwm forceclear <dimension>` | Force-clear a temporary mirror dimension | OP level 3 |
-| `/iwm purge` | Delete temporary mirror world folders and prevent new mirror worlds until restart | OP level 3 |
+| `/iwm purge` | Force-clean temporary mirror worlds without live folder deletion and prevent new mirror worlds until restart | OP level 3 |
 
 ## Configuration
 

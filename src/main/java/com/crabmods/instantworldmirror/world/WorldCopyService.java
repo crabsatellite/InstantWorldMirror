@@ -5,8 +5,10 @@ import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.mixin.LevelChunkSectionAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
@@ -58,6 +60,11 @@ public class WorldCopyService {
 
     // Persistent copy tasks use the persistent dimension pool and never feed DimensionPool cleanup.
     private static final Map<Integer, CopyTask> persistentCopyTasks = new ConcurrentHashMap<>();
+
+    // Native physics mods keep engine handles outside Minecraft's NBT lifecycle; cloning them
+    // into disposable mirror dimensions can leave invalid native constraints behind.
+    private static final Set<String> COPY_UNSAFE_NATIVE_PHYSICS_NAMESPACES =
+            Set.of("sable", "sable_rapier", "synaxis");
     
     // Sequential copy queue - processes one copy task at a time
     private static final java.util.LinkedList<Integer> copyQueue = new java.util.LinkedList<>();
@@ -78,6 +85,36 @@ public class WorldCopyService {
     // Reusable BlockPos for optimization (ThreadLocal for thread safety)
     private static final ThreadLocal<BlockPos.MutableBlockPos> MUTABLE_POS = 
             ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
+
+    public static boolean isCopyUnsafeNativePhysicsNamespace(String namespace) {
+        return namespace != null && COPY_UNSAFE_NATIVE_PHYSICS_NAMESPACES.contains(namespace);
+    }
+
+    private static boolean isCopyUnsafeNativePhysicsBlock(BlockState state) {
+        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        return id != null && isCopyUnsafeNativePhysicsNamespace(id.getNamespace());
+    }
+
+    private static boolean isCopyUnsafeNativePhysicsBlockEntity(BlockEntity blockEntity) {
+        if (blockEntity == null) {
+            return false;
+        }
+        ResourceLocation id = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType());
+        return id != null && isCopyUnsafeNativePhysicsNamespace(id.getNamespace());
+    }
+
+    private static boolean isCopyUnsafeNativePhysicsBlockEntityTag(CompoundTag tag) {
+        if (!tag.contains("id", net.minecraft.nbt.Tag.TAG_STRING)) {
+            return false;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+        return id != null && isCopyUnsafeNativePhysicsNamespace(id.getNamespace());
+    }
+
+    private static boolean isCopyUnsafeNativePhysicsEntity(net.minecraft.world.entity.Entity entity) {
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id != null && isCopyUnsafeNativePhysicsNamespace(id.getNamespace());
+    }
     
     // ==================== Chunk Tracking ====================
     
@@ -1444,6 +1481,15 @@ public class WorldCopyService {
 
                             // Null check for corrupted/uninitialized section data
                             if (state != null && !state.isAir() && !isPortalBlock(state)) {
+                                if (isCopyUnsafeNativePhysicsBlock(state)) {
+                                    continue;
+                                }
+                                if (state.hasBlockEntity()) {
+                                    sourcePos.set(worldX, y, worldZ);
+                                    if (isCopyUnsafeNativePhysicsBlockEntity(sourceWorld.getBlockEntity(sourcePos))) {
+                                        continue;
+                                    }
+                                }
                                 if (state.hasBlockEntity()) {
                                     targetPos.set(worldX, y, worldZ);
                                     mirrorWorld.setBlock(targetPos, state, 2 | 16);
@@ -1560,6 +1606,9 @@ public class WorldCopyService {
                             if (state == null || state.isAir() || isPortalBlock(state)) {
                                 continue;
                             }
+                            if (isCopyUnsafeNativePhysicsBlock(state)) {
+                                continue;
+                            }
 
                             int worldX = chunkX * 16 + localX;
                             BlockPos targetPos = null;
@@ -1645,6 +1694,10 @@ public class WorldCopyService {
 
     static void copyGeneratedBlockEntityTag(ServerLevel mirrorWorld, LevelChunk targetChunk, BlockPos pos,
                                             CompoundTag tag, boolean generatedContentRefresh) {
+        if (isCopyUnsafeNativePhysicsBlockEntityTag(tag)) {
+            return;
+        }
+
         CompoundTag copy = filterGeneratedLootTagForConfig(tag, generatedContentRefresh);
         copy.putInt("x", pos.getX());
         copy.putInt("y", pos.getY());
@@ -1721,6 +1774,9 @@ public class WorldCopyService {
      * - Modded functional entities: machines, devices placed as entities
      */
     private static boolean isDecorationEntity(net.minecraft.world.entity.Entity entity) {
+        if (isCopyUnsafeNativePhysicsEntity(entity)) {
+            return false;
+        }
         // HangingEntity includes Painting, ItemFrame, GlowItemFrame, LeashFenceKnotEntity
         if (entity instanceof net.minecraft.world.entity.decoration.HangingEntity) {
             return true;
@@ -1796,6 +1852,9 @@ public class WorldCopyService {
                         if (entity instanceof com.crabmods.instantworldmirror.entity.MirrorPortalEntity) {
                             return false;
                         }
+                        if (isCopyUnsafeNativePhysicsEntity(entity)) {
+                            return false;
+                        }
                         int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
                         int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
                         if (entityChunkX != chunkX || entityChunkZ != chunkZ) {
@@ -1818,6 +1877,10 @@ public class WorldCopyService {
 
             for (net.minecraft.world.entity.Entity sourceEntity : entities) {
                 try {
+                    if (isCopyUnsafeNativePhysicsEntity(sourceEntity)) {
+                        continue;
+                    }
+
                     // Create a new entity of the same type
                     net.minecraft.world.entity.EntityType<?> entityType = sourceEntity.getType();
                     net.minecraft.world.entity.Entity newEntity = entityType.create(mirrorWorld);
@@ -2093,6 +2156,10 @@ public class WorldCopyService {
                                          BlockPos sourcePos, BlockPos targetPos) {
         BlockEntity sourceBE = sourceWorld.getBlockEntity(sourcePos);
         if (sourceBE != null) {
+            if (isCopyUnsafeNativePhysicsBlockEntity(sourceBE)) {
+                return;
+            }
+
             try {
                 // Verify the target block matches the source block type
                 BlockState targetState = mirrorWorld.getBlockState(targetPos);
@@ -2169,6 +2236,151 @@ public class WorldCopyService {
         }
     }
 
+    public static int quarantineCopyUnsafeNativePhysicsContent(ServerLevel mirrorWorld, int dimensionIndex) {
+        if (mirrorWorld == null) {
+            return 0;
+        }
+
+        int removed = clearCopyUnsafeNativePhysicsLoadedEntities(mirrorWorld);
+        Set<Long> chunksToScrub = collectKnownCleanupChunks(mirrorWorld, dimensionIndex);
+
+        for (Long packed : chunksToScrub) {
+            removed += scrubCopyUnsafeNativePhysicsChunk(mirrorWorld, unpackChunkX(packed), unpackChunkZ(packed));
+        }
+
+        if (removed > 0) {
+            InstantWorldMirror.LOGGER.warn(
+                    "Quarantined {} native-physics object(s) from temporary mirror dimension {} before cleanup",
+                    removed, dimensionIndex);
+        }
+        return removed;
+    }
+
+    private static Set<Long> collectKnownCleanupChunks(ServerLevel mirrorWorld, int dimensionIndex) {
+        Set<Long> chunks = new HashSet<>();
+        BlockPos centerPos = copyCenterPositions.get(dimensionIndex);
+        if (centerPos == null) {
+            centerPos = DimensionPool.getSavedCopyCenter(dimensionIndex);
+        }
+
+        if (centerPos != null) {
+            int centerChunkX = centerPos.getX() >> 4;
+            int centerChunkZ = centerPos.getZ() >> 4;
+            int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+            for (int x = centerChunkX - copyRadius; x <= centerChunkX + copyRadius; x++) {
+                for (int z = centerChunkZ - copyRadius; z <= centerChunkZ + copyRadius; z++) {
+                    chunks.add(packChunkPos(x, z));
+                }
+            }
+        }
+
+        chunks.addAll(getModifiedChunks(dimensionIndex));
+        chunks.addAll(DimensionPool.getSavedModifiedChunks(dimensionIndex));
+
+        if (chunks.isEmpty() && DimensionPool.hasMirrorWorldRegionFiles(mirrorWorld.getServer(), dimensionIndex)) {
+            chunks.addAll(scanRegionFilesForChunks(mirrorWorld));
+        }
+
+        return chunks;
+    }
+
+    private static int clearCopyUnsafeNativePhysicsLoadedEntities(ServerLevel mirrorWorld) {
+        int removed = 0;
+        java.util.List<net.minecraft.world.entity.Entity> toRemove = new java.util.ArrayList<>();
+        for (net.minecraft.world.entity.Entity entity : mirrorWorld.getAllEntities()) {
+            if (!(entity instanceof net.minecraft.world.entity.player.Player)
+                    && isCopyUnsafeNativePhysicsEntity(entity)) {
+                toRemove.add(entity);
+            }
+        }
+
+        for (net.minecraft.world.entity.Entity entity : toRemove) {
+            entity.discard();
+            removed++;
+        }
+        return removed;
+    }
+
+    private static int scrubCopyUnsafeNativePhysicsChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
+        int removed = 0;
+        try {
+            LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
+            if (chunk == null) {
+                chunk = mirrorWorld.getChunk(chunkX, chunkZ);
+            }
+            if (chunk == null) {
+                return 0;
+            }
+
+            for (BlockPos bePos : new java.util.ArrayList<>(chunk.getBlockEntities().keySet())) {
+                BlockEntity blockEntity = mirrorWorld.getBlockEntity(bePos);
+                BlockState state = mirrorWorld.getBlockState(bePos);
+                if (isCopyUnsafeNativePhysicsBlockEntity(blockEntity)
+                        || (!state.isAir() && isCopyUnsafeNativePhysicsBlock(state))) {
+                    mirrorWorld.removeBlockEntity(bePos);
+                    mirrorWorld.setBlock(bePos, Blocks.AIR.defaultBlockState(), 2 | 16);
+                    removed++;
+                }
+            }
+
+            BlockState airState = Blocks.AIR.defaultBlockState();
+            for (int relativeSectionIndex = 0; relativeSectionIndex < chunk.getSectionsCount(); relativeSectionIndex++) {
+                LevelChunkSection section = chunk.getSection(relativeSectionIndex);
+                if (section == null || section.hasOnlyAir()) {
+                    continue;
+                }
+
+                int baseY = (chunk.getMinSection() + relativeSectionIndex) * 16;
+                for (int localY = 0; localY < 16; localY++) {
+                    for (int localZ = 0; localZ < 16; localZ++) {
+                        for (int localX = 0; localX < 16; localX++) {
+                            BlockState state = section.getBlockState(localX, localY, localZ);
+                            if (state != null && !state.isAir() && isCopyUnsafeNativePhysicsBlock(state)) {
+                                BlockPos pos = new BlockPos(
+                                        chunkX * 16 + localX,
+                                        baseY + localY,
+                                        chunkZ * 16 + localZ);
+                                mirrorWorld.removeBlockEntity(pos);
+                                section.setBlockState(localX, localY, localZ, airState, false);
+                                removed++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            removed += clearCopyUnsafeNativePhysicsEntitiesInChunk(mirrorWorld, chunkX, chunkZ);
+            if (removed > 0) {
+                chunk.setUnsaved(true);
+            }
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn(
+                    "Failed to quarantine native-physics content in temporary mirror chunk ({}, {}): {}",
+                    chunkX, chunkZ, errorMsg);
+        }
+        return removed;
+    }
+
+    private static int clearCopyUnsafeNativePhysicsEntitiesInChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ) {
+        int minX = chunkX * 16;
+        int minZ = chunkZ * 16;
+        int maxX = minX + 16;
+        int maxZ = minZ + 16;
+        net.minecraft.world.phys.AABB chunkBounds = new net.minecraft.world.phys.AABB(
+                minX, mirrorWorld.getMinBuildHeight(), minZ,
+                maxX, mirrorWorld.getMaxBuildHeight(), maxZ);
+        java.util.List<net.minecraft.world.entity.Entity> entities = mirrorWorld.getEntities(
+                (net.minecraft.world.entity.Entity) null,
+                chunkBounds,
+                entity -> !(entity instanceof net.minecraft.world.entity.player.Player)
+                        && isCopyUnsafeNativePhysicsEntity(entity));
+        for (net.minecraft.world.entity.Entity entity : entities) {
+            entity.discard();
+        }
+        return entities.size();
+    }
+
     // ==================== World Cleanup (Asynchronous) ====================
 
     /**
@@ -2182,6 +2394,8 @@ public class WorldCopyService {
     public static void cleanupMirrorWorld(ServerLevel mirrorWorld, int dimensionIndex) {
         // Cancel any existing cleanup task to restart fresh
         cancelCleanupTask(dimensionIndex);
+
+        quarantineCopyUnsafeNativePhysicsContent(mirrorWorld, dimensionIndex);
         
         // FIRST: Kill all entities in the dimension immediately (except players)
         // This ensures mobs don't continue spawning/moving during chunk cleanup

@@ -534,7 +534,7 @@
         "To enter that saved mirror later, hold a mirror of the same type with Permanence.",
         "The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.",
         "Interrupted persistent saves are repaired on server startup or with `/iwm repair`",
-        "`/iwm purge` deletes only temporary mirror world folders, never deletes persistent mirror records, and prevents new mirror worlds until the required restart."
+        "`/iwm purge` force-cleans temporary mirror worlds without deleting loaded dimension folders at runtime, never deletes persistent mirror records, and prevents new mirror worlds until the required restart."
       ],
       "code": [
         {
@@ -610,15 +610,15 @@
           ]
         },
         {
-          "label": "purge only touches temporary worlds",
+          "label": "purge queues temporary cleanup",
           "adapter": "method_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/command/ModCommands.java",
           "method": "purgeCommand",
           "texts": [
             "MirrorWorldManager.enablePurgeMode()",
-            "temporary mirror world directories only",
-            "dimensionsPath.resolve(\"mirror_world_\" + i)",
-            "deleteDirectoryRecursively(mirrorWorldPath)"
+            "MirrorWorldManager.forceClearDimension(i, server)",
+            "MirrorWorldManager.recoverTemporaryMirrorCleanups(server)",
+            "command.instantworldmirror.purge.cleanup_queued"
           ]
         }
       ]
@@ -743,7 +743,7 @@
       "readmeTexts": [
         "`/iwm status` | Show temporary and persistent mirror slots",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
-        "`/iwm purge` | Delete temporary mirror world folders and prevent new mirror worlds until restart"
+        "`/iwm purge` | Force-clean temporary mirror worlds without live folder deletion and prevent new mirror worlds until restart"
       ],
       "code": [
         {
@@ -804,7 +804,7 @@
         "`/iwm persistent revoke <player>` | Revoke persistent mirror creation",
         "`/iwm repair` | Repair interrupted mirror data without clearing active mirrors",
         "`/iwm forceclear <dimension>` | Force-clear a temporary mirror dimension",
-        "`/iwm purge` | Delete temporary mirror world folders and prevent new mirror worlds until restart"
+        "`/iwm purge` | Force-clean temporary mirror worlds without live folder deletion and prevent new mirror worlds until restart"
       ],
       "code": [
         {
