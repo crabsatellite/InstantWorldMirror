@@ -19,12 +19,15 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -415,6 +418,28 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void vanillaEnderChestFollowsItemTransferConfig(GameTestHelper helper) {
+        assertEnderChestTransferScenario(helper, MirrorKind.DIMENSION, false);
+        assertEnderChestTransferScenario(helper, MirrorKind.DIMENSION, true);
+        assertEnderChestTransferScenario(helper, MirrorKind.HEAVEN, false);
+        assertEnderChestTransferScenario(helper, MirrorKind.HEAVEN, true);
+        assertEnderChestTransferScenario(helper, MirrorKind.FIRST_DREAM, false);
+        assertEnderChestTransferScenario(helper, MirrorKind.FIRST_DREAM, true);
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 160)
+    public static void vanillaChestTransferFollowsItemTransferConfig(GameTestHelper helper) {
+        assertVanillaChestTransferScenario(helper, MirrorKind.DIMENSION, false, 0);
+        assertVanillaChestTransferScenario(helper, MirrorKind.DIMENSION, true, 1);
+        assertVanillaChestTransferScenario(helper, MirrorKind.HEAVEN, false, 2);
+        assertVanillaChestTransferScenario(helper, MirrorKind.HEAVEN, true, 3);
+        assertVanillaChestTransferScenario(helper, MirrorKind.FIRST_DREAM, false, 4);
+        assertVanillaChestTransferScenario(helper, MirrorKind.FIRST_DREAM, true, 5);
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
         UUID recordId = UUID.randomUUID();
@@ -622,6 +647,83 @@ public final class MirrorLifecycleGameTests {
                 DimensionPool.DimensionPoolData.factory(),
                 DimensionPool.DimensionPoolData.DATA_NAME
         );
+    }
+
+    private static void assertEnderChestTransferScenario(GameTestHelper helper, MirrorKind kind,
+                                                         boolean allowItemTransfer) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        MirrorWorldManager.setItemTransferPermission(player.getUUID(), allowItemTransfer);
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
+
+        player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        ItemStack result = player.getEnderChestInventory().getItem(0);
+        if (allowItemTransfer) {
+            helper.assertTrue(result.is(Items.DIAMOND_BLOCK),
+                    kind.id() + " ender chest must keep mirror-world items when item transfer is enabled");
+        } else {
+            helper.assertTrue(result.is(Items.EMERALD),
+                    kind.id() + " ender chest must restore saved items when item transfer is disabled");
+        }
+    }
+
+    private static void assertVanillaChestTransferScenario(GameTestHelper helper, MirrorKind kind,
+                                                           boolean allowItemTransfer, int scenarioIndex) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerLevel sourceLevel = helper.getLevel();
+        BlockPos sourceChestPos = new BlockPos(8 + scenarioIndex * 4, 64, 8);
+        BlockPos mirrorChestPos = sourceChestPos.east();
+
+        try {
+            setChestItem(sourceLevel, sourceChestPos, new ItemStack(Items.EMERALD));
+            setChestItem(sourceLevel, mirrorChestPos, new ItemStack(Items.DIAMOND_BLOCK));
+
+            player.setGameMode(GameType.SURVIVAL);
+            player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+            MirrorWorldManager.setItemTransferPermission(player.getUUID(), allowItemTransfer);
+            MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
+
+            player.getInventory().items.set(4, getChestItem(sourceLevel, mirrorChestPos).copy());
+            MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+            helper.assertTrue(getChestItem(sourceLevel, sourceChestPos).is(Items.EMERALD),
+                    kind.id() + " mirror chest changes must not write back into the source vanilla chest");
+            if (allowItemTransfer) {
+                helper.assertTrue(player.getInventory().items.get(4).is(Items.DIAMOND_BLOCK),
+                        kind.id() + " vanilla chest loot must be carriable only when item transfer is enabled");
+            } else {
+                helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
+                        kind.id() + " vanilla chest loot must not leave the mirror when item transfer is disabled");
+            }
+        } finally {
+            sourceLevel.removeBlock(sourceChestPos, false);
+            sourceLevel.removeBlock(mirrorChestPos, false);
+        }
+    }
+
+    private static void setChestItem(ServerLevel level, BlockPos pos, ItemStack stack) {
+        level.setBlock(pos, Blocks.CHEST.defaultBlockState(), 3);
+        ChestBlockEntity chest = requireChest(level, pos);
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            chest.setItem(slot, ItemStack.EMPTY);
+        }
+        chest.setItem(0, stack.copy());
+        chest.setChanged();
+    }
+
+    private static ItemStack getChestItem(ServerLevel level, BlockPos pos) {
+        return requireChest(level, pos).getItem(0);
+    }
+
+    private static ChestBlockEntity requireChest(ServerLevel level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof ChestBlockEntity chest) {
+            return chest;
+        }
+        throw new IllegalStateException("Expected vanilla chest at " + pos + " in " + level.dimension().location());
     }
 
     private static void addEfficiency(GameTestHelper helper, ItemStack stack, int level) {
