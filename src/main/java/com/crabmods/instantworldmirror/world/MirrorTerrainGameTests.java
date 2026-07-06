@@ -7,6 +7,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -148,6 +149,38 @@ public final class MirrorTerrainGameTests {
             task.closePristineRegion();
         }
 
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void copyTaskLoadsMissingSourceChunk(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        int farChunkX = 1_000_000;
+        int farChunkZ = 1_000_000;
+        for (int attempts = 0; attempts < 16
+                && level.getChunkSource().getChunkNow(farChunkX, farChunkZ) != null; attempts++) {
+            farChunkX += 1_000;
+            farChunkZ += 1_000;
+        }
+        helper.assertTrue(level.getChunkSource().getChunkNow(farChunkX, farChunkZ) == null,
+                "The regression test needs an initially unloaded source chunk");
+
+        WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
+                UUID.randomUUID(),
+                new BlockPos(farChunkX << 4, 64, farChunkZ << 4),
+                0,
+                level.dimension(),
+                0,
+                false
+        );
+
+        int[] chunkCoords = task.getNextChunk();
+        int blocksCopied = WorldCopyService.copyChunk(level, level, chunkCoords[0], chunkCoords[1], task);
+
+        helper.assertTrue(blocksCopied > 0,
+                "Missing source chunks must be loaded and copied instead of being skipped as empty");
+        helper.assertTrue(task.isCompleted(),
+                "A one-chunk copy task may complete after the missing source chunk is actually copied");
         helper.succeed();
     }
 

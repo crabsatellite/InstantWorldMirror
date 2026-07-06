@@ -1383,8 +1383,8 @@ public class WorldCopyService {
                 .orElse(true);
     }
 
-    private static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
-                                  int chunkX, int chunkZ, CopyTask task) {
+    static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
+                         int chunkX, int chunkZ, CopyTask task) {
         if (task.pristineTerrain) {
             return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
         }
@@ -1397,14 +1397,11 @@ public class WorldCopyService {
         int blocksCopied = 0;
         
         try {
-            // For SOURCE world: Use non-blocking access since player should be nearby
-            // and the chunk should already be loaded
+            // Source chunks at the copy edge can be outside the player's current load radius.
+            // Load them here instead of silently treating them as copied empty chunks.
             LevelChunk sourceChunk = sourceWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
             if (sourceChunk == null) {
-                // Source chunk not loaded - this is unusual, request async load and retry later
-                sourceWorld.getChunkSource().getChunk(chunkX, chunkZ, 
-                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
-                return 0;
+                sourceChunk = sourceWorld.getChunk(chunkX, chunkZ);
             }
             
             // For TARGET world (mirror world): We need to ensure the chunk exists
