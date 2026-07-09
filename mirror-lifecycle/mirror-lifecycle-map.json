@@ -647,13 +647,13 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
       "texts": [
-        "define(\"enableWorldReflectionMirror\", true)",
-        "define(\"enableHeavenMirror\", true)",
-        "define(\"enableFirstDreamMirror\", true)",
+        "defineEnum(\"worldReflectionMirrorAccess\", MirrorAccess.ALL)",
+        "defineEnum(\"heavenMirrorAccess\", MirrorAccess.ALL)",
+        "defineEnum(\"firstDreamMirrorAccess\", MirrorAccess.ALL)",
         "isMirrorKindEnabled",
-        "case DIMENSION -> ENABLE_WORLD_REFLECTION_MIRROR.get()",
-        "case HEAVEN -> ENABLE_HEAVEN_MIRROR.get()",
-        "case FIRST_DREAM -> ENABLE_FIRST_DREAM_MIRROR.get()"
+        "activeMirrorConfig.get(kind).access() != MirrorAccess.NONE",
+        "canAccessMirrorKind",
+        "activeMirrorConfig.get(kind).access().allows(isMirrorAdmin(player))"
       ]
     },
     {
@@ -668,8 +668,8 @@
       ],
       "texts": [
         "if (purgeMode)",
-        "if (!MirrorConfig.isMirrorKindEnabled(kind))",
-        "message.instantworldmirror.mirror_kind_disabled",
+        "if (!MirrorConfig.canAccessMirrorKind(player, kind))",
+        "message.instantworldmirror.mirror_kind_restricted",
         "return Optional.empty()",
         "sessionLock.writeLock().lock()"
       ]
@@ -704,13 +704,14 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
       "method": "disabledMirrorKindBlocksTemporarySessionCreation",
       "texts": [
-        "MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(false)",
+        "MirrorConfig.setActiveMirrorConfigStateForTesting(",
+        "withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.NONE)",
         "MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM)",
         "MirrorWorldManager.createSession(",
         "MirrorKind.FIRST_DREAM",
         "MirrorWorldManager.hasActiveSession(player.getUUID())",
         "MirrorKind.DIMENSION",
-        "MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(true)"
+        "MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveAccess)"
       ]
     },
     {
@@ -1098,8 +1099,8 @@
       "texts": [
         "PersistentMirrorRecord record = recordOpt.get()",
         "if (!record.ready())",
-        "if (!MirrorConfig.isMirrorKindEnabled(record.kind()))",
-        "message.instantworldmirror.mirror_kind_disabled",
+        "if (!MirrorConfig.canAccessMirrorKind(player, record.kind()))",
+        "message.instantworldmirror.mirror_kind_restricted",
         "return false",
         "if (!hasMatchingPermanenceMirror(player, record.kind()))"
       ]
@@ -1112,7 +1113,7 @@
       "texts": [
         "PersistentMirrorData.get(server).getRecord(recordId)",
         "if (!record.ready())",
-        "if (!MirrorConfig.isMirrorKindEnabled(record.kind()))",
+        "if (!MirrorConfig.canAccessMirrorKind(player, record.kind()))",
         "if (!hasMatchingPermanenceMirror(player, record.kind()))",
         "if (!canEnterRecord(player, record))",
         "if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player))",
@@ -1156,7 +1157,7 @@
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
         "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())",
         "leavePersistentMirror(other)",
-        "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition())",
+        "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition(), record.kind())",
         "data.removeRecord(record.id())"
       ]
     },
@@ -1185,7 +1186,7 @@
         "pendingCopyCreators.remove(record.id())",
         "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
-        "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition())"
+        "WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition(), record.kind())"
       ]
     },
     {
@@ -1402,7 +1403,8 @@
       "method": "forceClearDimension",
       "texts": [
         "player.teleportTo(targetLevel,",
-        "boolean allowItemTransfer = getItemTransferPermission(playerId)",
+        "MirrorKind kind = getMirrorKindForDimension(server, mirrorDimKey)",
+        "boolean allowItemTransfer = getItemTransferPermission(playerId, kind)",
         "finishPlayerMirrorState(player, allowItemTransfer)",
         "cleanupPlayerTrackingData(playerId)"
       ]
@@ -1735,7 +1737,8 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "method": "queuePersistentWorldCopy",
       "texts": [
-        "int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get()",
+        "int chunkRadius = MirrorConfig.copyChunkRadius(record.kind())",
+        "boolean mobSpawningEnabled = MirrorConfig.isMobSpawningEnabled(record.kind())",
         "syncGameRules(sourceWorld, targetWorld)",
         "CopyTask task = new CopyTask(",
         "persistentCopyTasks.put(dimIndex, task)",
@@ -1817,9 +1820,9 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
         "filterGeneratedLootTagForConfig(tag, generatedContentRefresh)",
-        "static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean generatedContentRefresh)",
-        "MirrorConfig.isMobSpawningEnabled()",
-        "!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()",
+        "static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean keepGeneratedContent)",
+        "task.generatedContentRefresh || task.mobSpawningEnabled",
+        "if (!keepGeneratedContent)",
         "copy.remove(\"LootTable\")",
         "copy.remove(\"LootTableSeed\")"
       ]
@@ -1830,7 +1833,7 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
         "task.copyPristineGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld",
-        "task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()",
+        "task.generatedContentRefresh || task.mobSpawningEnabled",
         "WorldCopyService::copyEntityDataWithFreshUuid",
         "copyEntityDataWithFreshUuid"
       ]
@@ -1874,7 +1877,8 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/event/ModEvents.java",
       "texts": [
         "MirrorWorldManager.hasGeneratedContentRefresh",
-        "!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()"
+        "MirrorWorldManager.isMobSpawningEnabledForDimension",
+        "!generatedContentRefresh && !mobSpawningEnabled"
       ]
     },
     {
@@ -1986,7 +1990,7 @@
         "firstDreamLootTablesUseMobSpawningConfig",
         "WorldCopyService.filterGeneratedLootTagForConfig",
         "WorldCopyService.filterGeneratedLootTagForConfig(generatedChest, true)",
-        "MirrorConfig.setRuntimeMobSpawning(false)",
+        "withMobSpawning(MirrorKind.FIRST_DREAM, false)",
         "Renewal refresh must keep generated loot tables",
         "Blocks.GOLD_BLOCK",
         "must not copy player edits"
