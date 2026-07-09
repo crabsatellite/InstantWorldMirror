@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror;
 
 import com.crabmods.instantworldmirror.world.MirrorKind;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
@@ -8,6 +9,7 @@ import net.minecraftforge.common.ForgeConfigSpec;
  * All settings can be changed in the config file or via /config command
  */
 public class MirrorConfig {
+    public static final int CONFIG_PERMISSION_LEVEL = 3;
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     // ==================== Dimension Pool Settings ====================
@@ -22,9 +24,9 @@ public class MirrorConfig {
     // ==================== World Copy Settings ====================
     
     public static final ForgeConfigSpec.IntValue COPY_CHUNK_RADIUS = BUILDER
-            .comment("Mirror world copy radius in chunks (default: 10)",
-                    "Higher values copy more area but take longer to complete.",
-                    "Total chunks copied = (radius*2+1)^2, so radius 10 = 441 chunks")
+            .comment("Legacy/global mirror world copy radius in chunks (default: 10).",
+                    "New worlds use the per-mirror copy radius settings below.",
+                    "This value is kept so old config files can be migrated without losing their previous behavior.")
             .defineInRange("copyChunkRadius", 10, 1, 32);
 
     public static final ForgeConfigSpec.IntValue COPY_CHUNKS_PER_TICK = BUILDER
@@ -69,7 +71,9 @@ public class MirrorConfig {
     // ==================== Item Rules ====================
     
     public static final ForgeConfigSpec.BooleanValue ALLOW_ITEM_TRANSFER = BUILDER
-            .comment("Allow items to be transferred back to overworld by default (default: false)",
+            .comment("Legacy/global item transfer default (default: false).",
+                    "New worlds use the per-mirror item transfer settings below.",
+                    "This value is kept so old config files can be migrated without losing their previous behavior.",
                     "When false, players lose all items gained in mirror world on return.",
                     "Can be overridden per-player with /iwm itemtransfer command")
             .define("allowItemTransfer", false);
@@ -82,25 +86,88 @@ public class MirrorConfig {
                     "Creative mode players have no cooldown.")
             .defineInRange("mirrorCooldown", 300, 0, 3600);
 
-    // ==================== Mirror Type Toggles ====================
+    // ==================== Mirror Access ====================
 
-    public static final ForgeConfigSpec.BooleanValue ENABLE_WORLD_REFLECTION_MIRROR = BUILDER
-            .comment("Enable the World Reflection Mirror (default: true)",
-                    "When false, players cannot create new temporary or enter persistent World Reflection Mirror worlds.",
-                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
-            .define("enableWorldReflectionMirror", true);
+    public static final ForgeConfigSpec.EnumValue<MirrorAccess> WORLD_REFLECTION_MIRROR_ACCESS = BUILDER
+            .comment("Who can use the World Reflection Mirror (default: ALL)",
+                    "Allowed values: NONE, ADMIN, ALL.",
+                    "NONE: no player can create or enter this mirror kind.",
+                    "ADMIN: only server operators/admins can create or enter this mirror kind.",
+                    "ALL: all players can create or enter this mirror kind.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineEnum("worldReflectionMirrorAccess", MirrorAccess.ALL);
 
-    public static final ForgeConfigSpec.BooleanValue ENABLE_HEAVEN_MIRROR = BUILDER
-            .comment("Enable the Heaven Mirror (default: true)",
-                    "When false, players cannot create new temporary or enter persistent Heaven Mirror worlds.",
-                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
-            .define("enableHeavenMirror", true);
+    public static final ForgeConfigSpec.EnumValue<MirrorAccess> HEAVEN_MIRROR_ACCESS = BUILDER
+            .comment("Who can use the Heaven Mirror (default: ALL)",
+                    "Allowed values: NONE, ADMIN, ALL.",
+                    "NONE: no player can create or enter this mirror kind.",
+                    "ADMIN: only server operators/admins can create or enter this mirror kind.",
+                    "ALL: all players can create or enter this mirror kind.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineEnum("heavenMirrorAccess", MirrorAccess.ALL);
 
-    public static final ForgeConfigSpec.BooleanValue ENABLE_FIRST_DREAM_MIRROR = BUILDER
-            .comment("Enable the First Dream Mirror (default: true)",
-                    "When false, players cannot create new temporary or enter persistent First Dream Mirror worlds.",
-                    "Existing items and saved persistent mirrors are kept and can be used again when re-enabled.")
-            .define("enableFirstDreamMirror", true);
+    public static final ForgeConfigSpec.EnumValue<MirrorAccess> FIRST_DREAM_MIRROR_ACCESS = BUILDER
+            .comment("Who can use the First Dream Mirror (default: ALL)",
+                    "Allowed values: NONE, ADMIN, ALL.",
+                    "NONE: no player can create or enter this mirror kind.",
+                    "ADMIN: only server operators/admins can create or enter this mirror kind.",
+                    "ALL: all players can create or enter this mirror kind.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineEnum("firstDreamMirrorAccess", MirrorAccess.ALL);
+
+    public static final ForgeConfigSpec.BooleanValue WORLD_REFLECTION_MIRROR_MOB_SPAWNING = BUILDER
+            .comment("Enable natural mob spawning for the World Reflection Mirror (default: false).",
+                    "This is configurable from the in-game mirror settings screen.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("worldReflectionMirrorMobSpawning", false);
+
+    public static final ForgeConfigSpec.BooleanValue HEAVEN_MIRROR_MOB_SPAWNING = BUILDER
+            .comment("Enable natural mob spawning for the Heaven Mirror (default: false).",
+                    "This is configurable from the in-game mirror settings screen.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("heavenMirrorMobSpawning", false);
+
+    public static final ForgeConfigSpec.BooleanValue FIRST_DREAM_MIRROR_MOB_SPAWNING = BUILDER
+            .comment("Enable natural mob spawning for the First Dream Mirror (default: true).",
+                    "This is configurable from the in-game mirror settings screen.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("firstDreamMirrorMobSpawning", true);
+
+    public static final ForgeConfigSpec.BooleanValue WORLD_REFLECTION_MIRROR_ITEM_TRANSFER = BUILDER
+            .comment("Allow items gained in the World Reflection Mirror to leave the mirror (default: false).",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("worldReflectionMirrorItemTransfer", false);
+
+    public static final ForgeConfigSpec.BooleanValue HEAVEN_MIRROR_ITEM_TRANSFER = BUILDER
+            .comment("Allow items gained in the Heaven Mirror to leave the mirror (default: false).",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("heavenMirrorItemTransfer", false);
+
+    public static final ForgeConfigSpec.BooleanValue FIRST_DREAM_MIRROR_ITEM_TRANSFER = BUILDER
+            .comment("Allow items gained in the First Dream Mirror to leave the mirror (default: false).",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("firstDreamMirrorItemTransfer", false);
+
+    public static final ForgeConfigSpec.IntValue WORLD_REFLECTION_MIRROR_COPY_CHUNK_RADIUS = BUILDER
+            .comment("Copy radius in chunks for the World Reflection Mirror (default: 10).",
+                    "Total chunks copied = (radius*2+1)^2.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineInRange("worldReflectionMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS, 1, 32);
+
+    public static final ForgeConfigSpec.IntValue HEAVEN_MIRROR_COPY_CHUNK_RADIUS = BUILDER
+            .comment("Copy radius in chunks for the Heaven Mirror (default: 10).",
+                    "Total chunks copied = (radius*2+1)^2.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineInRange("heavenMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS, 1, 32);
+
+    public static final ForgeConfigSpec.IntValue FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS = BUILDER
+            .comment("Copy radius in chunks for the First Dream Mirror (default: 10).",
+                    "Total chunks copied = (radius*2+1)^2.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineInRange("firstDreamMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS, 1, 32);
 
     // ==================== Mob Spawning ====================
     
@@ -117,9 +184,10 @@ public class MirrorConfig {
             .define("copyDecorationEntities", true);
 
     public static final ForgeConfigSpec.BooleanValue ENABLE_MOB_SPAWNING = BUILDER
-            .comment("Enable natural mob spawning in mirror world (default: false)",
+            .comment("Legacy/global natural mob spawning setting in mirror worlds (default: false)",
                     "When false, no mobs will spawn naturally in mirror worlds.",
-                    "This is separate from copying existing mobs.")
+                    "This is separate from copying existing mobs.",
+                    "This value is kept so old config files can be migrated without losing their previous behavior.")
             .define("enableMobSpawning", false);
 
     // ==================== Biome and Environment Settings ====================
@@ -167,6 +235,7 @@ public class MirrorConfig {
     // Runtime mob spawning state - can be toggled with /iwm mob on/off
     // null means use config value, true/false means override config
     private static Boolean runtimeMobSpawningEnabled = null;
+    private static MirrorConfigState activeMirrorConfig = MirrorConfigState.defaults();
 
     // ==================== Helper Methods ====================
     
@@ -179,6 +248,13 @@ public class MirrorConfig {
             return runtimeMobSpawningEnabled;
         }
         return ENABLE_MOB_SPAWNING.get();
+    }
+
+    public static boolean isMobSpawningEnabled(MirrorKind kind) {
+        if (runtimeMobSpawningEnabled != null) {
+            return runtimeMobSpawningEnabled;
+        }
+        return activeMirrorConfig.get(kind).mobSpawning();
     }
     
     /**
@@ -197,15 +273,120 @@ public class MirrorConfig {
         if (runtimeMobSpawningEnabled != null) {
             return runtimeMobSpawningEnabled ? "on (runtime)" : "off (runtime)";
         }
-        return ENABLE_MOB_SPAWNING.get() ? "on (config)" : "off (config)";
+        return ENABLE_MOB_SPAWNING.get() ? "on (legacy config)" : "off (legacy config)";
+    }
+
+    public static void refreshServerConfigSnapshot() {
+        activeMirrorConfig = configuredMirrorConfigState();
+    }
+
+    public static MirrorConfigState configuredMirrorConfigState() {
+        return new MirrorConfigState(
+                new MirrorKindSettings(
+                        WORLD_REFLECTION_MIRROR_ACCESS.get(),
+                        WORLD_REFLECTION_MIRROR_MOB_SPAWNING.get(),
+                        WORLD_REFLECTION_MIRROR_ITEM_TRANSFER.get(),
+                        WORLD_REFLECTION_MIRROR_COPY_CHUNK_RADIUS.get()
+                ),
+                new MirrorKindSettings(
+                        HEAVEN_MIRROR_ACCESS.get(),
+                        HEAVEN_MIRROR_MOB_SPAWNING.get(),
+                        HEAVEN_MIRROR_ITEM_TRANSFER.get(),
+                        HEAVEN_MIRROR_COPY_CHUNK_RADIUS.get()
+                ),
+                new MirrorKindSettings(
+                        FIRST_DREAM_MIRROR_ACCESS.get(),
+                        FIRST_DREAM_MIRROR_MOB_SPAWNING.get(),
+                        FIRST_DREAM_MIRROR_ITEM_TRANSFER.get(),
+                        FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS.get()
+                )
+        );
+    }
+
+    public static MirrorConfigState activeMirrorConfigState() {
+        return activeMirrorConfig;
+    }
+
+    public static void saveMirrorConfigState(MirrorConfigState state) {
+        saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
+        saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
+        saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+        SPEC.save();
+    }
+
+    private static void saveMirrorKindSettings(MirrorKind kind, MirrorKindSettings settings) {
+        switch (kind) {
+            case DIMENSION -> {
+                WORLD_REFLECTION_MIRROR_ACCESS.set(settings.access());
+                WORLD_REFLECTION_MIRROR_MOB_SPAWNING.set(settings.mobSpawning());
+                WORLD_REFLECTION_MIRROR_ITEM_TRANSFER.set(settings.itemTransfer());
+                WORLD_REFLECTION_MIRROR_COPY_CHUNK_RADIUS.set(settings.copyChunkRadius());
+            }
+            case HEAVEN -> {
+                HEAVEN_MIRROR_ACCESS.set(settings.access());
+                HEAVEN_MIRROR_MOB_SPAWNING.set(settings.mobSpawning());
+                HEAVEN_MIRROR_ITEM_TRANSFER.set(settings.itemTransfer());
+                HEAVEN_MIRROR_COPY_CHUNK_RADIUS.set(settings.copyChunkRadius());
+            }
+            case FIRST_DREAM -> {
+                FIRST_DREAM_MIRROR_ACCESS.set(settings.access());
+                FIRST_DREAM_MIRROR_MOB_SPAWNING.set(settings.mobSpawning());
+                FIRST_DREAM_MIRROR_ITEM_TRANSFER.set(settings.itemTransfer());
+                FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS.set(settings.copyChunkRadius());
+            }
+        }
+    }
+
+    public static boolean canAccessMirrorKind(ServerPlayer player, MirrorKind kind) {
+        return activeMirrorConfig.get(kind).access().allows(isMirrorAdmin(player));
+    }
+
+    public static boolean canManageConfig(ServerPlayer player) {
+        return isMirrorAdmin(player);
     }
 
     public static boolean isMirrorKindEnabled(MirrorKind kind) {
-        return switch (kind) {
-            case DIMENSION -> ENABLE_WORLD_REFLECTION_MIRROR.get();
-            case HEAVEN -> ENABLE_HEAVEN_MIRROR.get();
-            case FIRST_DREAM -> ENABLE_FIRST_DREAM_MIRROR.get();
-        };
+        return activeMirrorConfig.get(kind).access() != MirrorAccess.NONE;
+    }
+
+    public static boolean isItemTransferEnabled(MirrorKind kind) {
+        return activeMirrorConfig.get(kind).itemTransfer();
+    }
+
+    public static int copyChunkRadius(MirrorKind kind) {
+        return activeMirrorConfig.get(kind).copyChunkRadius();
+    }
+
+    public static int maxConfiguredCopyChunkRadius() {
+        int max = 1;
+        for (MirrorKind kind : MirrorKind.values()) {
+            max = Math.max(max, copyChunkRadius(kind));
+        }
+        return max;
+    }
+
+    public static void setActiveMirrorConfigStateForTesting(MirrorConfigState state) {
+        activeMirrorConfig = state;
+    }
+
+    public static void setConfiguredMirrorConfigStateForTesting(MirrorConfigState state) {
+        saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
+        saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
+        saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+    }
+
+    public static MirrorAccess configuredMirrorAccess(MirrorKind kind) {
+        return configuredMirrorConfigState().get(kind).access();
+    }
+
+    public static MirrorKindSettings configuredMirrorSettings(MirrorKind kind) {
+        return configuredMirrorConfigState().get(kind);
+    }
+
+    private static boolean isMirrorAdmin(ServerPlayer player) {
+        return player.hasPermissions(CONFIG_PERMISSION_LEVEL)
+                || player.getServer() != null
+                && player.getServer().getPlayerList().isOp(player.getGameProfile());
     }
 
     /**

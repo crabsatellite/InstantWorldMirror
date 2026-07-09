@@ -5,7 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "instantworldmirror.refmap.json",
   "mixins": ["LevelChunkSectionAccessor"],
-  "client": ["client.ClientLevelMixin"],
+  "client": ["client.ClientLevelMixin", "client.OptionsScreenMixin"],
   "injectors": {
     "defaultRequire": 1
   }

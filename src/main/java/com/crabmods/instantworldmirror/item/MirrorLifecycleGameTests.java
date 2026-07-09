@@ -1,7 +1,10 @@
 package com.crabmods.instantworldmirror.item;
 
 import com.crabmods.instantworldmirror.InstantWorldMirror;
+import com.crabmods.instantworldmirror.MirrorAccess;
 import com.crabmods.instantworldmirror.MirrorConfig;
+import com.crabmods.instantworldmirror.MirrorConfigMigration;
+import com.crabmods.instantworldmirror.MirrorConfigState;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
@@ -15,6 +18,7 @@ import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.authlib.GameProfile;
+import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -33,6 +37,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -42,7 +47,11 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
+import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @GameTestHolder(InstantWorldMirror.MODID)
@@ -141,9 +150,11 @@ public final class MirrorLifecycleGameTests {
     public static void disabledMirrorKindBlocksTemporarySessionCreation(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         clearDimensionPoolTestState(player);
+        MirrorConfigState previousActiveAccess = MirrorConfig.activeMirrorConfigState();
 
         try {
-            MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(false);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(
+                    MirrorConfig.activeMirrorConfigState().withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.NONE));
 
             helper.assertFalse(MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM),
                     "First Dream Mirror config toggle must disable only that kind");
@@ -158,10 +169,141 @@ public final class MirrorLifecycleGameTests {
             helper.assertTrue(allowedSession.getKind() == MirrorKind.DIMENSION,
                     "Disabling one mirror kind must not block other mirror kinds");
         } finally {
-            MirrorConfig.ENABLE_FIRST_DREAM_MIRROR.set(true);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveAccess);
             MirrorWorldManager.clearAllSessions(player.getServer());
             WorldCopyService.clearAllTasks();
             clearDimensionPoolTestState(player);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 320)
+    public static void mirrorConfigStrictGateControlsRestartGatedGameBehavior(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        ServerPlayer admin = makeConnectedServerPlayer(helper);
+        admin.getServer().getPlayerList().op(admin.getGameProfile());
+        helper.assertTrue(MirrorConfig.canManageConfig(admin),
+                "Connected GameTest admin player must have operator permissions before strict gate runs");
+
+        MirrorConfigState previousConfigured = MirrorConfig.configuredMirrorConfigState();
+        MirrorConfigState previousActive = MirrorConfig.activeMirrorConfigState();
+        boolean previousSourceMobRule = helper.getLevel().getGameRules()
+                .getRule(GameRules.RULE_DOMOBSPAWNING)
+                .get();
+
+        try {
+            MirrorConfig.setRuntimeMobSpawning(null);
+
+            MirrorConfigState accessBase = strictGateBaseConfigState(1);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(accessBase);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(accessBase);
+            int accessChecks = assertAccessRestartGateWithMirrorUse(helper, player, admin, accessBase);
+
+            MirrorConfigState optionBase = strictGateBaseConfigState(1);
+            MirrorConfigState optionTarget = strictGateOptionTargetState(optionBase);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(optionBase);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(optionBase);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(optionTarget);
+
+            int behaviorChecks = 0;
+            int scenarioIndex = 0;
+            for (MirrorKind kind : MirrorKind.values()) {
+                assertItemTransferActiveBehavior(helper, kind, false, scenarioIndex++);
+                behaviorChecks++;
+                behaviorChecks += assertWorldCopyActiveBehavior(helper, kind, false, 1, scenarioIndex++);
+            }
+
+            MirrorConfig.refreshServerConfigSnapshot();
+
+            for (MirrorKind kind : MirrorKind.values()) {
+                int targetRadius = optionTarget.get(kind).copyChunkRadius();
+                assertItemTransferActiveBehavior(helper, kind, true, scenarioIndex++);
+                behaviorChecks++;
+                behaviorChecks += assertWorldCopyActiveBehavior(helper, kind, true, targetRadius, scenarioIndex++);
+            }
+
+            InstantWorldMirror.LOGGER.info(
+                    "IWM_GAME_CONFIG_STRICT_GATE_METRICS mirrors={} settings={} accessChecks={} behaviorChecks={} restartPhases={}",
+                    MirrorKind.values().length,
+                    MirrorKind.values().length * 4,
+                    accessChecks,
+                    behaviorChecks,
+                    2
+            );
+        } finally {
+            MirrorConfig.setRuntimeMobSpawning(null);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(previousConfigured);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActive);
+            helper.getLevel().getGameRules()
+                    .getRule(GameRules.RULE_DOMOBSPAWNING)
+                    .set(previousSourceMobRule, helper.getLevel().getServer());
+            admin.getServer().getPlayerList().deop(admin.getGameProfile());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void mirrorConfigMigrationTranslatesLegacyAccessValues(GameTestHelper helper) {
+        Path path = null;
+        try {
+            path = Files.createTempFile("instantworldmirror-legacy-access", ".toml");
+            Files.writeString(path, String.join(System.lineSeparator(),
+                    "enableWorldReflectionMirror = false",
+                    "enableHeavenMirror = \"O\"",
+                    "firstDreamMirrorAccess = \"X\"",
+                    "enableFirstDreamMirror = true",
+                    "enableMobSpawning = false",
+                    "allowItemTransfer = true",
+                    "copyChunkRadius = 12"));
+
+            MirrorConfigMigration.migrateCommonConfig(path);
+            try (CommentedFileConfig config = CommentedFileConfig.builder(path).build()) {
+                config.load();
+                helper.assertFalse(config.contains("enableWorldReflectionMirror"),
+                        "Migration must remove legacy world reflection enable key");
+                helper.assertFalse(config.contains("enableHeavenMirror"),
+                        "Migration must remove legacy heaven enable key");
+                helper.assertFalse(config.contains("enableFirstDreamMirror"),
+                        "Migration must remove legacy first dream enable key");
+                helper.assertTrue("NONE".equals(config.get("worldReflectionMirrorAccess")),
+                        "Legacy false must migrate to NONE");
+                helper.assertTrue("ALL".equals(config.get("heavenMirrorAccess")),
+                        "Legacy O must migrate to ALL");
+                helper.assertTrue("NONE".equals(config.get("firstDreamMirrorAccess")),
+                        "Existing legacy X access must normalize to NONE and must not be overwritten");
+                helper.assertFalse(Boolean.TRUE.equals(config.get("worldReflectionMirrorMobSpawning")),
+                        "Legacy mob spawning must initialize World Reflection Mirror mob spawning");
+                helper.assertFalse(Boolean.TRUE.equals(config.get("heavenMirrorMobSpawning")),
+                        "Legacy mob spawning must initialize Heaven Mirror mob spawning");
+                helper.assertFalse(Boolean.TRUE.equals(config.get("firstDreamMirrorMobSpawning")),
+                        "Existing legacy mob spawning must preserve First Dream behavior on upgrade");
+                helper.assertTrue(Boolean.TRUE.equals(config.get("worldReflectionMirrorItemTransfer")),
+                        "Legacy item transfer must initialize World Reflection Mirror item transfer");
+                helper.assertTrue(Boolean.TRUE.equals(config.get("heavenMirrorItemTransfer")),
+                        "Legacy item transfer must initialize Heaven Mirror item transfer");
+                helper.assertTrue(Boolean.TRUE.equals(config.get("firstDreamMirrorItemTransfer")),
+                        "Legacy item transfer must initialize First Dream item transfer");
+                helper.assertTrue(((Number) config.get("worldReflectionMirrorCopyChunkRadius")).intValue() == 12,
+                        "Legacy copy radius must initialize World Reflection Mirror copy radius");
+                helper.assertTrue(((Number) config.get("heavenMirrorCopyChunkRadius")).intValue() == 12,
+                        "Legacy copy radius must initialize Heaven Mirror copy radius");
+                helper.assertTrue(((Number) config.get("firstDreamMirrorCopyChunkRadius")).intValue() == 12,
+                        "Legacy copy radius must initialize First Dream copy radius");
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Legacy access migration test failed", e);
+        } finally {
+            if (path != null) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (Exception ignored) {
+                }
+            }
         }
 
         helper.succeed();
@@ -476,11 +618,13 @@ public final class MirrorLifecycleGameTests {
     public static void itemTransferCommandControlsFullMirrorLifecycle(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
-        int previousCopyChunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         int previousCopyChunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
         try {
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
-            MirrorConfig.COPY_CHUNK_RADIUS.set(1);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withItemTransfer(MirrorKind.DIMENSION, false)
+                    .withCopyChunkRadius(MirrorKind.DIMENSION, 1));
             MirrorConfig.COPY_CHUNKS_PER_TICK.set(10);
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             clearDimensionPoolTestState(player);
@@ -500,7 +644,7 @@ public final class MirrorLifecycleGameTests {
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
-            MirrorConfig.COPY_CHUNK_RADIUS.set(previousCopyChunkRadius);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
             MirrorConfig.COPY_CHUNKS_PER_TICK.set(previousCopyChunksPerTick);
             MirrorWorldManager.clearAllSessions(helper.getLevel().getServer());
             WorldCopyService.clearAllTasks();
@@ -514,11 +658,14 @@ public final class MirrorLifecycleGameTests {
     public static void itemTransferConfigDefaultControlsMirrorExit(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         try {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             player.setGameMode(GameType.SURVIVAL);
 
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withItemTransfer(MirrorKind.DIMENSION, false));
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
             MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
             player.getInventory().items.set(4, new ItemStack(Items.DIAMOND_BLOCK));
@@ -527,6 +674,8 @@ public final class MirrorLifecycleGameTests {
                     "Disabled item transfer config must restore the entry inventory");
 
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(true);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withItemTransfer(MirrorKind.DIMENSION, true));
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
             MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
             player.getInventory().items.set(4, new ItemStack(Items.EMERALD_BLOCK));
@@ -536,6 +685,7 @@ public final class MirrorLifecycleGameTests {
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
         }
 
         helper.succeed();
@@ -735,6 +885,223 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
+    private static MirrorConfigState strictGateBaseConfigState(int copyRadius) {
+        MirrorConfigState state = MirrorConfigState.defaults();
+        for (MirrorKind kind : MirrorKind.values()) {
+            state = state
+                    .withAccess(kind, MirrorAccess.ALL)
+                    .withMobSpawning(kind, false)
+                    .withItemTransfer(kind, false)
+                    .withCopyChunkRadius(kind, copyRadius);
+        }
+        return state;
+    }
+
+    private static MirrorConfigState strictGateOptionTargetState(MirrorConfigState base) {
+        MirrorConfigState state = base;
+        for (MirrorKind kind : MirrorKind.values()) {
+            state = state
+                    .withMobSpawning(kind, true)
+                    .withItemTransfer(kind, true)
+                    .withCopyChunkRadius(kind, 2 + kind.ordinal());
+        }
+        return state;
+    }
+
+    private static int assertAccessRestartGateWithMirrorUse(GameTestHelper helper, ServerPlayer player,
+                                                           ServerPlayer admin, MirrorConfigState initialState) {
+        MirrorConfigState state = initialState;
+        int checks = 0;
+        int scenarioIndex = 0;
+        for (MirrorKind kind : MirrorKind.values()) {
+            state = state.withAccess(kind, MirrorAccess.ADMIN);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(state);
+            helper.assertTrue(useMirrorItemOnBlock(helper, player, kind, scenarioIndex++),
+                    kind.id() + " saved ADMIN must not affect normal mirror use before restart");
+            checks++;
+            MirrorConfig.refreshServerConfigSnapshot();
+            helper.assertFalse(useMirrorItemOnBlock(helper, player, kind, scenarioIndex++),
+                    kind.id() + " ADMIN must block normal players after restart");
+            checks++;
+            helper.assertTrue(useMirrorItemOnBlock(helper, admin, kind, scenarioIndex++),
+                    kind.id() + " ADMIN must allow admins after restart");
+            checks++;
+
+            state = state.withAccess(kind, MirrorAccess.NONE);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(state);
+            helper.assertTrue(useMirrorItemOnBlock(helper, admin, kind, scenarioIndex++),
+                    kind.id() + " saved NONE must not affect admin mirror use before restart");
+            checks++;
+            MirrorConfig.refreshServerConfigSnapshot();
+            helper.assertFalse(useMirrorItemOnBlock(helper, player, kind, scenarioIndex++),
+                    kind.id() + " NONE must block normal players after restart");
+            checks++;
+            helper.assertFalse(useMirrorItemOnBlock(helper, admin, kind, scenarioIndex++),
+                    kind.id() + " NONE must block admins after restart");
+            checks++;
+
+            state = state.withAccess(kind, MirrorAccess.ALL);
+            MirrorConfig.setConfiguredMirrorConfigStateForTesting(state);
+            helper.assertFalse(useMirrorItemOnBlock(helper, player, kind, scenarioIndex++),
+                    kind.id() + " saved ALL must not affect normal players before restart from NONE");
+            checks++;
+            MirrorConfig.refreshServerConfigSnapshot();
+            helper.assertTrue(useMirrorItemOnBlock(helper, player, kind, scenarioIndex++),
+                    kind.id() + " ALL must allow normal players after restart");
+            checks++;
+        }
+        return checks;
+    }
+
+    private static boolean useMirrorItemOnBlock(GameTestHelper helper, ServerPlayer player,
+                                                MirrorKind kind, int scenarioIndex) {
+        ServerLevel sourceLevel = helper.getLevel();
+        BlockPos sourcePos = new BlockPos(24 + scenarioIndex * 4, 64, 24 + kind.ordinal() * 4);
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+
+        try {
+            sourceLevel.setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+            sourceLevel.removeBlock(sourcePos.above(), false);
+            sourceLevel.removeBlock(sourcePos.above(2), false);
+            player.teleportTo(sourceLevel, sourcePos.getX() + 0.5, sourcePos.getY() + 1.0, sourcePos.getZ() + 2.5,
+                    180.0F, 0.0F);
+            player.setGameMode(GameType.SURVIVAL);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+
+            ItemStack mirrorStack = mirrorStackForKind(kind);
+            player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+            InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+
+            return result.consumesAction()
+                    && MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
+                    .filter(session -> session.getKind() == kind)
+                    .isPresent();
+        } finally {
+            sourceLevel.getEntitiesOfClass(MirrorPortalEntity.class,
+                            new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
+                    .forEach(MirrorPortalEntity::discard);
+            sourceLevel.removeBlock(sourcePos, false);
+            sourceLevel.removeBlock(sourcePos.above(), false);
+            sourceLevel.removeBlock(sourcePos.above(2), false);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+        }
+    }
+
+    private static void assertItemTransferActiveBehavior(GameTestHelper helper, MirrorKind kind,
+                                                         boolean expectTransfer, int scenarioIndex) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+        player.setGameMode(GameType.SURVIVAL);
+        player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
+
+        Item expectedItem = scenarioIndex % 2 == 0 ? Items.DIAMOND_BLOCK : Items.EMERALD_BLOCK;
+        player.getInventory().items.set(4, new ItemStack(expectedItem));
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        if (expectTransfer) {
+            helper.assertTrue(player.getInventory().items.get(4).is(expectedItem),
+                    kind.id() + " item-transfer config must let mirror-world inventory changes leave the mirror");
+        } else {
+            helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
+                    kind.id() + " item-transfer config must restore the entry inventory when disabled");
+        }
+        MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+    }
+
+    private static int assertWorldCopyActiveBehavior(GameTestHelper helper, MirrorKind kind,
+                                                     boolean expectedMobSpawning, int expectedRadius,
+                                                     int scenarioIndex) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        ServerLevel sourceLevel = helper.getLevel();
+        BlockPos sourcePos = new BlockPos(96 + scenarioIndex * 4, 64, 96 + kind.ordinal() * 4);
+        boolean previousSourceMobRule = sourceLevel.getGameRules()
+                .getRule(GameRules.RULE_DOMOBSPAWNING)
+                .get();
+
+        try {
+            sourceLevel.getGameRules()
+                    .getRule(GameRules.RULE_DOMOBSPAWNING)
+                    .set(false, sourceLevel.getServer());
+            clearDimensionPoolTestState(player);
+            sourceLevel.setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+            sourceLevel.removeBlock(sourcePos.above(), false);
+            sourceLevel.removeBlock(sourcePos.above(2), false);
+            player.teleportTo(sourceLevel, sourcePos.getX() + 0.5, sourcePos.getY() + 1.0, sourcePos.getZ() + 2.5,
+                    180.0F, 0.0F);
+            player.setGameMode(GameType.SURVIVAL);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+
+            ItemStack mirrorStack = mirrorStackForKind(kind);
+            player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+            InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+            helper.assertTrue(result.consumesAction(), kind.id() + " mirror use must create an entry portal");
+
+            MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
+                    .orElseThrow(() -> new IllegalStateException("Mirror use did not create a player-owned session"));
+            ServerLevel mirrorLevel = DimensionPool.getDimensionLevel(sourceLevel.getServer(), session.getDimensionIndex());
+            helper.assertTrue(mirrorLevel != null,
+                    "GameTest server must load the session's assigned mirror world");
+            MirrorPortalEntity entryPortal = findEntryPortal(sourceLevel, session);
+            entryPortal.tick();
+
+            int expectedTotalChunks = (expectedRadius * 2 + 1) * (expectedRadius * 2 + 1);
+            int actualTotalChunks = pendingCopyTask(session.getDimensionIndex()).getTotalChunks();
+            helper.assertTrue(actualTotalChunks == expectedTotalChunks,
+                    kind.id() + " copy radius must create the expected copy task size");
+            helper.assertTrue(mirrorLevel.getGameRules().getRule(GameRules.RULE_DOMOBSPAWNING).get() == expectedMobSpawning,
+                    kind.id() + " mob-spawning config must control the mirror world's mob spawning game rule");
+            return 2;
+        } finally {
+            sourceLevel.getEntitiesOfClass(MirrorPortalEntity.class,
+                            new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
+                    .forEach(MirrorPortalEntity::discard);
+            sourceLevel.removeBlock(sourcePos, false);
+            sourceLevel.removeBlock(sourcePos.above(), false);
+            sourceLevel.removeBlock(sourcePos.above(2), false);
+            sourceLevel.getGameRules()
+                    .getRule(GameRules.RULE_DOMOBSPAWNING)
+                    .set(previousSourceMobRule, sourceLevel.getServer());
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static WorldCopyService.CopyTask pendingCopyTask(int dimensionIndex) {
+        try {
+            Field field = WorldCopyService.class.getDeclaredField("copyTasks");
+            field.setAccessible(true);
+            Map<Integer, WorldCopyService.CopyTask> tasks =
+                    (Map<Integer, WorldCopyService.CopyTask>) field.get(null);
+            WorldCopyService.CopyTask task = tasks.get(dimensionIndex);
+            if (task == null) {
+                throw new IllegalStateException("No pending copy task for mirror dimension " + dimensionIndex);
+            }
+            return task;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not inspect pending mirror copy task", e);
+        }
+    }
+
+    private static ItemStack mirrorStackForKind(MirrorKind kind) {
+        return switch (kind) {
+            case DIMENSION -> new ItemStack(ModItems.DIMENSION_MIRROR.get());
+            case HEAVEN -> new ItemStack(ModItems.HEAVEN_MIRROR.get());
+            case FIRST_DREAM -> new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+        };
+    }
+
     private static void clearDimensionPoolTestState(ServerPlayer player) {
         DimensionPool.initializeWithServer(player.getServer());
         for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
@@ -755,8 +1122,11 @@ public final class MirrorLifecycleGameTests {
                                                          boolean allowItemTransfer) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         try {
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withItemTransfer(kind, allowItemTransfer));
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             player.setGameMode(GameType.SURVIVAL);
             player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
@@ -777,6 +1147,7 @@ public final class MirrorLifecycleGameTests {
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
         }
     }
 
@@ -787,9 +1158,12 @@ public final class MirrorLifecycleGameTests {
         BlockPos sourceChestPos = new BlockPos(8 + scenarioIndex * 4, 64, 8);
         BlockPos mirrorChestPos = sourceChestPos.east();
         boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
 
         try {
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withItemTransfer(kind, allowItemTransfer));
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             setChestItem(sourceLevel, sourceChestPos, new ItemStack(Items.EMERALD));
             setChestItem(sourceLevel, mirrorChestPos, new ItemStack(Items.DIAMOND_BLOCK));
@@ -813,6 +1187,7 @@ public final class MirrorLifecycleGameTests {
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
             sourceLevel.removeBlock(sourceChestPos, false);
             sourceLevel.removeBlock(mirrorChestPos, false);
         }
@@ -956,6 +1331,22 @@ public final class MirrorLifecycleGameTests {
         }
     }
 
+    private static boolean canCreateTemporarySession(ServerPlayer player, MirrorKind kind) {
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+        boolean created = MirrorWorldManager.createSession(
+                player,
+                new BlockPos(kind.ordinal() + 1, 64, kind.ordinal() + 1),
+                kind,
+                false
+        ).isPresent();
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
+        return created;
+    }
+
     private static void addEfficiency(ItemStack stack, int level) {
         stack.enchant(Enchantments.BLOCK_EFFICIENCY, level);
     }
@@ -979,10 +1370,11 @@ public final class MirrorLifecycleGameTests {
     }
 
     private static ServerPlayer makeConnectedServerPlayer(GameTestHelper helper) {
+        UUID playerId = UUID.randomUUID();
         ServerPlayer player = new ServerPlayer(
                 helper.getLevel().getServer(),
                 helper.getLevel(),
-                new GameProfile(UUID.randomUUID(), "test-mock-player")
+                new GameProfile(playerId, "test" + playerId.toString().replace("-", "").substring(0, 8))
         );
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
         new EmbeddedChannel(connection);

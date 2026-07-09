@@ -67,6 +67,15 @@ public class ModNetworking {
                 PersistentMirrorMenuPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                MirrorConfigMenuPacket.class,
+                MirrorConfigMenuPacket::encode,
+                MirrorConfigMenuPacket::decode,
+                MirrorConfigMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
         
         // Register server-bound packets
         CHANNEL.registerMessage(
@@ -75,6 +84,24 @@ public class ModNetworking {
                 TeleportToSpawnPacket::encode,
                 TeleportToSpawnPacket::decode,
                 TeleportToSpawnPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                SaveMirrorConfigPacket.class,
+                SaveMirrorConfigPacket::encode,
+                SaveMirrorConfigPacket::decode,
+                SaveMirrorConfigPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                OpenMirrorConfigPacket.class,
+                OpenMirrorConfigPacket::encode,
+                OpenMirrorConfigPacket::decode,
+                OpenMirrorConfigPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER)
         );
         

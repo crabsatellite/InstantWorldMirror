@@ -365,7 +365,7 @@ public class DimensionMirrorItem extends Item {
 
     static boolean shouldUseGeneratedContentRefresh(Level level, ItemStack stack, boolean bypassCooldown) {
         return hasGeneratedContentRefresh(level, stack)
-                && !MirrorConfig.isMobSpawningEnabled()
+                && !MirrorConfig.isMobSpawningEnabled(getMirrorKind(stack))
                 && (bypassCooldown || getGeneratedContentRefreshRemainingMillis(stack) == 0);
     }
 
@@ -551,7 +551,9 @@ public class DimensionMirrorItem extends Item {
                     Component.translatable("message.instantworldmirror.renewal_refresh_triggered"),
                     true
             );
-        } else if (!bypassRefreshCooldown && hasGeneratedContentRefresh(level, stack) && !MirrorConfig.isMobSpawningEnabled()) {
+        } else if (!bypassRefreshCooldown
+                && hasGeneratedContentRefresh(level, stack)
+                && !MirrorConfig.isMobSpawningEnabled(kind)) {
             long remainingMillis = getGeneratedContentRefreshRemainingMillis(stack);
             if (remainingMillis > 0) {
                 player.displayClientMessage(

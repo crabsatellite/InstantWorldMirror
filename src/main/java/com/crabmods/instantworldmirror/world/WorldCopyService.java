@@ -82,6 +82,9 @@ public class WorldCopyService {
     // dimensionIndex -> center BlockPos
     private static final Map<Integer, BlockPos> copyCenterPositions = new ConcurrentHashMap<>();
 
+    // Track the exact copy radius used by the current temporary session in each dimension.
+    private static final Map<Integer, Integer> copyRadii = new ConcurrentHashMap<>();
+
     // Reusable BlockPos for optimization (ThreadLocal for thread safety)
     private static final ThreadLocal<BlockPos.MutableBlockPos> MUTABLE_POS = 
             ThreadLocal.withInitial(BlockPos.MutableBlockPos::new);
@@ -207,6 +210,7 @@ public class WorldCopyService {
         public final int targetDimensionIndex;
         public final boolean pristineTerrain;
         public final boolean generatedContentRefresh;
+        public final boolean mobSpawningEnabled;
         
         private int currentChunkX;
         private int currentChunkZ;
@@ -233,6 +237,13 @@ public class WorldCopyService {
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain,
                         boolean generatedContentRefresh) {
+            this(sessionId, centerPos, chunkRadius, sourceDimension, targetDimensionIndex, pristineTerrain,
+                    generatedContentRefresh, false);
+        }
+
+        public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
+                        ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain,
+                        boolean generatedContentRefresh, boolean mobSpawningEnabled) {
             this.sessionId = sessionId;
             this.centerPos = centerPos;
             this.chunkRadius = chunkRadius;
@@ -240,6 +251,7 @@ public class WorldCopyService {
             this.targetDimensionIndex = targetDimensionIndex;
             this.pristineTerrain = pristineTerrain;
             this.generatedContentRefresh = generatedContentRefresh;
+            this.mobSpawningEnabled = mobSpawningEnabled;
             
             int centerChunkX = centerPos.getX() >> 4;
             int centerChunkZ = centerPos.getZ() >> 4;
@@ -352,7 +364,7 @@ public class WorldCopyService {
 
             if (pristineRegionPrepared) {
                 pristineRegion.prepareGeneratedContentSnapshot(centerPos,
-                        generatedContentRefresh || MirrorConfig.isMobSpawningEnabled());
+                        generatedContentRefresh || mobSpawningEnabled);
             }
 
             return pristineRegionPrepared;
@@ -422,6 +434,7 @@ public class WorldCopyService {
         
         // Clear tracked data for this dimension
         copyCenterPositions.remove(dimensionIndex);
+        copyRadii.remove(dimensionIndex);
         modifiedChunks.remove(dimensionIndex);
         pendingSave.remove(dimensionIndex);
     }
@@ -513,7 +526,7 @@ public class WorldCopyService {
                 centerPos = savedCenter;
             }
             
-            int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+            int copyRadius = copyRadii.getOrDefault(dimensionIndex, MirrorConfig.maxConfiguredCopyChunkRadius());
             
             if (centerPos != null) {
                 int centerChunkX = centerPos.getX() >> 4;
@@ -1088,7 +1101,8 @@ public class WorldCopyService {
      * Returns the queue position (1 = processing now, 2+ = waiting in queue)
      */
     public static int queueWorldCopy(MirrorSession session, ServerLevel sourceWorld) {
-        int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int chunkRadius = MirrorConfig.copyChunkRadius(session.getKind());
+        boolean mobSpawningEnabled = MirrorConfig.isMobSpawningEnabled(session.getKind());
         int dimIndex = session.getDimensionIndex();
         
         // Sync game rules from source world to mirror world
@@ -1097,7 +1111,7 @@ public class WorldCopyService {
             ServerLevel mirrorWorld = DimensionPool.getDimensionLevel(server, dimIndex);
             if (mirrorWorld != null) {
                 syncGameRules(sourceWorld, mirrorWorld);
-                if (session.hasGeneratedContentRefresh()) {
+                if (session.hasGeneratedContentRefresh() || mobSpawningEnabled) {
                     mirrorWorld.getGameRules()
                             .getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING)
                             .set(true, server);
@@ -1112,7 +1126,8 @@ public class WorldCopyService {
                 sourceWorld.dimension(),
                 dimIndex,
                 session.usesPristineTerrain(),
-                session.hasGeneratedContentRefresh()
+                session.hasGeneratedContentRefresh(),
+                mobSpawningEnabled
         );
         
         copyTasks.put(dimIndex, task);
@@ -1126,6 +1141,7 @@ public class WorldCopyService {
         
         // Store the copy center position for cleanup later (both in memory and persistent storage)
         copyCenterPositions.put(dimIndex, session.getSourcePosition());
+        copyRadii.put(dimIndex, chunkRadius);
         DimensionPool.saveCleanupData(dimIndex, session.getSourcePosition(), null, 0);
         
         // Calculate queue position
@@ -1138,7 +1154,8 @@ public class WorldCopyService {
     }
 
     public static int queuePersistentWorldCopy(PersistentMirrorRecord record, ServerLevel sourceWorld, ServerLevel targetWorld) {
-        int chunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int chunkRadius = MirrorConfig.copyChunkRadius(record.kind());
+        boolean mobSpawningEnabled = MirrorConfig.isMobSpawningEnabled(record.kind());
         int dimIndex = record.dimensionIndex();
 
         syncGameRules(sourceWorld, targetWorld);
@@ -1149,7 +1166,9 @@ public class WorldCopyService {
                 chunkRadius,
                 sourceWorld.dimension(),
                 dimIndex,
-                false
+                false,
+                false,
+                mobSpawningEnabled
         );
 
         persistentCopyTasks.put(dimIndex, task);
@@ -1648,7 +1667,7 @@ public class WorldCopyService {
                                 }
                                 copyGeneratedBlockEntity(
                                         generatedChunk, mirrorWorld, targetChunk, targetPos,
-                                        task.generatedContentRefresh);
+                                        task.generatedContentRefresh || task.mobSpawningEnabled);
                             }
                         }
                     }
@@ -1669,7 +1688,7 @@ public class WorldCopyService {
                 regenerateHeightmaps(targetChunk);
             }
 
-            if (task.generatedContentRefresh || MirrorConfig.isMobSpawningEnabled()) {
+            if (task.generatedContentRefresh || task.mobSpawningEnabled) {
                 task.copyPristineGeneratedEntitiesToChunk(chunkX, chunkZ, mirrorWorld,
                         WorldCopyService::copyEntityDataWithFreshUuid);
             }
@@ -1740,9 +1759,9 @@ public class WorldCopyService {
         return filterGeneratedLootTagForConfig(tag, false);
     }
 
-    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean generatedContentRefresh) {
+    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean keepGeneratedContent) {
         CompoundTag copy = tag.copy();
-        if (!generatedContentRefresh && !MirrorConfig.isMobSpawningEnabled()) {
+        if (!keepGeneratedContent) {
             copy.remove("LootTable");
             copy.remove("LootTableSeed");
         }
@@ -2354,7 +2373,7 @@ public class WorldCopyService {
         if (centerPos != null) {
             int centerChunkX = centerPos.getX() >> 4;
             int centerChunkZ = centerPos.getZ() >> 4;
-            int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+            int copyRadius = copyRadii.getOrDefault(dimensionIndex, MirrorConfig.maxConfiguredCopyChunkRadius());
             for (int x = centerChunkX - copyRadius; x <= centerChunkX + copyRadius; x++) {
                 for (int z = centerChunkZ - copyRadius; z <= centerChunkZ + copyRadius; z++) {
                     chunks.add(packChunkPos(x, z));
@@ -2505,9 +2524,13 @@ public class WorldCopyService {
     }
 
     public static void cleanupPersistentMirrorWorld(ServerLevel mirrorWorld, BlockPos centerPos) {
+        cleanupPersistentMirrorWorld(mirrorWorld, centerPos, null);
+    }
+
+    public static void cleanupPersistentMirrorWorld(ServerLevel mirrorWorld, BlockPos centerPos, MirrorKind kind) {
         clearAllEntitiesInDimension(mirrorWorld);
 
-        int copyRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int copyRadius = kind != null ? MirrorConfig.copyChunkRadius(kind) : MirrorConfig.maxConfiguredCopyChunkRadius();
         int centerChunkX = centerPos.getX() >> 4;
         int centerChunkZ = centerPos.getZ() >> 4;
         int clearedChunks = 0;
@@ -2584,6 +2607,7 @@ public class WorldCopyService {
             // Clear tracking data for this dimension
             clearModifiedChunkTracking(currentDimIndex);
             copyCenterPositions.remove(currentDimIndex);
+            copyRadii.remove(currentDimIndex);
             
             // Mark dimension as available again
             DimensionPool.markDimensionAvailable(currentDimIndex);
@@ -2649,6 +2673,7 @@ public class WorldCopyService {
             // Clear tracking data for this dimension
             clearModifiedChunkTracking(currentDimIndex);
             copyCenterPositions.remove(currentDimIndex);
+            copyRadii.remove(currentDimIndex);
             
             // Mark dimension as available again
             DimensionPool.markDimensionAvailable(currentDimIndex);
@@ -2941,6 +2966,7 @@ public class WorldCopyService {
             persistentCopyQueue.clear();
         }
         copyCenterPositions.clear();
+        copyRadii.clear();
         modifiedChunks.clear();
         pendingSave.clear();
         saveTickCounter = 0;
