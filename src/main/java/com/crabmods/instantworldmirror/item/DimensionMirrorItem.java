@@ -41,6 +41,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 import java.util.List;
 import java.util.Map;
@@ -469,6 +470,11 @@ public class DimensionMirrorItem extends Item {
         Long totalDuration = COOLDOWN_DURATIONS.get(playerId);
         long timestamp = (cooldownEnd != null) ? cooldownEnd : 0;
         long duration = (totalDuration != null) ? totalDuration : 0;
+        if (!NetworkRegistry.hasChannel(player.connection, SyncCooldownPacket.TYPE.id())) {
+            InstantWorldMirror.LOGGER.debug("Skipping cooldown sync for {} because the client cannot receive {}",
+                    player.getName().getString(), SyncCooldownPacket.TYPE.id());
+            return;
+        }
         PacketDistributor.sendToPlayer(player, new SyncCooldownPacket(timestamp, duration));
     }
     

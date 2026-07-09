@@ -27,6 +27,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -402,7 +403,6 @@ public class MirrorWorldManager {
         playerOriginalPositions.remove(playerId);
         playerOriginalDimensions.remove(playerId);
         playerToSession.remove(playerId);
-        playerItemTransferPermission.remove(playerId);
         playerOwnedSession.remove(playerId);
     }
 
@@ -1657,7 +1657,6 @@ public class MirrorWorldManager {
             // Clean up session tracking data, but preserve saved inventory and position data
             // in persistent NBT - those are needed by the respawn handler.
             playerToSession.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
             playerOwnedSession.remove(playerId);
             // Deliberately NOT removing playerOriginalPositions and playerOriginalDimensions -
             // they will be cleaned up after respawn in handleMirrorDeathRespawn().
@@ -1893,6 +1892,10 @@ public class MirrorWorldManager {
         playerItemTransferPermission.put(playerId, allowed);
     }
 
+    public static void clearItemTransferPermission(UUID playerId) {
+        playerItemTransferPermission.remove(playerId);
+    }
+
     /**
      * Get player item transfer permission
      */
@@ -1946,6 +1949,11 @@ public class MirrorWorldManager {
         
         // Send packet to the player
         SyncMirrorEffectsPacket packet = new SyncMirrorEffectsPacket(effectsKey, effectsLoc.toString());
+        if (!NetworkRegistry.hasChannel(player.connection, SyncMirrorEffectsPacket.TYPE.id())) {
+            InstantWorldMirror.LOGGER.debug("Skipping mirror effects sync for {} because the client cannot receive {}",
+                    player.getName().getString(), SyncMirrorEffectsPacket.TYPE.id());
+            return;
+        }
         PacketDistributor.sendToPlayer(player, packet);
         
         InstantWorldMirror.LOGGER.debug("Synced mirror effects to {}: dim {} -> {}", 
@@ -1957,6 +1965,11 @@ public class MirrorWorldManager {
      */
     private static void clearDimensionEffectsForPlayer(ServerPlayer player, int dimIndex) {
         ClearMirrorEffectsPacket packet = new ClearMirrorEffectsPacket(dimIndex);
+        if (!NetworkRegistry.hasChannel(player.connection, ClearMirrorEffectsPacket.TYPE.id())) {
+            InstantWorldMirror.LOGGER.debug("Skipping mirror effects clear for {} because the client cannot receive {}",
+                    player.getName().getString(), ClearMirrorEffectsPacket.TYPE.id());
+            return;
+        }
         PacketDistributor.sendToPlayer(player, packet);
         
         InstantWorldMirror.LOGGER.debug("Cleared mirror effects for {}: dim {}", 

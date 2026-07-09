@@ -71,7 +71,7 @@ public class MirrorConfig {
     public static final ModConfigSpec.BooleanValue ALLOW_ITEM_TRANSFER = BUILDER
             .comment("Allow items to be transferred back to overworld by default (default: false)",
                     "When false, players lose all items gained in mirror world on return.",
-                    "Can be overridden per-player with /mirror itemtransfer command")
+                    "Can be overridden per-player with /iwm itemtransfer command")
             .define("allowItemTransfer", false);
 
     public static final ModConfigSpec.IntValue MIRROR_COOLDOWN = BUILDER
