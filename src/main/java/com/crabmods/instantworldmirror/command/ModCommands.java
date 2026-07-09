@@ -5,6 +5,7 @@ import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.entity.ModEntities;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
+import com.crabmods.instantworldmirror.network.MirrorConfigMenuPacket;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
@@ -30,6 +31,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -114,6 +116,11 @@ public class ModCommands {
                         .then(Commands.literal("status")
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ModCommands::statusCommand)
+                        )
+                        // /iwm config - Open the admin-only mirror config screen
+                        .then(Commands.literal("config")
+                                .requires(source -> source.hasPermission(MirrorConfig.CONFIG_PERMISSION_LEVEL))
+                                .executes(ModCommands::configCommand)
                         )
                         // /iwm persistent - Manage persistent mirror worlds
                         .then(Commands.literal("persistent")
@@ -207,6 +214,15 @@ public class ModCommands {
     private static int persistentMenuCommand(CommandContext<CommandSourceStack> context) {
         if (context.getSource().getEntity() instanceof ServerPlayer player) {
             PersistentMirrorManager.openMirrorMenu(player, DimensionMirrorItem.findMirrorStack(player));
+            return 1;
+        }
+        context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));
+        return 0;
+    }
+
+    private static int configCommand(CommandContext<CommandSourceStack> context) {
+        if (context.getSource().getEntity() instanceof ServerPlayer player) {
+            PacketDistributor.sendToPlayer(player, new MirrorConfigMenuPacket(MirrorConfig.configuredMirrorConfigState()));
             return 1;
         }
         context.getSource().sendFailure(Component.translatable("command.instantworldmirror.player_only"));

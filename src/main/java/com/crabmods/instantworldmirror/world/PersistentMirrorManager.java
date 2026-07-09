@@ -89,7 +89,7 @@ public class PersistentMirrorManager {
             recordsRemoved++;
 
             if (persistentLevel != null) {
-                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition());
+                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition(), record.kind());
                 worldsCleaned++;
             }
         }
@@ -207,6 +207,11 @@ public class PersistentMirrorManager {
     private static void sendPersistentListMenu(ServerPlayer player, MirrorKind heldKind,
                                                Collection<PersistentMirrorRecord> records) {
         List<PersistentMirrorMenuPacket.Entry> entries = new java.util.ArrayList<>();
+        if (!MirrorConfig.canAccessMirrorKind(player, heldKind)) {
+            PacketDistributor.sendToPlayer(player, PersistentMirrorMenuPacket.list(heldKind.translationKey(), entries));
+            return;
+        }
+
         for (PersistentMirrorRecord record : records) {
             if (record.kind() != heldKind || !canEnterRecord(player, record)) {
                 continue;
@@ -361,7 +366,7 @@ public class PersistentMirrorManager {
 
             ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
             if (persistentLevel != null) {
-                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition());
+                WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition(), record.kind());
             }
 
             InstantWorldMirror.LOGGER.warn(
@@ -388,9 +393,9 @@ public class PersistentMirrorManager {
             return false;
         }
 
-        if (!MirrorConfig.isMirrorKindEnabled(record.kind())) {
+        if (!MirrorConfig.canAccessMirrorKind(player, record.kind())) {
             player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.mirror_kind_disabled",
+                    Component.translatable("message.instantworldmirror.mirror_kind_restricted",
                             Component.translatable(record.kind().translationKey())),
                     false);
             return false;
@@ -580,7 +585,7 @@ public class PersistentMirrorManager {
             for (ServerPlayer other : persistentLevel.players().toArray(ServerPlayer[]::new)) {
                 leavePersistentMirror(other);
             }
-            WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition());
+            WorldCopyService.cleanupPersistentMirrorWorld(persistentLevel, record.sourcePosition(), record.kind());
         }
 
         data.removeRecord(record.id());

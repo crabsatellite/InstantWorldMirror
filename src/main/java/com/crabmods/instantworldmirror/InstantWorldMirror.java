@@ -31,6 +31,8 @@ public class InstantWorldMirror {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public InstantWorldMirror(IEventBus modEventBus, ModContainer modContainer) {
+        MirrorConfigMigration.migrateCommonConfig();
+
         // Register common setup event
         modEventBus.addListener(this::commonSetup);
 
@@ -77,6 +79,7 @@ public class InstantWorldMirror {
         LOGGER.info("InstantWorldMirror - Server Starting");
         
         // Re-initialize dimension pool on server start (in case config changed)
+        MirrorConfig.refreshServerConfigSnapshot();
         ModDimensions.updatePoolSizeFromConfig();
         // Use server-aware initialization to restore cleanup states from persistent storage
         DimensionPool.initializeWithServer(event.getServer());

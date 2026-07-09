@@ -57,6 +57,7 @@ public class MirrorWorldManager {
     private static final String ORIGINAL_POS_KEY = InstantWorldMirror.MODID + "_original_pos";
     private static final String ORIGINAL_DIM_KEY = InstantWorldMirror.MODID + "_original_dim";
     private static final String SESSION_ID_KEY = InstantWorldMirror.MODID + "_session_id";
+    private static final String MIRROR_KIND_KEY = InstantWorldMirror.MODID + "_mirror_kind";
     private static final String DIED_IN_MIRROR_KEY = InstantWorldMirror.MODID + "_died_in_mirror";
     private static final String SANDBOX_SESSION_KEY = InstantWorldMirror.MODID + "_sandbox_session";
     private static final String SAVED_GAME_MODE_PRESENT_KEY = InstantWorldMirror.MODID + "_saved_game_mode_present";
@@ -88,6 +89,9 @@ public class MirrorWorldManager {
 
     // Player to session mapping: playerId -> sessionId (for players currently in mirror world)
     private static final Map<UUID, UUID> playerToSession = new ConcurrentHashMap<>();
+
+    // Player to mirror kind mapping for item-transfer restoration paths that do not have a live session.
+    private static final Map<UUID, MirrorKind> playerMirrorKinds = new ConcurrentHashMap<>();
 
     // Player's active session in overworld (created but not entered): creatorId -> sessionId
     private static final Map<UUID, UUID> playerOwnedSession = new ConcurrentHashMap<>();
@@ -224,11 +228,11 @@ public class MirrorWorldManager {
             return Optional.empty();
         }
 
-        if (!MirrorConfig.isMirrorKindEnabled(kind)) {
-            InstantWorldMirror.LOGGER.info("Player {} tried to create disabled mirror kind {}",
+        if (!MirrorConfig.canAccessMirrorKind(player, kind)) {
+            InstantWorldMirror.LOGGER.info("Player {} tried to create restricted mirror kind {}",
                     player.getName().getString(), kind.id());
             player.displayClientMessage(
-                    Component.translatable("message.instantworldmirror.mirror_kind_disabled",
+                    Component.translatable("message.instantworldmirror.mirror_kind_restricted",
                             Component.translatable(kind.translationKey())),
                     true
             );
@@ -322,6 +326,37 @@ public class MirrorWorldManager {
         }
     }
 
+    public static Optional<MirrorKind> getMirrorKindForDimension(MinecraftServer server, ResourceKey<Level> dimension) {
+        int temporaryIndex = ModDimensions.MIRROR_WORLD_POOL.indexOf(dimension);
+        if (temporaryIndex >= 0) {
+            sessionLock.readLock().lock();
+            try {
+                for (MirrorSession session : activeSessions.values()) {
+                    if (!session.isDestroyed() && session.getDimensionIndex() == temporaryIndex) {
+                        return Optional.of(session.getKind());
+                    }
+                }
+            } finally {
+                sessionLock.readLock().unlock();
+            }
+        }
+
+        int persistentIndex = ModDimensions.getPersistentMirrorWorldIndex(dimension);
+        if (server != null && persistentIndex >= 0) {
+            return PersistentMirrorData.get(server)
+                    .getRecordByDimensionIndex(persistentIndex)
+                    .map(PersistentMirrorRecord::kind);
+        }
+
+        return Optional.empty();
+    }
+
+    public static boolean isMobSpawningEnabledForDimension(MinecraftServer server, ResourceKey<Level> dimension) {
+        return getMirrorKindForDimension(server, dimension)
+                .map(MirrorConfig::isMobSpawningEnabled)
+                .orElseGet(MirrorConfig::isMobSpawningEnabled);
+    }
+
     /**
      * Bind a portal entity to a session
      * Also maintains the portalToSession index for O(1) lookup
@@ -404,6 +439,32 @@ public class MirrorWorldManager {
         playerOriginalDimensions.remove(playerId);
         playerToSession.remove(playerId);
         playerOwnedSession.remove(playerId);
+        playerMirrorKinds.remove(playerId);
+    }
+
+    private static void rememberPlayerMirrorKind(ServerPlayer player, MirrorKind kind) {
+        playerMirrorKinds.put(player.getUUID(), kind);
+        player.getPersistentData().putString(MIRROR_KIND_KEY, kind.id());
+    }
+
+    private static MirrorKind getSavedMirrorKind(ServerPlayer player) {
+        MirrorKind kind = playerMirrorKinds.get(player.getUUID());
+        if (kind != null) {
+            return kind;
+        }
+
+        CompoundTag persistentData = player.getPersistentData();
+        if (persistentData.contains(MIRROR_KIND_KEY)) {
+            kind = MirrorKind.byId(persistentData.getString(MIRROR_KIND_KEY));
+            playerMirrorKinds.put(player.getUUID(), kind);
+            return kind;
+        }
+
+        return MirrorKind.DIMENSION;
+    }
+
+    private static MirrorKind getPlayerMirrorKind(ServerPlayer player, MirrorSession session) {
+        return session != null ? session.getKind() : getSavedMirrorKind(player);
     }
 
     public static boolean retainTemporarySourceForPersistentSave(MirrorSession session) {
@@ -587,6 +648,7 @@ public class MirrorWorldManager {
         // Save session ID to player's persistent data (for server restart recovery)
         CompoundTag persistentData = player.getPersistentData();
         persistentData.putUUID(SESSION_ID_KEY, session.getSessionId());
+        rememberPlayerMirrorKind(player, session.getKind());
         saveMirrorEntryState(player);
 
         if (session.isSandboxMode()) {
@@ -723,7 +785,7 @@ public class MirrorWorldManager {
         }
 
         // Phase 3: Handle inventory (no lock needed, operates on player data)
-        boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
+        boolean allowItemTransfer = getItemTransferPermission(player.getUUID(), getPlayerMirrorKind(player, session));
         finishPlayerMirrorState(player, allowItemTransfer);
 
         // Phase 4: Execute teleportation (no lock needed)
@@ -893,7 +955,7 @@ public class MirrorWorldManager {
                     safePos, player.getName().getString(), targetMirrorPos);
 
             // Handle inventory
-            boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
+            boolean allowItemTransfer = getItemTransferPermission(player.getUUID(), getPlayerMirrorKind(player, session));
             finishPlayerMirrorState(player, allowItemTransfer);
 
             // Mark player as being teleported by the mod
@@ -1723,7 +1785,7 @@ public class MirrorWorldManager {
                             player.getName().getString(), sessionId);
                     
                     // Restore inventory (external exit should restore items like normal return)
-                    boolean allowItemTransfer = getItemTransferPermission(playerId);
+                    boolean allowItemTransfer = getItemTransferPermission(playerId, session.getKind());
                     finishPlayerMirrorState(player, allowItemTransfer);
                     
                     boolean sessionNowEmpty = session.removePlayer(playerId);
@@ -1823,6 +1885,7 @@ public class MirrorWorldManager {
     public static void preparePlayerForMirrorEntry(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
         playerOriginalPositions.put(player.getUUID(), player.blockPosition());
         playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
+        rememberPlayerMirrorKind(player, kind);
         saveMirrorEntryState(player);
 
         if (kind.isSandbox()) {
@@ -1834,7 +1897,7 @@ public class MirrorWorldManager {
     }
 
     public static void restorePlayerForMirrorExit(ServerPlayer player) {
-        boolean allowItemTransfer = getItemTransferPermission(player.getUUID());
+        boolean allowItemTransfer = getItemTransferPermission(player.getUUID(), getSavedMirrorKind(player));
         finishPlayerMirrorState(player, allowItemTransfer);
         cleanupPlayerTrackingData(player.getUUID());
     }
@@ -1901,6 +1964,10 @@ public class MirrorWorldManager {
      */
     public static boolean getItemTransferPermission(UUID playerId) {
         return playerItemTransferPermission.getOrDefault(playerId, MirrorConfig.ALLOW_ITEM_TRANSFER.get());
+    }
+
+    public static boolean getItemTransferPermission(UUID playerId, MirrorKind kind) {
+        return playerItemTransferPermission.getOrDefault(playerId, MirrorConfig.isItemTransferEnabled(kind));
     }
 
     /**
@@ -2286,6 +2353,7 @@ public class MirrorWorldManager {
         persistentData.remove(ORIGINAL_POS_KEY + "_z");
         persistentData.remove(ORIGINAL_DIM_KEY);
         persistentData.remove(SESSION_ID_KEY);
+        persistentData.remove(MIRROR_KIND_KEY);
         persistentData.remove(DIED_IN_MIRROR_KEY);
         InstantWorldMirror.LOGGER.info("Cleared saved data for player {}", player.getName().getString());
     }
@@ -2415,7 +2483,9 @@ public class MirrorWorldManager {
                     }
                     
                     // Restore or clear their saved mirror state using the same rules as a normal return.
-                    boolean allowItemTransfer = getItemTransferPermission(playerId);
+                    MirrorKind kind = getMirrorKindForDimension(server, mirrorDimKey)
+                            .orElseGet(() -> getSavedMirrorKind(player));
+                    boolean allowItemTransfer = getItemTransferPermission(playerId, kind);
                     finishPlayerMirrorState(player, allowItemTransfer);
                     
                     // Remove from tracking maps
@@ -2661,6 +2731,7 @@ public class MirrorWorldManager {
             playerOwnedSession.clear();
             playerOriginalPositions.clear();
             playerOriginalDimensions.clear();
+            playerMirrorKinds.clear();
             playerItemTransferPermission.clear();
             persistentSaveSourceHolds.clear();
             deferredPersistentSourceReleases.clear();

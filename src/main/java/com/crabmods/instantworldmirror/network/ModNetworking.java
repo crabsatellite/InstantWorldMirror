@@ -43,12 +43,30 @@ public class ModNetworking {
                 PersistentMirrorMenuPacket.STREAM_CODEC,
                 PersistentMirrorMenuPacket::handle
         );
+
+        registrar.playToClient(
+                MirrorConfigMenuPacket.TYPE,
+                MirrorConfigMenuPacket.STREAM_CODEC,
+                MirrorConfigMenuPacket::handle
+        );
         
         // Register server-bound packets
         registrar.playToServer(
                 TeleportToSpawnPacket.TYPE,
                 TeleportToSpawnPacket.STREAM_CODEC,
                 TeleportToSpawnPacket::handle
+        );
+
+        registrar.playToServer(
+                SaveMirrorConfigPacket.TYPE,
+                SaveMirrorConfigPacket.STREAM_CODEC,
+                SaveMirrorConfigPacket::handle
+        );
+
+        registrar.playToServer(
+                OpenMirrorConfigPacket.TYPE,
+                OpenMirrorConfigPacket.STREAM_CODEC,
+                OpenMirrorConfigPacket::handle
         );
         
         InstantWorldMirror.LOGGER.info("Registered network packets");
