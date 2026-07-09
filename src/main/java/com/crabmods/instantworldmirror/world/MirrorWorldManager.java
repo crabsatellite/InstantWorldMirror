@@ -402,7 +402,6 @@ public class MirrorWorldManager {
         playerOriginalPositions.remove(playerId);
         playerOriginalDimensions.remove(playerId);
         playerToSession.remove(playerId);
-        playerItemTransferPermission.remove(playerId);
         playerOwnedSession.remove(playerId);
     }
 
@@ -1664,7 +1663,6 @@ public class MirrorWorldManager {
             // Clean up session tracking data, but preserve saved inventory and position data
             // in persistent NBT - those are needed by the respawn handler.
             playerToSession.remove(playerId);
-            playerItemTransferPermission.remove(playerId);
             playerOwnedSession.remove(playerId);
             // Deliberately NOT removing playerOriginalPositions and playerOriginalDimensions -
             // they will be cleaned up after respawn in handleMirrorDeathRespawn().
@@ -1898,6 +1896,10 @@ public class MirrorWorldManager {
      */
     public static void setItemTransferPermission(UUID playerId, boolean allowed) {
         playerItemTransferPermission.put(playerId, allowed);
+    }
+
+    public static void clearItemTransferPermission(UUID playerId) {
+        playerItemTransferPermission.remove(playerId);
     }
 
     /**

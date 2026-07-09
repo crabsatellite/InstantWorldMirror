@@ -105,14 +105,14 @@ public class MirrorPortalEntity extends Entity {
     
     // Track players who have left the portal area at least once (to prevent immediate return after entering)
     // Player must leave portal area first before they can use the return portal
-    // This only applies during the first 10 seconds after entering the mirror world
+    // This only applies during the first 30 seconds after entering the mirror world
     private final java.util.Set<UUID> playersLeftPortalOnce = new java.util.HashSet<>();
     
     // Required time to stand on return portal before teleporting (in ticks, 20 ticks = 1 second)
     private static final int RETURN_PORTAL_STANDING_REQUIRED = 20;
     
-    // Time window during which the "leave first" requirement applies (10 seconds = 200 ticks)
-    private static final int LEAVE_FIRST_PROTECTION_TICKS = 200;
+    // Time window during which the "leave first" requirement applies (30 seconds = 600 ticks)
+    private static final int LEAVE_FIRST_PROTECTION_TICKS = 600;
     
     // Whether this return portal was auto-generated (by host entering mirror world)
     // Auto-generated: permanent until session ends | Manually placed: discard after use
@@ -617,7 +617,7 @@ public class MirrorPortalEntity extends Entity {
                     
                     // Check if player has left the portal area at least once
                     // This prevents immediate return after entering the mirror world
-                    // Only applies during the first 10 seconds after entering the mirror world
+                    // Only applies during the first 30 seconds after entering the mirror world
                     boolean isWithinProtectionPeriod = false;
                     net.minecraft.nbt.CompoundTag playerData = player.getPersistentData();
                     if (playerData.contains("MirrorWorldEnterTime")) {

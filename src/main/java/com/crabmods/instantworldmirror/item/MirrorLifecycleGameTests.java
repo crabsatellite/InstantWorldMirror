@@ -17,6 +17,7 @@ import com.crabmods.instantworldmirror.world.WorldCopyService;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -24,14 +25,20 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -440,6 +447,100 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void itemTransferCommandsControlMirrorEntryExitInventory(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        try {
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
+            player.setGameMode(GameType.SURVIVAL);
+            runItemTransferCommand(player, true);
+
+            assertMirrorItemTransferFlow(helper, player, MirrorKind.DIMENSION,
+                    true, "minecraft:diamond_block", Items.DIAMOND_BLOCK);
+            assertMirrorItemTransferFlow(helper, player, MirrorKind.FIRST_DREAM,
+                    true, "minecraft:emerald_block", Items.EMERALD_BLOCK);
+
+            runItemTransferCommand(player, false);
+            assertMirrorItemTransferFlow(helper, player, MirrorKind.DIMENSION,
+                    false, "minecraft:redstone_block", Items.REDSTONE_BLOCK);
+        } finally {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 240)
+    public static void itemTransferCommandControlsFullMirrorLifecycle(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        int previousCopyChunkRadius = MirrorConfig.COPY_CHUNK_RADIUS.get();
+        int previousCopyChunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
+        try {
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
+            MirrorConfig.COPY_CHUNK_RADIUS.set(1);
+            MirrorConfig.COPY_CHUNKS_PER_TICK.set(10);
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            clearDimensionPoolTestState(player);
+            player.setGameMode(GameType.SURVIVAL);
+
+            runItemTransferCommand(player, true);
+            assertFullMirrorItemTransferFlow(helper, player,
+                    "minecraft:diamond_block", Items.DIAMOND_BLOCK, true, 0);
+            helper.assertTrue(MirrorWorldManager.getItemTransferPermission(player.getUUID()),
+                    "/iwm itemtransfer true must survive returning from a mirror session");
+            assertFullMirrorItemTransferFlow(helper, player,
+                    "minecraft:emerald_block", Items.EMERALD_BLOCK, true, 1);
+
+            runItemTransferCommand(player, false);
+            assertFullMirrorItemTransferFlow(helper, player,
+                    "minecraft:redstone_block", Items.REDSTONE_BLOCK, false, 2);
+        } finally {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+            MirrorConfig.COPY_CHUNK_RADIUS.set(previousCopyChunkRadius);
+            MirrorConfig.COPY_CHUNKS_PER_TICK.set(previousCopyChunksPerTick);
+            MirrorWorldManager.clearAllSessions(helper.getLevel().getServer());
+            WorldCopyService.clearAllTasks();
+            runPlayerCommand(player, "clear @s");
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    public static void itemTransferConfigDefaultControlsMirrorExit(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        try {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            player.setGameMode(GameType.SURVIVAL);
+
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
+            player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+            MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
+            player.getInventory().items.set(4, new ItemStack(Items.DIAMOND_BLOCK));
+            MirrorWorldManager.restorePlayerForMirrorExit(player);
+            helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
+                    "Disabled item transfer config must restore the entry inventory");
+
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(true);
+            player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+            MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
+            player.getInventory().items.set(4, new ItemStack(Items.EMERALD_BLOCK));
+            MirrorWorldManager.restorePlayerForMirrorExit(player);
+            helper.assertTrue(player.getInventory().items.get(4).is(Items.EMERALD_BLOCK),
+                    "Enabled item transfer config must keep mirror-world inventory changes");
+        } finally {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
+        }
+
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE, timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
         UUID recordId = UUID.randomUUID();
@@ -653,22 +754,29 @@ public final class MirrorLifecycleGameTests {
     private static void assertEnderChestTransferScenario(GameTestHelper helper, MirrorKind kind,
                                                          boolean allowItemTransfer) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        player.setGameMode(GameType.SURVIVAL);
-        MirrorWorldManager.setItemTransferPermission(player.getUUID(), allowItemTransfer);
-        player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
+        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
+        try {
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            player.setGameMode(GameType.SURVIVAL);
+            player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
 
-        MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
+            MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
 
-        player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
-        MirrorWorldManager.restorePlayerForMirrorExit(player);
+            player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
+            MirrorWorldManager.restorePlayerForMirrorExit(player);
 
-        ItemStack result = player.getEnderChestInventory().getItem(0);
-        if (allowItemTransfer) {
-            helper.assertTrue(result.is(Items.DIAMOND_BLOCK),
-                    kind.id() + " ender chest must keep mirror-world items when item transfer is enabled");
-        } else {
-            helper.assertTrue(result.is(Items.EMERALD),
-                    kind.id() + " ender chest must restore saved items when item transfer is disabled");
+            ItemStack result = player.getEnderChestInventory().getItem(0);
+            if (allowItemTransfer) {
+                helper.assertTrue(result.is(Items.DIAMOND_BLOCK),
+                        kind.id() + " ender chest must keep mirror-world items when item transfer config is enabled");
+            } else {
+                helper.assertTrue(result.is(Items.EMERALD),
+                        kind.id() + " ender chest must restore saved items when item transfer config is disabled");
+            }
+        } finally {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
         }
     }
 
@@ -678,14 +786,16 @@ public final class MirrorLifecycleGameTests {
         ServerLevel sourceLevel = helper.getLevel();
         BlockPos sourceChestPos = new BlockPos(8 + scenarioIndex * 4, 64, 8);
         BlockPos mirrorChestPos = sourceChestPos.east();
+        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
 
         try {
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             setChestItem(sourceLevel, sourceChestPos, new ItemStack(Items.EMERALD));
             setChestItem(sourceLevel, mirrorChestPos, new ItemStack(Items.DIAMOND_BLOCK));
 
             player.setGameMode(GameType.SURVIVAL);
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
-            MirrorWorldManager.setItemTransferPermission(player.getUUID(), allowItemTransfer);
             MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
 
             player.getInventory().items.set(4, getChestItem(sourceLevel, mirrorChestPos).copy());
@@ -701,6 +811,8 @@ public final class MirrorLifecycleGameTests {
                         kind.id() + " vanilla chest loot must not leave the mirror when item transfer is disabled");
             }
         } finally {
+            MirrorWorldManager.clearItemTransferPermission(player.getUUID());
+            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
             sourceLevel.removeBlock(sourceChestPos, false);
             sourceLevel.removeBlock(mirrorChestPos, false);
         }
@@ -725,6 +837,123 @@ public final class MirrorLifecycleGameTests {
             return chest;
         }
         throw new IllegalStateException("Expected vanilla chest at " + pos + " in " + level.dimension().location());
+    }
+
+    private static void assertMirrorItemTransferFlow(GameTestHelper helper, ServerPlayer player, MirrorKind kind,
+                                                     boolean expectTransfer, String mirrorWorldItemId, Item expectedItem) {
+        runPlayerCommand(player, "clear @s");
+        player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
+
+        runPlayerCommand(player, "give @s " + mirrorWorldItemId);
+        helper.assertTrue(inventoryContains(player, expectedItem),
+                "Mirror-world command must give the test item before returning");
+
+        MirrorWorldManager.restorePlayerForMirrorExit(player);
+
+        if (expectTransfer) {
+            helper.assertTrue(inventoryContains(player, expectedItem),
+                    kind.id() + " enabled item transfer command must let mirror-world items leave the mirror");
+        } else {
+            helper.assertFalse(inventoryContains(player, expectedItem),
+                    kind.id() + " disabled item transfer command must block mirror-world items from leaving the mirror");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    kind.id() + " disabled item transfer command must restore the entry inventory");
+        }
+    }
+
+    private static void assertFullMirrorItemTransferFlow(GameTestHelper helper, ServerPlayer player,
+                                                        String mirrorWorldItemId, Item expectedItem,
+                                                        boolean expectTransfer, int scenarioIndex) {
+        runPlayerCommand(player, "clear @s");
+        player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
+        DimensionMirrorItem.clearCooldown(player.getUUID());
+
+        ServerLevel sourceLevel = helper.getLevel();
+        BlockPos sourcePos = new BlockPos(12 + scenarioIndex * 4, 64, 12);
+        sourceLevel.setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+        sourceLevel.removeBlock(sourcePos.above(), false);
+        sourceLevel.removeBlock(sourcePos.above(2), false);
+        player.teleportTo(sourceLevel, sourcePos.getX() + 0.5, sourcePos.getY() + 1.0, sourcePos.getZ() + 2.5,
+                180.0F, 0.0F);
+
+        ItemStack mirrorStack = new ItemStack(ModItems.DIMENSION_MIRROR.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+        InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+        helper.assertTrue(result.consumesAction(), "Using the mirror item must create an entry portal");
+
+        MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
+                .orElseThrow(() -> new IllegalStateException("Mirror use did not create a player-owned session"));
+        helper.assertTrue(DimensionPool.getDimensionLevel(sourceLevel.getServer(), session.getDimensionIndex()) != null,
+                "GameTest server must load the session's assigned mirror world");
+        MirrorPortalEntity entryPortal = findEntryPortal(sourceLevel, session);
+
+        for (int tick = 0; tick < 160 && !session.isCopyComplete(); tick++) {
+            entryPortal.tick();
+            WorldCopyService.processCopyQueues(sourceLevel.getServer());
+        }
+        helper.assertTrue(session.isCopyComplete(), "Entry portal must finish the world copy before teleporting");
+
+        player.teleportTo(sourceLevel, entryPortal.getX(), entryPortal.getY(), entryPortal.getZ(),
+                player.getYRot(), player.getXRot());
+        for (int tick = 0; tick < 20 && !MirrorWorldManager.isInMirrorWorld(player); tick++) {
+            entryPortal.tick();
+        }
+
+        helper.assertTrue(MirrorWorldManager.isInMirrorWorld(player),
+                "Standing in the completed entry portal must teleport the player to the mirror world");
+        helper.assertTrue(player.level().dimension().equals(ModDimensions.getMirrorWorld(session.getDimensionIndex())),
+                "Entry portal must move the player into the session's assigned mirror world");
+
+        runPlayerCommand(player, "give @s " + mirrorWorldItemId);
+        helper.assertTrue(inventoryContains(player, expectedItem),
+                "Mirror-world command must give the test item before returning");
+
+        runPlayerCommand(player, "iwm return");
+        helper.assertFalse(MirrorWorldManager.isInMirrorWorld(player),
+                "/iwm return must move the player out of the mirror world");
+        helper.assertTrue(player.level().dimension().equals(sourceLevel.dimension()),
+                "/iwm return must restore the player's original dimension");
+
+        if (expectTransfer) {
+            helper.assertTrue(inventoryContains(player, expectedItem),
+                    "Enabled /iwm itemtransfer must let mirror-world items leave the mirror");
+        } else {
+            helper.assertFalse(inventoryContains(player, expectedItem),
+                    "Disabled /iwm itemtransfer must block mirror-world items from leaving the mirror");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    "Disabled /iwm itemtransfer must restore the entry inventory");
+        }
+    }
+
+    private static MirrorPortalEntity findEntryPortal(ServerLevel level, MirrorSession session) {
+        return level.getEntitiesOfClass(MirrorPortalEntity.class, new net.minecraft.world.phys.AABB(
+                        session.getSourcePosition().above()).inflate(2.0))
+                .stream()
+                .filter(portal -> !portal.isReturnPortal())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Mirror use did not spawn an entry portal"));
+    }
+
+    private static boolean inventoryContains(ServerPlayer player, Item item) {
+        return player.getInventory().items.stream().anyMatch(stack -> stack.is(item));
+    }
+
+    private static void runPlayerCommand(ServerPlayer player, String command) {
+        player.getServer().getCommands().performPrefixedCommand(
+                player.createCommandSourceStack().withPermission(4),
+                command
+        );
+    }
+
+    private static void runItemTransferCommand(ServerPlayer player, boolean allowed) {
+        String command = "iwm itemtransfer @s " + allowed;
+        runPlayerCommand(player, command);
+        if (MirrorWorldManager.getItemTransferPermission(player.getUUID()) != allowed) {
+            throw new IllegalStateException("Command did not update item transfer permission in GameTest: /" + command);
+        }
     }
 
     private static void addEfficiency(ItemStack stack, int level) {
