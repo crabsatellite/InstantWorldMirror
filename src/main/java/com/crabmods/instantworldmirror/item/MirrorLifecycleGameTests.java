@@ -9,6 +9,7 @@ import com.crabmods.instantworldmirror.MirrorKindSettings;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.testing.BlockEntityConstructionProbe;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorSession;
@@ -76,6 +77,16 @@ public final class MirrorLifecycleGameTests {
     private static final String TEMPLATE = "mirror_lifecycle_empty";
 
     private MirrorLifecycleGameTests() {
+    }
+
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void blockEntityValidationAvoidsVirtualCallsDuringConstruction(GameTestHelper helper) {
+        BlockEntityConstructionProbe.Result result = BlockEntityConstructionProbe.verify();
+        helper.assertTrue(result.preConstructionCalls() == 0,
+                "Block entity validation must not call getLevel during subclass construction");
+        helper.assertTrue(result.postConstructionCalls() == 1,
+                "Block entity getLevel must still work normally after construction");
+        helper.succeed();
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 40)

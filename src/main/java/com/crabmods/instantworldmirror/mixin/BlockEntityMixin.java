@@ -27,14 +27,14 @@ import javax.annotation.Nullable;
 @Mixin(BlockEntity.class)
 public abstract class BlockEntityMixin {
 
-    @Shadow @Nullable public abstract Level getLevel();
+    @Shadow @Nullable protected Level level;
 
     /**
      * Intercept the isValidBlockState check and return true for mirror dimensions.
      * 
      * Since validateBlockState is called from the constructor before level is set,
-     * we can't directly check the dimension there. Instead, we override isValidBlockState
-     * which is also called from setBlockState (after level is set).
+     * this must read the backing field instead of dispatching getLevel() to a subclass
+     * whose constructor has not completed yet.
      * 
      * For the constructor call, level will be null, so we let the normal check happen.
      * For setBlockState calls in mirror dimensions, we return true to skip validation.
@@ -45,9 +45,9 @@ public abstract class BlockEntityMixin {
         cancellable = true
     )
     private void onIsValidBlockState(BlockState state, CallbackInfoReturnable<Boolean> cir) {
-        Level level = this.getLevel();
+        Level currentLevel = this.level;
         // Only apply this fix in mirror dimensions when level is already set
-        if (level != null && ModDimensions.isAnyMirrorWorld(level.dimension())) {
+        if (currentLevel != null && ModDimensions.isAnyMirrorWorld(currentLevel.dimension())) {
             // Return true to skip validation in mirror dimensions
             // This prevents IllegalStateException during chunk loading/block entity updates
             cir.setReturnValue(true);

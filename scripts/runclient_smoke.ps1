@@ -8,6 +8,8 @@ param(
 
     [switch] $MirrorConfigUiGate,
 
+    [switch] $BlockEntityCompatibilityGate,
+
     [string] $LanguageCode = ""
 )
 
@@ -38,6 +40,10 @@ function Stop-ProcessTree {
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $ProjectRoot
+
+if ($MirrorConfigUiGate -and $BlockEntityCompatibilityGate) {
+    throw "MirrorConfigUiGate and BlockEntityCompatibilityGate must run separately"
+}
 
 if ($MirrorConfigUiGate -and [string]::IsNullOrWhiteSpace($LanguageCode)) {
     $languageResourceDir = Join-Path $ProjectRoot "src\main\resources\assets\instantworldmirror\lang"
@@ -85,8 +91,12 @@ $env:JAVA_HOME = $JavaHome
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 $oldMirrorConfigUiGate = $env:IWM_CLIENT_UI_GATE
 $oldMirrorConfigUiGateLanguage = $env:IWM_CLIENT_UI_GATE_LANGUAGE
+$oldBlockEntityCompatibilityGate = $env:IWM_CLIENT_BLOCK_ENTITY_GATE
 if ($MirrorConfigUiGate) {
     $env:IWM_CLIENT_UI_GATE = "true"
+}
+if ($BlockEntityCompatibilityGate) {
+    $env:IWM_CLIENT_BLOCK_ENTITY_GATE = "true"
 }
 if ($MirrorConfigUiGate -and -not [string]::IsNullOrWhiteSpace($LanguageCode)) {
     $env:IWM_CLIENT_UI_GATE_LANGUAGE = $LanguageCode
@@ -123,7 +133,9 @@ try {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $evidence = $null
-    $pattern = if ($MirrorConfigUiGate) {
+    $pattern = if ($BlockEntityCompatibilityGate) {
+        "IWM_CLIENT_BLOCK_ENTITY_GATE_OK"
+    } elseif ($MirrorConfigUiGate) {
         if ([string]::IsNullOrWhiteSpace($LanguageCode)) {
             "IWM_CLIENT_UI_GATE_OK"
         } else {
@@ -155,7 +167,13 @@ try {
     }
 
     if ($evidence) {
-        if ($MirrorConfigUiGate) {
+        if ($BlockEntityCompatibilityGate) {
+            $gateMatches = Select-String -LiteralPath $latestLog -Pattern "IWM_CLIENT_BLOCK_ENTITY_GATE_OK|IWM_CLIENT_BLOCK_ENTITY_GATE_METRICS" -ErrorAction SilentlyContinue
+            if ($gateMatches) {
+                $evidence = @($gateMatches | Select-Object -Last 6 | ForEach-Object { $_.Line })
+            }
+            Write-Output "RUNCLIENT_BLOCK_ENTITY_GATE_OK"
+        } elseif ($MirrorConfigUiGate) {
             $uiGateMatches = Select-String -LiteralPath $latestLog -Pattern "IWM_CLIENT_UI_GATE_OK|IWM_CLIENT_UI_GATE_METRICS|IWM_CLIENT_UI_GATE_BEHAVIOR|IWM_CLIENT_UI_GATE_LANGUAGE" -ErrorAction SilentlyContinue
             if ($uiGateMatches) {
                 $evidence = @($uiGateMatches | Select-Object -Last 6 | ForEach-Object { $_.Line })
@@ -170,7 +188,9 @@ try {
         }
         $evidence | ForEach-Object { Write-Output $_ }
     } else {
-        if ($MirrorConfigUiGate) {
+        if ($BlockEntityCompatibilityGate) {
+            Write-Output "RUNCLIENT_BLOCK_ENTITY_GATE_FAILED"
+        } elseif ($MirrorConfigUiGate) {
             Write-Output "RUNCLIENT_UI_GATE_FAILED"
         } else {
             Write-Output "RUNCLIENT_SMOKE_FAILED"
@@ -206,6 +226,7 @@ try {
     }
     $env:IWM_CLIENT_UI_GATE = $oldMirrorConfigUiGate
     $env:IWM_CLIENT_UI_GATE_LANGUAGE = $oldMirrorConfigUiGateLanguage
+    $env:IWM_CLIENT_BLOCK_ENTITY_GATE = $oldBlockEntityCompatibilityGate
 }
 
 exit $exitCode

@@ -96,6 +96,7 @@ class ClientGameEvents {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
+        BlockEntityCompatibilityGate.runIfEnabled();
         MirrorConfigUiGate.runIfEnabled();
     }
 }
