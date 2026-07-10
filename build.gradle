@@ -288,6 +288,22 @@ tasks.register('persistentMirrorStaticTest') {
     }
 }
 
+def optionsScreenMixinSource = layout.projectDirectory.file(
+        'src/main/java/com/crabmods/instantworldmirror/mixin/client/OptionsScreenMixin.java')
+
+tasks.register('optionsScreenMixinCompatibilityTest') {
+    group = 'verification'
+    description = 'Prevents fragile local-variable capture in the Options screen integration.'
+    inputs.file(optionsScreenMixinSource)
+
+    doLast {
+        def source = optionsScreenMixinSource.asFile.text
+        assert source.contains('@ModifyArg'): 'OptionsScreenMixin must modify a stable invocation argument'
+        assert !source.contains('LocalCapture'): 'OptionsScreenMixin must not depend on the target local-variable table'
+        assert !source.contains('CAPTURE_FAILHARD'): 'OptionsScreenMixin must not crash when another mod changes target locals'
+    }
+}
+
 def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/registry/ModEnchantments.class',
         'com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.class',
@@ -345,6 +361,7 @@ tasks.named('check') {
     dependsOn tasks.named('testReadmeCodeMapChecker')
     dependsOn tasks.named('checkReadmeCodeMap')
     dependsOn tasks.named('persistentMirrorStaticTest')
+    dependsOn tasks.named('optionsScreenMixinCompatibilityTest')
     dependsOn tasks.named('checkLanguageResourceEncoding')
 }
 
