@@ -57,6 +57,7 @@ public final class MirrorConfigMigration {
                     "copyChunkRadius", "firstDreamMirrorCopyChunkRadius",
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
             changed |= removeLegacyKey(config, "copyChunkRadius");
+            changed |= migrateMirrorCooldown(config);
             if (changed) {
                 config.save();
                 InstantWorldMirror.LOGGER.info("Migrated legacy mirror config in {}", path);
@@ -176,5 +177,22 @@ public final class MirrorConfigMigration {
             }
         }
         return defaultValue;
+    }
+
+    private static boolean migrateMirrorCooldown(CommentedFileConfig config) {
+        if (!config.contains("mirrorCooldown")) {
+            return false;
+        }
+
+        Object raw = config.get("mirrorCooldown");
+        int parsed = parseInt(raw, MirrorConfigState.DEFAULT_MIRROR_COOLDOWN_SECONDS);
+        int migrated = parsed < MirrorConfigState.MIN_MIRROR_COOLDOWN_SECONDS
+                ? MirrorConfigState.DEFAULT_MIRROR_COOLDOWN_SECONDS
+                : MirrorConfigState.clampMirrorCooldownSeconds(parsed);
+        if (raw instanceof Number value && value.intValue() == migrated) {
+            return false;
+        }
+        config.set("mirrorCooldown", migrated);
+        return true;
     }
 }

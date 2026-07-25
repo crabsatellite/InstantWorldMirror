@@ -1819,7 +1819,9 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "copyGeneratedBlockEntity(generatedChunk, mirrorWorld, targetChunk, targetPos)",
+        "copyGeneratedBlockEntity(generatedChunk, targetPos, mirrorWorld, targetChunk, targetPos)",
+        "static void copyGeneratedBlockEntity",
+        "getBlockEntityNbtForSaving(",
         "static void copyGeneratedBlockEntityTag",
         "CompoundTag copy = tag.copy()",
         "targetChunk.setBlockEntityNbt(copy)"

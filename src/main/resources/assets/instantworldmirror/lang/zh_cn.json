@@ -88,6 +88,7 @@
   "message.instantworldmirror.config.header.mob_spawning": "\u81ea\u7136\u751f\u6210",
   "message.instantworldmirror.config.header.item_transfer": "\u7269\u8d44",
   "message.instantworldmirror.config.header.copy_radius": "\u534a\u5f84",
+  "message.instantworldmirror.config.global.mirror_cooldown": "\u57fa\u7840\u51b7\u5374\uff08\u79d2\uff09",
   "message.instantworldmirror.config.toggle.on": "\u5f00\u542f",
   "message.instantworldmirror.config.toggle.off": "\u5173\u95ed",
   "message.instantworldmirror.config.item_transfer.allow": "\u5141\u8bb8",

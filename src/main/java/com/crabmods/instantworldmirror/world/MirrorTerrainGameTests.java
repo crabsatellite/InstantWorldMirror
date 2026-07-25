@@ -22,6 +22,7 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -56,13 +57,14 @@ public final class MirrorTerrainGameTests {
 
     @GameTest(template = TEMPLATE, batch = "first_dream_loot", timeoutTicks = 40)
     public static void firstDreamLootChestOpensWithGeneratedItemsWhenMobSpawningIsDisabled(GameTestHelper helper) {
-        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 2, 1));
-        helper.getLevel().setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
-        LevelChunk targetChunk = (LevelChunk) helper.getLevel().getChunk(chestPos);
-        CompoundTag generatedChest = new CompoundTag();
-        generatedChest.putString("id", "minecraft:chest");
-        generatedChest.putString("LootTable", "minecraft:chests/simple_dungeon");
-        generatedChest.putLong("LootTableSeed", 123L);
+        BlockPos generatedChestPos = helper.absolutePos(new BlockPos(0, 2, 1));
+        BlockPos copiedChestPos = helper.absolutePos(new BlockPos(2, 2, 1));
+        helper.getLevel().setBlock(generatedChestPos, Blocks.CHEST.defaultBlockState(), 3);
+        helper.getLevel().setBlock(copiedChestPos, Blocks.CHEST.defaultBlockState(), 3);
+        ChestBlockEntity generatedChest = (ChestBlockEntity) helper.getLevel().getBlockEntity(generatedChestPos);
+        generatedChest.setLootTable(BuiltInLootTables.SIMPLE_DUNGEON, 123L);
+        LevelChunk generatedChunk = (LevelChunk) helper.getLevel().getChunk(generatedChestPos);
+        LevelChunk targetChunk = (LevelChunk) helper.getLevel().getChunk(copiedChestPos);
 
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         try {
@@ -70,12 +72,12 @@ public final class MirrorTerrainGameTests {
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withMobSpawning(MirrorKind.FIRST_DREAM, false));
 
-            WorldCopyService.copyGeneratedBlockEntityTag(
-                    helper.getLevel(), targetChunk, chestPos, generatedChest);
+            WorldCopyService.copyGeneratedBlockEntity(
+                    generatedChunk, generatedChestPos, helper.getLevel(), targetChunk, copiedChestPos);
 
-            helper.assertTrue(helper.getLevel().getBlockEntity(chestPos) instanceof ChestBlockEntity,
+            helper.assertTrue(helper.getLevel().getBlockEntity(copiedChestPos) instanceof ChestBlockEntity,
                     "First Dream generated chest must remain a live chest block entity");
-            ChestBlockEntity chest = (ChestBlockEntity) helper.getLevel().getBlockEntity(chestPos);
+            ChestBlockEntity chest = (ChestBlockEntity) helper.getLevel().getBlockEntity(copiedChestPos);
             ServerPlayer player = helper.makeMockServerPlayerInLevel();
             chest.unpackLootTable(player);
 
