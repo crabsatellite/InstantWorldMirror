@@ -444,7 +444,7 @@ public final class MirrorLifecycleGameTests {
         helper.assertTrue(DimensionMirrorItem.findMirrorStack(player) == efficientPermanentMirror,
                 "Hold-to-return cooldown must find the enchanted mirror in the player's hand");
 
-        int baseSeconds = MirrorConfig.getMirrorCooldownTicks() / 20;
+        int baseSeconds = MirrorConfig.getMirrorCooldownSeconds();
         int efficientSeconds = Math.max(30, (int) (baseSeconds * 0.6));
         helper.assertTrue(
                 DimensionMirrorItem.calculateCooldownSeconds(helper.getLevel(), DimensionMirrorItem.findMirrorStack(player)) == efficientSeconds,
@@ -456,6 +456,67 @@ public final class MirrorLifecycleGameTests {
                 "Permanence alone must not change the base cooldown");
 
         DimensionMirrorItem.clearCooldown(player.getUUID());
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "mirror_default_cooldown", timeoutTicks = 160)
+    public static void unenchantedMirrorUseAppliesFiveMinuteCooldownForEveryKind(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        int previousCooldownSeconds = MirrorConfig.MIRROR_COOLDOWN.get();
+
+        try {
+            MirrorConfig.MIRROR_COOLDOWN.set(300);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(
+                    strictGateBaseConfigState(1)
+                            .withAccess(MirrorKind.DIMENSION, MirrorAccess.ALL)
+                            .withAccess(MirrorKind.HEAVEN, MirrorAccess.ALL)
+                            .withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.ALL));
+
+            int scenarioIndex = 0;
+            for (MirrorKind kind : MirrorKind.values()) {
+                BlockPos sourcePos = new BlockPos(160 + scenarioIndex++ * 4, 64, 160);
+                helper.getLevel().setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+                helper.getLevel().removeBlock(sourcePos.above(), false);
+                helper.getLevel().removeBlock(sourcePos.above(2), false);
+                player.teleportTo(helper.getLevel(), sourcePos.getX() + 0.5, sourcePos.getY() + 1.0,
+                        sourcePos.getZ() + 2.5, 180.0F, 0.0F);
+                player.setGameMode(GameType.SURVIVAL);
+
+                ItemStack mirrorStack = mirrorStackForKind(kind);
+                helper.assertFalse(mirrorStack.isEnchanted(),
+                        kind.id() + " default cooldown test must use an unenchanted mirror");
+                player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+                DimensionMirrorItem.clearCooldown(player.getUUID());
+
+                BlockHitResult hit = new BlockHitResult(
+                        Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+                InteractionResult result = mirrorStack.useOn(
+                        new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+                helper.assertTrue(result.consumesAction(),
+                        kind.id() + " mirror must create a portal through the normal item-use path");
+
+                long remainingMillis = DimensionMirrorItem.getRemainingCooldownMillis(player.getUUID());
+                helper.assertTrue(remainingMillis > 295_000L && remainingMillis <= 300_000L,
+                        kind.id() + " unenchanted mirror must start the configured 300-second cooldown");
+
+                helper.getLevel().getEntitiesOfClass(MirrorPortalEntity.class,
+                                new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
+                        .forEach(MirrorPortalEntity::discard);
+                DimensionMirrorItem.clearCooldown(player.getUUID());
+                MirrorWorldManager.clearAllSessions(player.getServer());
+                WorldCopyService.clearAllTasks();
+                clearDimensionPoolTestState(player);
+            }
+        } finally {
+            MirrorConfig.MIRROR_COOLDOWN.set(previousCooldownSeconds);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+        }
+
         helper.succeed();
     }
 

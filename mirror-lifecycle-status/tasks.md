@@ -22,7 +22,7 @@
 - [x] `copy.pristine_generated_entities_use_mob_rules` - all text found
 - [x] `copy.pristine_generator_features` - all text found
 - [x] `copy.pristine_generator_pipeline` - all text found
-- [x] `copy.pristine_loot_uses_mob_spawn_config` - all text found
+- [x] `copy.pristine_loot_preserved_independently` - all text found
 - [x] `copy.pristine_scratch_world_skips_poi_updates` - all text found
 - [x] `copy.pristine_task_flag` - all text found
 - [x] `data.remove_unready_records` - method contains ordered text

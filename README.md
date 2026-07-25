@@ -39,7 +39,7 @@ A copied mirror world includes blocks, block entities, biomes, structures, heigh
 
 First Dream Mirror uses the current seed and chunk generator from the original world to regenerate terrain, structures, biomes, caves, surfaces, and features. It keeps your current game mode on entry and uses the same inventory rules as World Reflection Mirror.
 
-Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked, while player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work. Admins can use per-mirror config or `/iwm mob` to control that rule and whether unopened generated loot containers keep their loot. Weather, time, and dimension visual effects follow the original world. Survival and Adventure players cannot use dimension portals from mirror worlds, and Nether portals cannot be created there.
+Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked, while player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work. Admins can use per-mirror config or `/iwm mob` to control that rule. First Dream keeps unopened generated loot containers regardless of the mob-spawning setting. Weather, time, and dimension visual effects follow the original world. Survival and Adventure players cannot use dimension portals from mirror worlds, and Nether portals cannot be created there.
 
 Items follow one shared transfer rule for all three mirrors. With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data so mirror-world items cannot leave through accessory or backpack slots. With item transfer on, all three mirrors allow items to leave, including Heaven Mirror's Creative-mode items.
 
@@ -55,7 +55,7 @@ Heaven Mirror also gives you a matching mirror inside the sandbox. If your origi
 - Creative mode ignores both the normal mirror cooldown and the Renewal cooldown.
 - With Permanence, a mirror can save a completed temporary mirror as a persistent mirror if the player is an operator or has been granted permission.
 - To save a persistent mirror, the temporary session must have been created with a mirror that has Permanence. To enter that saved mirror later, hold a mirror of the same type with Permanence.
-- Renewal only works on First Dream Mirror. If First Dream natural mob spawning is off in config or through `/iwm mob off`, a Renewal First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown.
+- Renewal only works on First Dream Mirror. If First Dream natural mob spawning is off in config or through `/iwm mob off`, a Renewal First Dream Mirror can refresh generated mobs after its cooldown.
 - The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item. The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.
 - The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.
 - In Survival, Permanence can appear through normal enchanting and villager trades; Renewal appears only as rare loot.
@@ -119,7 +119,7 @@ All commands start with `/iwm`.
 | Command | Description | Permission |
 | --- | --- | --- |
 | `/iwm return` | Return to the original world from a mirror world | All players |
-| `/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds | OP level 2 |
+| `/iwm mob on/off/status` | Toggle natural mob spawning in mirror worlds | OP level 2 |
 | `/iwm allow <player>` | Allow a player to use mirror worlds | OP level 2 |
 | `/iwm deny <player>` | Deny a player from using mirror worlds | OP level 2 |
 | `/iwm itemtransfer <player> <true/false>` | Set whether a player can bring mirror-world items back from any mirror | OP level 2 |

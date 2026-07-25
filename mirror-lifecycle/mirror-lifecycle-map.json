@@ -88,7 +88,7 @@
             "copy.pristine_generator_features",
             "copy.pristine_generator_pipeline",
             "copy.pristine_scratch_world_skips_poi_updates",
-            "copy.pristine_loot_uses_mob_spawn_config",
+            "copy.pristine_loot_preserved_independently",
             "session.generated_content_refresh_field",
             "copy.generated_content_refresh_task_flag",
             "events.generated_content_refresh_allows_mob_spawn"
@@ -1815,16 +1815,14 @@
       ]
     },
     {
-      "id": "copy.pristine_loot_uses_mob_spawn_config",
+      "id": "copy.pristine_loot_preserved_independently",
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "filterGeneratedLootTagForConfig(tag, generatedContentRefresh)",
-        "static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean keepGeneratedContent)",
-        "task.generatedContentRefresh || task.mobSpawningEnabled",
-        "if (!keepGeneratedContent)",
-        "copy.remove(\"LootTable\")",
-        "copy.remove(\"LootTableSeed\")"
+        "copyGeneratedBlockEntity(generatedChunk, mirrorWorld, targetChunk, targetPos)",
+        "static void copyGeneratedBlockEntityTag",
+        "CompoundTag copy = tag.copy()",
+        "targetChunk.setBlockEntityNbt(copy)"
       ]
     },
     {
@@ -1932,6 +1930,7 @@
         "mirrorKindsAndPermanenceEnchanting",
         "renewalRefreshUsesItemCooldownAndCreativeBypass",
         "permanenceDoesNotResetEfficiencyCooldown",
+        "unenchantedMirrorUseAppliesFiveMinuteCooldownForEveryKind",
         "heavenSandboxKeepsPermanenceMirror",
         "heavenSandboxItemTransferPermissionAllowsCreativeItems",
         "firstDreamUsesDefaultPlayerState",
@@ -1952,6 +1951,7 @@
         "Renewal cooldown must ignore non-first-dream mirrors",
         "Renewal cooldown must use the same Efficiency reduction as mirror use cooldown",
         "Renewal cooldown duration must be stored for the item cooldown bar",
+        "unenchanted mirror must start the configured 300-second cooldown",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorWorldManager.setItemTransferPermission(player.getUUID(), true)",
@@ -1987,11 +1987,11 @@
         "firstDreamTerrainIgnoresCurrentWorldEdits",
         "PristineTerrainGenerator.generateChunk",
         "ChunkStatus.FEATURES",
-        "firstDreamLootTablesUseMobSpawningConfig",
-        "WorldCopyService.filterGeneratedLootTagForConfig",
-        "WorldCopyService.filterGeneratedLootTagForConfig(generatedChest, true)",
+        "firstDreamLootChestOpensWithGeneratedItemsWhenMobSpawningIsDisabled",
+        "WorldCopyService.copyGeneratedBlockEntityTag",
+        "chest.unpackLootTable(player)",
         "withMobSpawning(MirrorKind.FIRST_DREAM, false)",
-        "Renewal refresh must keep generated loot tables",
+        "Opening a First Dream generated loot chest must produce items",
         "Blocks.GOLD_BLOCK",
         "must not copy player edits"
       ]

@@ -437,7 +437,7 @@ public class DimensionMirrorItem extends Item {
     }
 
     static int calculateCooldownSeconds(Level level, ItemStack stack) {
-        int baseCooldownSeconds = MirrorConfig.getMirrorCooldownTicks() / 20; // Convert ticks to seconds
+        int baseCooldownSeconds = MirrorConfig.getMirrorCooldownSeconds();
         return (int) (calculateEfficiencyReducedCooldownMillis(level, stack, baseCooldownSeconds * 1000L) / 1000L);
     }
 

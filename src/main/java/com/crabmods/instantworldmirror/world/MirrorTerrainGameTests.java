@@ -16,6 +16,7 @@ import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -53,8 +54,11 @@ public final class MirrorTerrainGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
-    public static void firstDreamLootTablesUseMobSpawningConfig(GameTestHelper helper) {
+    @GameTest(template = TEMPLATE, batch = "first_dream_loot", timeoutTicks = 40)
+    public static void firstDreamLootChestOpensWithGeneratedItemsWhenMobSpawningIsDisabled(GameTestHelper helper) {
+        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        helper.getLevel().setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
+        LevelChunk targetChunk = (LevelChunk) helper.getLevel().getChunk(chestPos);
         CompoundTag generatedChest = new CompoundTag();
         generatedChest.putString("id", "minecraft:chest");
         generatedChest.putString("LootTable", "minecraft:chests/simple_dungeon");
@@ -64,28 +68,26 @@ public final class MirrorTerrainGameTests {
         try {
             MirrorConfig.setRuntimeMobSpawning(null);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
-                    .withMobSpawning(MirrorKind.FIRST_DREAM, true));
-            CompoundTag enabled = WorldCopyService.filterGeneratedLootTagForConfig(
-                    generatedChest, MirrorConfig.isMobSpawningEnabled(MirrorKind.FIRST_DREAM));
-            helper.assertTrue(enabled.contains("LootTable"),
-                    "Generated loot tables must be kept when First Dream mob spawning is enabled");
-            helper.assertTrue(enabled.contains("LootTableSeed"),
-                    "Generated loot seeds must be kept when First Dream mob spawning is enabled");
-
-            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withMobSpawning(MirrorKind.FIRST_DREAM, false));
-            CompoundTag disabled = WorldCopyService.filterGeneratedLootTagForConfig(
-                    generatedChest, MirrorConfig.isMobSpawningEnabled(MirrorKind.FIRST_DREAM));
-            helper.assertFalse(disabled.contains("LootTable"),
-                    "Generated loot tables must be stripped when First Dream mob spawning is disabled");
-            helper.assertFalse(disabled.contains("LootTableSeed"),
-                    "Generated loot seeds must be stripped when First Dream mob spawning is disabled");
 
-            CompoundTag refreshed = WorldCopyService.filterGeneratedLootTagForConfig(generatedChest, true);
-            helper.assertTrue(refreshed.contains("LootTable"),
-                    "Renewal refresh must keep generated loot tables even when First Dream mob spawning is disabled");
-            helper.assertTrue(refreshed.contains("LootTableSeed"),
-                    "Renewal refresh must keep generated loot seeds even when First Dream mob spawning is disabled");
+            WorldCopyService.copyGeneratedBlockEntityTag(
+                    helper.getLevel(), targetChunk, chestPos, generatedChest);
+
+            helper.assertTrue(helper.getLevel().getBlockEntity(chestPos) instanceof ChestBlockEntity,
+                    "First Dream generated chest must remain a live chest block entity");
+            ChestBlockEntity chest = (ChestBlockEntity) helper.getLevel().getBlockEntity(chestPos);
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            chest.unpackLootTable(player);
+
+            boolean hasGeneratedLoot = false;
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                if (!chest.getItem(slot).isEmpty()) {
+                    hasGeneratedLoot = true;
+                    break;
+                }
+            }
+            helper.assertTrue(hasGeneratedLoot,
+                    "Opening a First Dream generated loot chest must produce items even when mob spawning is disabled");
         } finally {
             MirrorConfig.setRuntimeMobSpawning(null);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
@@ -247,7 +249,7 @@ public final class MirrorTerrainGameTests {
         spawnerTag.putInt("y", spawnerPos.getY());
         spawnerTag.putInt("z", spawnerPos.getZ());
 
-        WorldCopyService.copyGeneratedBlockEntityTag(helper.getLevel(), targetChunk, spawnerPos, spawnerTag, true);
+        WorldCopyService.copyGeneratedBlockEntityTag(helper.getLevel(), targetChunk, spawnerPos, spawnerTag);
 
         helper.assertTrue(helper.getLevel().getBlockEntity(spawnerPos) instanceof SpawnerBlockEntity,
                 "Renewal refresh must install generated spawners as live ticking block entities");
