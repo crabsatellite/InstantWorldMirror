@@ -22,13 +22,16 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.Container;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -353,7 +356,7 @@ public class MirrorWorldManager {
     public static boolean isMobSpawningEnabledForDimension(MinecraftServer server, ResourceKey<Level> dimension) {
         return getMirrorKindForDimension(server, dimension)
                 .map(MirrorConfig::isMobSpawningEnabled)
-                .orElseGet(MirrorConfig::isMobSpawningEnabled);
+                .orElse(false);
     }
 
     /**
@@ -782,11 +785,11 @@ public class MirrorWorldManager {
             targetPos = targetLevel.getSharedSpawnPos();
         }
 
-        // Phase 3: Handle inventory (no lock needed, operates on player data)
+        // Phase 3: Resolve inventory policy before the session is cleaned up.
         boolean allowItemTransfer = getItemTransferPermission(player.getUUID(), getPlayerMirrorKind(player, session));
-        finishPlayerMirrorState(player, allowItemTransfer);
 
-        // Phase 4: Execute teleportation (no lock needed)
+        // Phase 4: Execute teleportation before inventory merging so overflow is
+        // dropped at the player's return point rather than in the disposable world.
         playersBeingTeleported.add(player.getUUID());
         
         try {
@@ -801,6 +804,8 @@ public class MirrorWorldManager {
         } finally {
             playersBeingTeleported.remove(player.getUUID());
         }
+
+        finishPlayerMirrorState(player, allowItemTransfer);
         
         // Verify teleport success
         if (isInMirrorWorld(player)) {
@@ -959,9 +964,8 @@ public class MirrorWorldManager {
             InstantWorldMirror.LOGGER.info("Found safe landing position {} for player {} (original target: {})",
                     safePos, player.getName().getString(), targetMirrorPos);
 
-            // Handle inventory
+            // Resolve inventory policy before the session is cleaned up.
             boolean allowItemTransfer = getItemTransferPermission(player.getUUID(), getPlayerMirrorKind(player, session));
-            finishPlayerMirrorState(player, allowItemTransfer);
 
             // Mark player as being teleported by the mod
             playersBeingTeleported.add(player.getUUID());
@@ -979,6 +983,8 @@ public class MirrorWorldManager {
             } finally {
                 playersBeingTeleported.remove(player.getUUID());
             }
+
+            finishPlayerMirrorState(player, allowItemTransfer);
             
             // Verify teleport success
             if (isInMirrorWorld(player)) {
@@ -1967,10 +1973,6 @@ public class MirrorWorldManager {
     /**
      * Get player item transfer permission
      */
-    public static boolean getItemTransferPermission(UUID playerId) {
-        return playerItemTransferPermission.getOrDefault(playerId, MirrorConfig.ALLOW_ITEM_TRANSFER.get());
-    }
-
     public static boolean getItemTransferPermission(UUID playerId, MirrorKind kind) {
         return playerItemTransferPermission.getOrDefault(playerId, MirrorConfig.isItemTransferEnabled(kind));
     }
@@ -2084,6 +2086,10 @@ public class MirrorWorldManager {
      * Restore inventory and ender chest from player's persistent data
      */
     private static void restorePlayerInventory(ServerPlayer player) {
+        restorePlayerInventory(player, true);
+    }
+
+    private static void restorePlayerInventory(ServerPlayer player, boolean restoreModData) {
         CompoundTag persistentData = player.getPersistentData();
         boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY);
 
@@ -2113,7 +2119,9 @@ public class MirrorWorldManager {
             } else {
                 restoreSavedGameMode(player, persistentData);
             }
-            restoreMirrorModData(player, persistentData);
+            if (restoreModData) {
+                restoreMirrorModData(player, persistentData);
+            }
 
             player.inventoryMenu.broadcastChanges();
             player.containerMenu.broadcastChanges();
@@ -2132,13 +2140,118 @@ public class MirrorWorldManager {
         boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY);
         if (allowItemTransfer) {
             if (sandboxMode) {
-                restoreSandboxState(player, persistentData);
+                mergeSandboxItemsIntoSavedInventory(player, getSavedMirrorKind(player));
             } else {
                 restoreSavedGameMode(player, persistentData);
+                clearSavedData(player);
             }
-            clearSavedData(player);
         } else {
             restorePlayerInventory(player);
+        }
+    }
+
+    private static void mergeSandboxItemsIntoSavedInventory(ServerPlayer player, MirrorKind kind) {
+        List<ItemStack> inventoryItems = copyPlayerInventory(player);
+        List<ItemStack> enderChestItems = copyContainer(player.getEnderChestInventory());
+        boolean removedIssuedMirror = removeOneIssuedMirror(inventoryItems, kind);
+        if (!removedIssuedMirror) {
+            removeOneIssuedMirror(enderChestItems, kind);
+        }
+
+        restorePlayerInventory(player, false);
+
+        for (ItemStack stack : inventoryItems) {
+            addToPlayerInventoryOrDrop(player, stack);
+        }
+        for (ItemStack stack : enderChestItems) {
+            ItemStack remainder = addToContainer(player.getEnderChestInventory(), stack);
+            addToPlayerInventoryOrDrop(player, remainder);
+        }
+
+        player.inventoryMenu.broadcastChanges();
+        player.containerMenu.broadcastChanges();
+    }
+
+    private static List<ItemStack> copyPlayerInventory(ServerPlayer player) {
+        List<ItemStack> stacks = new ArrayList<>();
+        copyNonEmptyStacks(player.getInventory().items, stacks);
+        copyNonEmptyStacks(player.getInventory().armor, stacks);
+        copyNonEmptyStacks(player.getInventory().offhand, stacks);
+        return stacks;
+    }
+
+    private static List<ItemStack> copyContainer(Container container) {
+        List<ItemStack> stacks = new ArrayList<>();
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty()) {
+                stacks.add(stack.copy());
+            }
+        }
+        return stacks;
+    }
+
+    private static void copyNonEmptyStacks(Iterable<ItemStack> source, List<ItemStack> target) {
+        for (ItemStack stack : source) {
+            if (!stack.isEmpty()) {
+                target.add(stack.copy());
+            }
+        }
+    }
+
+    private static boolean removeOneIssuedMirror(List<ItemStack> stacks, MirrorKind kind) {
+        for (int index = 0; index < stacks.size(); index++) {
+            ItemStack stack = stacks.get(index);
+            if (!stack.is(ModItems.mirrorItem(kind))) {
+                continue;
+            }
+            if (stack.getCount() == 1) {
+                stacks.remove(index);
+            } else {
+                stack.shrink(1);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static ItemStack addToContainer(Container container, ItemStack source) {
+        ItemStack remainder = source.copy();
+        for (int slot = 0; slot < container.getContainerSize() && !remainder.isEmpty(); slot++) {
+            ItemStack existing = container.getItem(slot);
+            if (existing.isEmpty() || !ItemStack.isSameItemSameTags(existing, remainder)) {
+                continue;
+            }
+            int moved = Math.min(remainder.getCount(),
+                    Math.min(container.getMaxStackSize(), existing.getMaxStackSize()) - existing.getCount());
+            if (moved > 0) {
+                existing.grow(moved);
+                remainder.shrink(moved);
+            }
+        }
+        for (int slot = 0; slot < container.getContainerSize() && !remainder.isEmpty(); slot++) {
+            if (!container.getItem(slot).isEmpty()) {
+                continue;
+            }
+            int moved = Math.min(remainder.getCount(),
+                    Math.min(container.getMaxStackSize(), remainder.getMaxStackSize()));
+            ItemStack placed = remainder.copy();
+            placed.setCount(moved);
+            container.setItem(slot, placed);
+            remainder.shrink(moved);
+        }
+        container.setChanged();
+        return remainder;
+    }
+
+    private static void addToPlayerInventoryOrDrop(ServerPlayer player, ItemStack source) {
+        if (source.isEmpty()) {
+            return;
+        }
+        ItemStack remainder = source.copy();
+        player.getInventory().add(remainder);
+        if (!remainder.isEmpty()) {
+            player.drop(remainder, false);
         }
     }
 

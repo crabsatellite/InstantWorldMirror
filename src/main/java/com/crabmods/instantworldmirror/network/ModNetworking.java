@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "1";
+    public static final String PROTOCOL_VERSION = "2";
     
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(InstantWorldMirror.MODID, "main"),
@@ -74,6 +74,15 @@ public class ModNetworking {
                 MirrorConfigMenuPacket::encode,
                 MirrorConfigMenuPacket::decode,
                 MirrorConfigMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                MirrorConfigSaveResultPacket.class,
+                MirrorConfigSaveResultPacket::encode,
+                MirrorConfigSaveResultPacket::decode,
+                MirrorConfigSaveResultPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
         

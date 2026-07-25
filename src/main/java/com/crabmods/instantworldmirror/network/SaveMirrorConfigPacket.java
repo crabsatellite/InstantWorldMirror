@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror.network;
 
+import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.MirrorConfigState;
 import net.minecraft.network.FriendlyByteBuf;
@@ -27,11 +28,23 @@ public record SaveMirrorConfigPacket(MirrorConfigState state) {
             }
             if (!MirrorConfig.canManageConfig(player)) {
                 player.displayClientMessage(Component.translatable("message.instantworldmirror.config.no_permission"), false);
+                ModNetworking.sendToPlayer(new MirrorConfigSaveResultPacket(false), player);
                 return;
             }
 
-            MirrorConfig.saveMirrorConfigState(packet.state);
-            player.displayClientMessage(Component.translatable("message.instantworldmirror.config.saved_restart_required"), false);
+            boolean success = false;
+            try {
+                MirrorConfig.saveMirrorConfigState(packet.state);
+                success = true;
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.config.saved_restart_required"), false);
+            } catch (RuntimeException exception) {
+                InstantWorldMirror.LOGGER.error("Failed to save mirror configuration for {}",
+                        player.getName().getString(), exception);
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.config.save_failed"), false);
+            }
+            ModNetworking.sendToPlayer(new MirrorConfigSaveResultPacket(success), player);
         });
         context.setPacketHandled(true);
     }

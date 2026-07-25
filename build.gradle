@@ -41,6 +41,10 @@ minecraft {
         client {
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            def quickPlayWorld = providers.environmentVariable('IWM_QUICK_PLAY_WORLD').getOrNull()
+            if (quickPlayWorld) {
+                args '--quickPlaySingleplayer', quickPlayWorld
+            }
         }
 
         server {
@@ -311,6 +315,8 @@ def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/world/PersistentMirrorData.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorManager.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorRecord.class',
+        'com/crabmods/instantworldmirror/network/MirrorConfigSaveResultPacket.class',
+        'com/crabmods/instantworldmirror/client/MirrorConfigNetworkGate.class',
         'assets/instantworldmirror/models/item/first_dream_mirror.json',
         'assets/instantworldmirror/textures/item/first_dream_mirror.png',
         'data/instantworldmirror/recipes/first_dream_mirror.json'

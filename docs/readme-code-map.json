@@ -443,10 +443,10 @@
           "method": "finishPlayerMirrorState",
           "texts": [
             "if (allowItemTransfer)",
-            "restoreSandboxState(player, persistentData)",
+            "if (sandboxMode)",
+            "mergeSandboxItemsIntoSavedInventory(player, getSavedMirrorKind(player))",
             "restoreSavedGameMode(player, persistentData)",
             "clearSavedData(player)",
-            "else",
             "restorePlayerInventory(player)"
           ]
         },
@@ -455,10 +455,27 @@
           "adapter": "method_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
           "method": "restorePlayerInventory",
+          "signatureContains": [
+            "boolean restoreModData"
+          ],
           "texts": [
             "restoreMirrorModData(player, persistentData)",
             "restoreSavedGameMode(player, persistentData)",
             "restoreSandboxState(player, persistentData)"
+          ]
+        },
+        {
+          "label": "sandbox item transfer merge",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+          "method": "mergeSandboxItemsIntoSavedInventory",
+          "texts": [
+            "copyPlayerInventory(player)",
+            "copyContainer(player.getEnderChestInventory())",
+            "removeOneIssuedMirror",
+            "restorePlayerInventory(player, false)",
+            "addToPlayerInventoryOrDrop",
+            "addToContainer"
           ]
         }
       ]
@@ -882,7 +899,6 @@
       "id": "configuration_table_coverage",
       "readmeTexts": [
         "`dimensionPoolSize` | 4 | Temporary mirror dimension pool size, 1-8",
-        "`copyChunkRadius` | 10 | Legacy fallback copy radius for old config migration",
         "`copyChunksPerTick` | 2 | Chunks copied per tick",
         "`cleanupChunksPerTick` | 4 | Chunks cleaned per tick",
         "`edgeCleanupRadius` | 3 | Extra radius for edge cleanup scan",
@@ -918,14 +934,12 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
           "texts": [
             "defineInRange(\"dimensionPoolSize\", 4, 1, 8)",
-            "defineInRange(\"copyChunkRadius\", 10, 1, 32)",
             "defineInRange(\"copyChunksPerTick\", 2, 1, 10)",
             "defineInRange(\"cleanupChunksPerTick\", 4, 1, 20)",
             "defineInRange(\"edgeCleanupRadius\", 3, 0, 16)",
             "defineInRange(\"entryPortalLifetime\", 300, -1, 3600)",
             "defineInRange(\"returnPortalLifetime\", -1, -1, 3600)",
             "defineInRange(\"maxPortalLoadingTime\", 600, 60, 3600)",
-            "define(\"allowItemTransfer\", false)",
             "defineInRange(\"mirrorCooldown\", 300, 0, 3600)",
             "defineEnum(\"worldReflectionMirrorAccess\", MirrorAccess.ALL)",
             "defineEnum(\"heavenMirrorAccess\", MirrorAccess.ALL)",
@@ -941,7 +955,6 @@
             "defineInRange(\"firstDreamMirrorCopyChunkRadius\"",
             "define(\"copyEntities\", false)",
             "define(\"copyDecorationEntities\", true)",
-            "define(\"enableMobSpawning\", false)",
             "define(\"copyBiomes\", true)",
             "define(\"copyStructures\", true)",
             "define(\"copyHeightmaps\", true)",

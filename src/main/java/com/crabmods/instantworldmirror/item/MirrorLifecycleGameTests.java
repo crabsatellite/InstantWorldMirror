@@ -5,6 +5,7 @@ import com.crabmods.instantworldmirror.MirrorAccess;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.MirrorConfigMigration;
 import com.crabmods.instantworldmirror.MirrorConfigState;
+import com.crabmods.instantworldmirror.MirrorKindSettings;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
@@ -62,7 +63,7 @@ public final class MirrorLifecycleGameTests {
     private MirrorLifecycleGameTests() {
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "mirror_kinds_and_enchanting", timeoutTicks = 40)
     public static void mirrorKindsAndPermanenceEnchanting(GameTestHelper helper) {
         ItemStack dimensionMirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
@@ -146,7 +147,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "disabled_mirror_kind", timeoutTicks = 80)
     public static void disabledMirrorKindBlocksTemporarySessionCreation(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         clearDimensionPoolTestState(player);
@@ -178,7 +179,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 320)
+    @GameTest(template = TEMPLATE, batch = "config_strict_gate", timeoutTicks = 320)
     public static void mirrorConfigStrictGateControlsRestartGatedGameBehavior(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         ServerPlayer admin = makeConnectedServerPlayer(helper);
@@ -247,7 +248,50 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "config_save_persistence", timeoutTicks = 80)
+    public static void mirrorConfigSavePersistsEveryPerMirrorSetting(GameTestHelper helper) {
+        MirrorConfigState previousConfigured = MirrorConfig.configuredMirrorConfigState();
+        MirrorConfigState previousActive = MirrorConfig.activeMirrorConfigState();
+        MirrorConfigState target = previousConfigured
+                .withAccess(MirrorKind.DIMENSION, MirrorAccess.NONE)
+                .withMobSpawning(MirrorKind.DIMENSION, true)
+                .withItemTransfer(MirrorKind.DIMENSION, true)
+                .withCopyChunkRadius(MirrorKind.DIMENSION, 3)
+                .withAccess(MirrorKind.HEAVEN, MirrorAccess.ADMIN)
+                .withMobSpawning(MirrorKind.HEAVEN, true)
+                .withItemTransfer(MirrorKind.HEAVEN, true)
+                .withCopyChunkRadius(MirrorKind.HEAVEN, 4)
+                .withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.ALL)
+                .withMobSpawning(MirrorKind.FIRST_DREAM, false)
+                .withItemTransfer(MirrorKind.FIRST_DREAM, false)
+                .withCopyChunkRadius(MirrorKind.FIRST_DREAM, 5);
+        Path configPath = Path.of("config", InstantWorldMirror.MODID + "-common.toml");
+
+        try {
+            MirrorConfig.saveMirrorConfigState(target);
+            helper.assertTrue(Files.isRegularFile(configPath),
+                    "Saving from the UI service must write the common config file immediately");
+            try (CommentedFileConfig config = CommentedFileConfig.builder(configPath).build()) {
+                config.load();
+                assertPersistedMirrorSettings(helper, config, "worldReflectionMirror",
+                        target.get(MirrorKind.DIMENSION));
+                assertPersistedMirrorSettings(helper, config, "heavenMirror",
+                        target.get(MirrorKind.HEAVEN));
+                assertPersistedMirrorSettings(helper, config, "firstDreamMirror",
+                        target.get(MirrorKind.FIRST_DREAM));
+                assertLegacyConfigKeysAbsent(helper, config);
+            }
+            helper.assertTrue(MirrorConfig.activeMirrorConfigState().equals(previousActive),
+                    "Saving config must not bypass the documented restart boundary");
+        } finally {
+            MirrorConfig.saveMirrorConfigState(previousConfigured);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActive);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "config_migration", timeoutTicks = 40)
     public static void mirrorConfigMigrationTranslatesLegacyAccessValues(GameTestHelper helper) {
         Path path = null;
         try {
@@ -258,8 +302,11 @@ public final class MirrorLifecycleGameTests {
                     "firstDreamMirrorAccess = \"X\"",
                     "enableFirstDreamMirror = true",
                     "enableMobSpawning = false",
+                    "worldReflectionMirrorMobSpawning = true",
                     "allowItemTransfer = true",
-                    "copyChunkRadius = 12"));
+                    "heavenMirrorItemTransfer = false",
+                    "copyChunkRadius = 12",
+                    "firstDreamMirrorCopyChunkRadius = 5"));
 
             MirrorConfigMigration.migrateCommonConfig(path);
             try (CommentedFileConfig config = CommentedFileConfig.builder(path).build()) {
@@ -270,30 +317,31 @@ public final class MirrorLifecycleGameTests {
                         "Migration must remove legacy heaven enable key");
                 helper.assertFalse(config.contains("enableFirstDreamMirror"),
                         "Migration must remove legacy first dream enable key");
+                assertLegacyConfigKeysAbsent(helper, config);
                 helper.assertTrue("NONE".equals(config.get("worldReflectionMirrorAccess")),
                         "Legacy false must migrate to NONE");
                 helper.assertTrue("ALL".equals(config.get("heavenMirrorAccess")),
                         "Legacy O must migrate to ALL");
                 helper.assertTrue("NONE".equals(config.get("firstDreamMirrorAccess")),
                         "Existing legacy X access must normalize to NONE and must not be overwritten");
-                helper.assertFalse(Boolean.TRUE.equals(config.get("worldReflectionMirrorMobSpawning")),
-                        "Legacy mob spawning must initialize World Reflection Mirror mob spawning");
+                helper.assertTrue(Boolean.TRUE.equals(config.get("worldReflectionMirrorMobSpawning")),
+                        "Existing World Reflection Mirror mob spawning must not be overwritten");
                 helper.assertFalse(Boolean.TRUE.equals(config.get("heavenMirrorMobSpawning")),
                         "Legacy mob spawning must initialize Heaven Mirror mob spawning");
                 helper.assertFalse(Boolean.TRUE.equals(config.get("firstDreamMirrorMobSpawning")),
                         "Existing legacy mob spawning must preserve First Dream behavior on upgrade");
                 helper.assertTrue(Boolean.TRUE.equals(config.get("worldReflectionMirrorItemTransfer")),
                         "Legacy item transfer must initialize World Reflection Mirror item transfer");
-                helper.assertTrue(Boolean.TRUE.equals(config.get("heavenMirrorItemTransfer")),
-                        "Legacy item transfer must initialize Heaven Mirror item transfer");
+                helper.assertFalse(Boolean.TRUE.equals(config.get("heavenMirrorItemTransfer")),
+                        "Existing Heaven Mirror item transfer must not be overwritten");
                 helper.assertTrue(Boolean.TRUE.equals(config.get("firstDreamMirrorItemTransfer")),
                         "Legacy item transfer must initialize First Dream item transfer");
                 helper.assertTrue(((Number) config.get("worldReflectionMirrorCopyChunkRadius")).intValue() == 12,
                         "Legacy copy radius must initialize World Reflection Mirror copy radius");
                 helper.assertTrue(((Number) config.get("heavenMirrorCopyChunkRadius")).intValue() == 12,
                         "Legacy copy radius must initialize Heaven Mirror copy radius");
-                helper.assertTrue(((Number) config.get("firstDreamMirrorCopyChunkRadius")).intValue() == 12,
-                        "Legacy copy radius must initialize First Dream copy radius");
+                helper.assertTrue(((Number) config.get("firstDreamMirrorCopyChunkRadius")).intValue() == 5,
+                        "Existing First Dream Mirror copy radius must not be overwritten");
             }
         } catch (Exception e) {
             throw new IllegalStateException("Legacy access migration test failed", e);
@@ -309,7 +357,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "renewal_cooldown", timeoutTicks = 40)
     public static void renewalRefreshUsesItemCooldownAndCreativeBypass(GameTestHelper helper) {
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
@@ -355,7 +403,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "permanence_cooldown", timeoutTicks = 40)
     public static void permanenceDoesNotResetEfficiencyCooldown(GameTestHelper helper) {
         Player player = helper.makeMockSurvivalPlayer();
         ItemStack efficientPermanentMirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
@@ -381,7 +429,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "heaven_sandbox_permanence", timeoutTicks = 40)
     public static void heavenSandboxKeepsPermanenceMirror(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
@@ -411,11 +459,12 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "heaven_sandbox_item_transfer", timeoutTicks = 40)
     public static void heavenSandboxItemTransferPermissionAllowsCreativeItems(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         MirrorWorldManager.setItemTransferPermission(player.getUUID(), true);
+        player.getInventory().items.set(1, new ItemStack(ModItems.HEAVEN_MIRROR.get()));
         player.getInventory().items.set(3, new ItemStack(Items.DIAMOND));
         player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
 
@@ -427,14 +476,20 @@ public final class MirrorLifecycleGameTests {
 
         helper.assertTrue(player.gameMode.getGameModeForPlayer() == GameType.SURVIVAL,
                 "Heaven sandbox item transfer must still restore the original game mode");
-        helper.assertTrue(player.getInventory().items.get(3).is(Items.DIRT),
-                "Heaven sandbox item transfer permission must allow creative inventory items");
-        helper.assertTrue(player.getEnderChestInventory().getItem(0).is(Items.DIAMOND_BLOCK),
-                "Heaven sandbox item transfer permission must allow creative ender chest items");
+        helper.assertTrue(inventoryContains(player, Items.DIAMOND),
+                "Heaven sandbox item transfer must preserve the inventory from before entry");
+        helper.assertTrue(inventoryContains(player, Items.DIRT),
+                "Heaven sandbox item transfer must merge newly acquired inventory items");
+        helper.assertTrue(inventoryItemCount(player, ModItems.HEAVEN_MIRROR.get()) == 1,
+                "Heaven sandbox item transfer must not duplicate the issued return mirror");
+        helper.assertTrue(containerContains(player.getEnderChestInventory(), Items.EMERALD),
+                "Heaven sandbox item transfer must preserve the original ender chest");
+        helper.assertTrue(containerContains(player.getEnderChestInventory(), Items.DIAMOND_BLOCK),
+                "Heaven sandbox item transfer must merge newly acquired ender chest items");
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "first_dream_default_state", timeoutTicks = 40)
     public static void firstDreamUsesDefaultPlayerState(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
@@ -471,7 +526,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "non_sandbox_game_mode", timeoutTicks = 40)
     public static void nonSandboxExitRestoresCreativeModeAfterMirrorModeChange(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.CREATIVE);
@@ -500,7 +555,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "non_sandbox_inventory", timeoutTicks = 40)
     public static void nonSandboxInventoryRestoreIgnoresTemporaryMirrorMode(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
@@ -526,7 +581,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "non_sandbox_item_transfer", timeoutTicks = 40)
     public static void nonSandboxItemTransferPermissionAllowsMirrorItems(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
@@ -547,7 +602,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "first_dream_item_transfer", timeoutTicks = 40)
     public static void firstDreamItemTransferPermissionAllowsMirrorItems(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
@@ -567,7 +622,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "ender_chest_item_transfer", timeoutTicks = 80)
     public static void vanillaEnderChestFollowsItemTransferConfig(GameTestHelper helper) {
         assertEnderChestTransferScenario(helper, MirrorKind.DIMENSION, false);
         assertEnderChestTransferScenario(helper, MirrorKind.DIMENSION, true);
@@ -578,7 +633,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 160)
+    @GameTest(template = TEMPLATE, batch = "vanilla_chest_item_transfer", timeoutTicks = 160)
     public static void vanillaChestTransferFollowsItemTransferConfig(GameTestHelper helper) {
         assertVanillaChestTransferScenario(helper, MirrorKind.DIMENSION, false, 0);
         assertVanillaChestTransferScenario(helper, MirrorKind.DIMENSION, true, 1);
@@ -589,12 +644,10 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "item_transfer_commands", timeoutTicks = 80)
     public static void itemTransferCommandsControlMirrorEntryExitInventory(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
         try {
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
             player.setGameMode(GameType.SURVIVAL);
             runItemTransferCommand(player, true);
 
@@ -608,20 +661,17 @@ public final class MirrorLifecycleGameTests {
                     false, "minecraft:redstone_block", Items.REDSTONE_BLOCK);
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
         }
 
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 240)
+    @GameTest(template = TEMPLATE, batch = "item_transfer_full_lifecycle", timeoutTicks = 240)
     public static void itemTransferCommandControlsFullMirrorLifecycle(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         int previousCopyChunksPerTick = MirrorConfig.COPY_CHUNKS_PER_TICK.get();
         try {
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withItemTransfer(MirrorKind.DIMENSION, false)
                     .withCopyChunkRadius(MirrorKind.DIMENSION, 1));
@@ -633,7 +683,7 @@ public final class MirrorLifecycleGameTests {
             runItemTransferCommand(player, true);
             assertFullMirrorItemTransferFlow(helper, player,
                     "minecraft:diamond_block", Items.DIAMOND_BLOCK, true, 0);
-            helper.assertTrue(MirrorWorldManager.getItemTransferPermission(player.getUUID()),
+            helper.assertTrue(MirrorWorldManager.getItemTransferPermission(player.getUUID(), MirrorKind.DIMENSION),
                     "/iwm itemtransfer true must survive returning from a mirror session");
             assertFullMirrorItemTransferFlow(helper, player,
                     "minecraft:emerald_block", Items.EMERALD_BLOCK, true, 1);
@@ -643,7 +693,6 @@ public final class MirrorLifecycleGameTests {
                     "minecraft:redstone_block", Items.REDSTONE_BLOCK, false, 2);
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
             MirrorConfig.COPY_CHUNKS_PER_TICK.set(previousCopyChunksPerTick);
             MirrorWorldManager.clearAllSessions(helper.getLevel().getServer());
@@ -654,16 +703,14 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "item_transfer_config_default", timeoutTicks = 80)
     public static void itemTransferConfigDefaultControlsMirrorExit(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         try {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
             player.setGameMode(GameType.SURVIVAL);
 
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(false);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withItemTransfer(MirrorKind.DIMENSION, false));
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
@@ -673,25 +720,25 @@ public final class MirrorLifecycleGameTests {
             helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
                     "Disabled item transfer config must restore the entry inventory");
 
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(true);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withItemTransfer(MirrorKind.DIMENSION, true));
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
             MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.DIMENSION, false);
-            player.getInventory().items.set(4, new ItemStack(Items.EMERALD_BLOCK));
+            player.getInventory().add(new ItemStack(Items.EMERALD_BLOCK));
             MirrorWorldManager.restorePlayerForMirrorExit(player);
-            helper.assertTrue(player.getInventory().items.get(4).is(Items.EMERALD_BLOCK),
-                    "Enabled item transfer config must keep mirror-world inventory changes");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    "Enabled item transfer config must preserve entry inventory items");
+            helper.assertTrue(inventoryContains(player, Items.EMERALD_BLOCK),
+                    "Enabled item transfer config must keep newly acquired mirror-world items");
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
         }
 
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "persistent_records", timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {
         UUID recordId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -740,7 +787,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "persistent_data_cleanup", timeoutTicks = 40)
     public static void persistentDataRemovesUnreadyRecords(GameTestHelper helper) {
         PersistentMirrorData data = new PersistentMirrorData();
         PersistentMirrorRecord unready = testRecord(UUID.randomUUID(), UUID.randomUUID(), 0, false);
@@ -762,7 +809,7 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "persistent_data_repair", timeoutTicks = 80)
     public static void repairDeadDataSkipsReadyPersistentRecords(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         PersistentMirrorData data = PersistentMirrorData.get(player.getServer());
@@ -790,87 +837,99 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "shutdown_cleanup", timeoutTicks = 80)
     public static void persistentSaveSourceAndShutdownCleanupDoNotLeaveDeadDimensions(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        clearDimensionPoolTestState(player);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(minimumCopyRadiusState(previousActiveConfig));
+            clearDimensionPoolTestState(player);
 
-        MirrorSession sourceSession = MirrorWorldManager.createSession(
-                player, BlockPos.ZERO, MirrorKind.HEAVEN, true).orElseThrow();
-        int heldDimIndex = sourceSession.getDimensionIndex();
+            MirrorSession sourceSession = MirrorWorldManager.createSession(
+                    player, BlockPos.ZERO, MirrorKind.HEAVEN, true).orElseThrow();
+            int heldDimIndex = sourceSession.getDimensionIndex();
 
-        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(heldDimIndex),
-                "Allocated temporary dimensions must be marked dirty for restart cleanup");
+            helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(heldDimIndex),
+                    "Allocated temporary dimensions must be marked dirty for restart cleanup");
 
-        helper.assertTrue(MirrorWorldManager.retainTemporarySourceForPersistentSave(sourceSession),
-                "Persistent save must retain its temporary source session while copying");
+            helper.assertTrue(MirrorWorldManager.retainTemporarySourceForPersistentSave(sourceSession),
+                    "Persistent save must retain its temporary source session while copying");
 
-        MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
-        helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.IN_USE,
-                "Disconnect cleanup must not release a temporary source dimension before persistent copy finishes");
+            MirrorWorldManager.handlePlayerDisconnect(player, player.getServer());
+            helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.IN_USE,
+                    "Disconnect cleanup must not release a temporary source dimension before persistent copy finishes");
 
-        MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSession.getSessionId(), player.getServer());
-        helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.CLEANING,
-                "Temporary source dimension must enter cleanup once persistent copy releases it");
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSession.getSessionId(), player.getServer());
+            helper.assertTrue(DimensionPool.getDimensionState(heldDimIndex) == DimensionPool.DimensionState.CLEANING,
+                    "Temporary source dimension must enter cleanup once persistent copy releases it");
 
-        WorldCopyService.clearAllTasks();
-        clearDimensionPoolTestState(player);
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
 
-        MirrorSession activeSession = MirrorWorldManager.createSession(
-                player, BlockPos.ZERO.above(), MirrorKind.DIMENSION, false).orElseThrow();
-        int activeDimIndex = activeSession.getDimensionIndex();
+            MirrorSession activeSession = MirrorWorldManager.createSession(
+                    player, BlockPos.ZERO.above(), MirrorKind.DIMENSION, false).orElseThrow();
+            int activeDimIndex = activeSession.getDimensionIndex();
 
-        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(activeDimIndex),
-                "Active temporary dimensions must persist a cleanup marker before shutdown");
+            helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(activeDimIndex),
+                    "Active temporary dimensions must persist a cleanup marker before shutdown");
 
-        MirrorWorldManager.clearAllSessions(player.getServer());
-        helper.assertTrue(DimensionPool.getDimensionState(activeDimIndex) == DimensionPool.DimensionState.CLEANING,
-                "Server shutdown cleanup must leave active temporary dimensions marked for cleanup");
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            helper.assertTrue(DimensionPool.getDimensionState(activeDimIndex) == DimensionPool.DimensionState.CLEANING,
+                    "Server shutdown cleanup must leave active temporary dimensions marked for cleanup");
 
-        WorldCopyService.clearAllTasks();
-        clearDimensionPoolTestState(player);
-        helper.succeed();
+            helper.succeed();
+        } finally {
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 80)
+    @GameTest(template = TEMPLATE, batch = "startup_recovery", timeoutTicks = 80)
     public static void startupRecoveryHandlesInterruptedTemporaryCleanup(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        clearDimensionPoolTestState(player);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(minimumCopyRadiusState(previousActiveConfig));
+            clearDimensionPoolTestState(player);
 
-        MirrorSession activeSession = MirrorWorldManager.createSession(
-                player, BlockPos.ZERO, MirrorKind.FIRST_DREAM, false).orElseThrow();
-        int dimIndex = activeSession.getDimensionIndex();
+            MirrorSession activeSession = MirrorWorldManager.createSession(
+                    player, BlockPos.ZERO, MirrorKind.FIRST_DREAM, false).orElseThrow();
+            int dimIndex = activeSession.getDimensionIndex();
 
-        helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
-                "Allocated temporary dimensions must persist a cleanup marker before any crash");
+            helper.assertTrue(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
+                    "Allocated temporary dimensions must persist a cleanup marker before any crash");
 
-        MirrorWorldManager.clearAllSessions(player.getServer());
-        WorldCopyService.clearAllTasks();
-        helper.assertFalse(WorldCopyService.hasPendingCleanup(dimIndex),
-                "Crash simulation must leave no in-memory cleanup task");
-
-        DimensionPool.initializeWithServer(player.getServer());
-
-        if (DimensionPool.getDimensionLevel(player.getServer(), dimIndex) == null) {
-            helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.AVAILABLE,
-                    "Startup recovery must release empty dirty temporary dimensions when the mirror world is unavailable");
-            helper.assertFalse(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
-                    "Startup recovery must clear empty cleanup markers after releasing the temporary dimension");
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
             helper.assertFalse(WorldCopyService.hasPendingCleanup(dimIndex),
-                    "Startup recovery must not queue cleanup without a loaded mirror world or saved cleanup work");
-        } else {
-            helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.CLEANING,
-                    "Startup recovery must restore dirty temporary dimensions to CLEANING");
-            helper.assertTrue(WorldCopyService.hasPendingCleanup(dimIndex),
-                    "Startup recovery must requeue cleanup for dirty temporary dimensions");
-        }
+                    "Crash simulation must leave no in-memory cleanup task");
 
-        WorldCopyService.clearAllTasks();
-        clearDimensionPoolTestState(player);
-        helper.succeed();
+            DimensionPool.initializeWithServer(player.getServer());
+
+            if (DimensionPool.getDimensionLevel(player.getServer(), dimIndex) == null) {
+                helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.AVAILABLE,
+                        "Startup recovery must release empty dirty temporary dimensions when the mirror world is unavailable");
+                helper.assertFalse(dimensionPoolData(player).isMarkedForCleanup(dimIndex),
+                        "Startup recovery must clear empty cleanup markers after releasing the temporary dimension");
+                helper.assertFalse(WorldCopyService.hasPendingCleanup(dimIndex),
+                        "Startup recovery must not queue cleanup without a loaded mirror world or saved cleanup work");
+            } else {
+                helper.assertTrue(DimensionPool.getDimensionState(dimIndex) == DimensionPool.DimensionState.CLEANING,
+                        "Startup recovery must restore dirty temporary dimensions to CLEANING");
+                helper.assertTrue(WorldCopyService.hasPendingCleanup(dimIndex),
+                        "Startup recovery must requeue cleanup for dirty temporary dimensions");
+            }
+
+            helper.succeed();
+        } finally {
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
     }
 
-    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    @GameTest(template = TEMPLATE, batch = "native_physics_filter", timeoutTicks = 40)
     public static void mirrorCopySkipsNativePhysicsNamespaces(GameTestHelper helper) {
         helper.assertTrue(WorldCopyService.isCopyUnsafeNativePhysicsNamespace("sable"),
                 "Sable physics objects must not be copied into disposable mirror dimensions");
@@ -1003,15 +1062,19 @@ public final class MirrorLifecycleGameTests {
         MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
 
         Item expectedItem = scenarioIndex % 2 == 0 ? Items.DIAMOND_BLOCK : Items.EMERALD_BLOCK;
-        player.getInventory().items.set(4, new ItemStack(expectedItem));
+        player.getInventory().add(new ItemStack(expectedItem));
         MirrorWorldManager.restorePlayerForMirrorExit(player);
 
         if (expectTransfer) {
-            helper.assertTrue(player.getInventory().items.get(4).is(expectedItem),
-                    kind.id() + " item-transfer config must let mirror-world inventory changes leave the mirror");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    kind.id() + " enabled item-transfer config must preserve entry inventory items");
+            helper.assertTrue(inventoryContains(player, expectedItem),
+                    kind.id() + " item-transfer config must let newly acquired items leave the mirror");
         } else {
-            helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
                     kind.id() + " item-transfer config must restore the entry inventory when disabled");
+            helper.assertFalse(inventoryContains(player, expectedItem),
+                    kind.id() + " disabled item-transfer config must discard newly acquired items");
         }
         MirrorWorldManager.clearItemTransferPermission(player.getUUID());
     }
@@ -1102,10 +1165,22 @@ public final class MirrorLifecycleGameTests {
         };
     }
 
+    private static MirrorConfigState minimumCopyRadiusState(MirrorConfigState state) {
+        MirrorConfigState result = state;
+        for (MirrorKind kind : MirrorKind.values()) {
+            result = result.withCopyChunkRadius(kind, 1);
+        }
+        return result;
+    }
+
     private static void clearDimensionPoolTestState(ServerPlayer player) {
-        DimensionPool.initializeWithServer(player.getServer());
+        DimensionPool.DimensionPoolData data = dimensionPoolData(player);
         for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
             WorldCopyService.cancelCleanupTask(dimIndex);
+            data.setCleanupState(dimIndex, false);
+        }
+        DimensionPool.initializeWithServer(player.getServer());
+        for (int dimIndex = 0; dimIndex < ModDimensions.getPoolSize(); dimIndex++) {
             DimensionPool.markDimensionAvailable(dimIndex);
         }
     }
@@ -1121,10 +1196,8 @@ public final class MirrorLifecycleGameTests {
     private static void assertEnderChestTransferScenario(GameTestHelper helper, MirrorKind kind,
                                                          boolean allowItemTransfer) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
-        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         try {
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withItemTransfer(kind, allowItemTransfer));
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
@@ -1133,20 +1206,22 @@ public final class MirrorLifecycleGameTests {
 
             MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
 
-            player.getEnderChestInventory().setItem(0, new ItemStack(Items.DIAMOND_BLOCK));
+            player.getEnderChestInventory().setItem(1, new ItemStack(Items.DIAMOND_BLOCK));
             MirrorWorldManager.restorePlayerForMirrorExit(player);
 
-            ItemStack result = player.getEnderChestInventory().getItem(0);
             if (allowItemTransfer) {
-                helper.assertTrue(result.is(Items.DIAMOND_BLOCK),
-                        kind.id() + " ender chest must keep mirror-world items when item transfer config is enabled");
+                helper.assertTrue(containerContains(player.getEnderChestInventory(), Items.EMERALD),
+                        kind.id() + " ender chest must preserve items from before mirror entry");
+                helper.assertTrue(containerContains(player.getEnderChestInventory(), Items.DIAMOND_BLOCK),
+                        kind.id() + " ender chest must keep newly acquired mirror-world items");
             } else {
-                helper.assertTrue(result.is(Items.EMERALD),
+                helper.assertTrue(containerContains(player.getEnderChestInventory(), Items.EMERALD),
                         kind.id() + " ender chest must restore saved items when item transfer config is disabled");
+                helper.assertFalse(containerContains(player.getEnderChestInventory(), Items.DIAMOND_BLOCK),
+                        kind.id() + " ender chest must discard mirror-world items when item transfer is disabled");
             }
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
         }
     }
@@ -1157,11 +1232,9 @@ public final class MirrorLifecycleGameTests {
         ServerLevel sourceLevel = helper.getLevel();
         BlockPos sourceChestPos = new BlockPos(8 + scenarioIndex * 4, 64, 8);
         BlockPos mirrorChestPos = sourceChestPos.east();
-        boolean previousAllowItemTransfer = MirrorConfig.ALLOW_ITEM_TRANSFER.get();
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
 
         try {
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(allowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
                     .withItemTransfer(kind, allowItemTransfer));
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
@@ -1172,21 +1245,24 @@ public final class MirrorLifecycleGameTests {
             player.getInventory().items.set(4, new ItemStack(Items.GOLD_INGOT));
             MirrorWorldManager.preparePlayerForMirrorEntry(player, kind, false);
 
-            player.getInventory().items.set(4, getChestItem(sourceLevel, mirrorChestPos).copy());
+            player.getInventory().add(getChestItem(sourceLevel, mirrorChestPos).copy());
             MirrorWorldManager.restorePlayerForMirrorExit(player);
 
             helper.assertTrue(getChestItem(sourceLevel, sourceChestPos).is(Items.EMERALD),
                     kind.id() + " mirror chest changes must not write back into the source vanilla chest");
             if (allowItemTransfer) {
-                helper.assertTrue(player.getInventory().items.get(4).is(Items.DIAMOND_BLOCK),
+                helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                        kind.id() + " enabled item transfer must preserve items from before entry");
+                helper.assertTrue(inventoryContains(player, Items.DIAMOND_BLOCK),
                         kind.id() + " vanilla chest loot must be carriable only when item transfer is enabled");
             } else {
-                helper.assertTrue(player.getInventory().items.get(4).is(Items.GOLD_INGOT),
+                helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
                         kind.id() + " vanilla chest loot must not leave the mirror when item transfer is disabled");
+                helper.assertFalse(inventoryContains(player, Items.DIAMOND_BLOCK),
+                        kind.id() + " disabled item transfer must discard newly acquired chest loot");
             }
         } finally {
             MirrorWorldManager.clearItemTransferPermission(player.getUUID());
-            MirrorConfig.ALLOW_ITEM_TRANSFER.set(previousAllowItemTransfer);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
             sourceLevel.removeBlock(sourceChestPos, false);
             sourceLevel.removeBlock(mirrorChestPos, false);
@@ -1230,6 +1306,8 @@ public final class MirrorLifecycleGameTests {
         if (expectTransfer) {
             helper.assertTrue(inventoryContains(player, expectedItem),
                     kind.id() + " enabled item transfer command must let mirror-world items leave the mirror");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    kind.id() + " enabled item transfer command must preserve entry inventory items");
         } else {
             helper.assertFalse(inventoryContains(player, expectedItem),
                     kind.id() + " disabled item transfer command must block mirror-world items from leaving the mirror");
@@ -1295,6 +1373,8 @@ public final class MirrorLifecycleGameTests {
         if (expectTransfer) {
             helper.assertTrue(inventoryContains(player, expectedItem),
                     "Enabled /iwm itemtransfer must let mirror-world items leave the mirror");
+            helper.assertTrue(inventoryContains(player, Items.GOLD_INGOT),
+                    "Enabled /iwm itemtransfer must preserve entry inventory items");
         } else {
             helper.assertFalse(inventoryContains(player, expectedItem),
                     "Disabled /iwm itemtransfer must block mirror-world items from leaving the mirror");
@@ -1316,6 +1396,44 @@ public final class MirrorLifecycleGameTests {
         return player.getInventory().items.stream().anyMatch(stack -> stack.is(item));
     }
 
+    private static int inventoryItemCount(ServerPlayer player, Item item) {
+        return player.getInventory().items.stream()
+                .filter(stack -> stack.is(item))
+                .mapToInt(ItemStack::getCount)
+                .sum();
+    }
+
+    private static boolean containerContains(net.minecraft.world.Container container, Item item) {
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (container.getItem(slot).is(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void assertPersistedMirrorSettings(GameTestHelper helper, CommentedFileConfig config,
+                                                      String prefix, MirrorKindSettings expected) {
+        Object persistedAccess = config.get(prefix + "Access");
+        helper.assertTrue(expected.access().name().equals(persistedAccess),
+                prefix + " access must be persisted");
+        helper.assertTrue(Boolean.valueOf(expected.mobSpawning()).equals(config.get(prefix + "MobSpawning")),
+                prefix + " mob-spawning setting must be persisted");
+        helper.assertTrue(Boolean.valueOf(expected.itemTransfer()).equals(config.get(prefix + "ItemTransfer")),
+                prefix + " item-transfer setting must be persisted");
+        helper.assertTrue(Integer.valueOf(expected.copyChunkRadius()).equals(config.get(prefix + "CopyChunkRadius")),
+                prefix + " copy radius must be persisted");
+    }
+
+    private static void assertLegacyConfigKeysAbsent(GameTestHelper helper, CommentedFileConfig config) {
+        helper.assertFalse(config.contains("enableMobSpawning"),
+                "Legacy mob-spawning key must be removed");
+        helper.assertFalse(config.contains("allowItemTransfer"),
+                "Legacy item-transfer key must be removed");
+        helper.assertFalse(config.contains("copyChunkRadius"),
+                "Legacy copy-radius key must be removed");
+    }
+
     private static void runPlayerCommand(ServerPlayer player, String command) {
         player.getServer().getCommands().performPrefixedCommand(
                 player.createCommandSourceStack().withPermission(4),
@@ -1326,7 +1444,7 @@ public final class MirrorLifecycleGameTests {
     private static void runItemTransferCommand(ServerPlayer player, boolean allowed) {
         String command = "iwm itemtransfer @s " + allowed;
         runPlayerCommand(player, command);
-        if (MirrorWorldManager.getItemTransferPermission(player.getUUID()) != allowed) {
+        if (MirrorWorldManager.getItemTransferPermission(player.getUUID(), MirrorKind.DIMENSION) != allowed) {
             throw new IllegalStateException("Command did not update item transfer permission in GameTest: /" + command);
         }
     }

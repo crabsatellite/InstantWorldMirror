@@ -37,7 +37,7 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.config.access.all", "All players"),
             Map.entry("message.instantworldmirror.config.header.mirror", "Mirror"),
             Map.entry("message.instantworldmirror.config.header.access", "Permission"),
-            Map.entry("message.instantworldmirror.config.header.mob_spawning", "Mobs"),
+            Map.entry("message.instantworldmirror.config.header.mob_spawning", "Spawning"),
             Map.entry("message.instantworldmirror.config.header.item_transfer", "Items"),
             Map.entry("message.instantworldmirror.config.header.copy_radius", "Radius"),
             Map.entry("message.instantworldmirror.config.toggle.on", "On"),
@@ -45,6 +45,7 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.config.item_transfer.allow", "Allow"),
             Map.entry("message.instantworldmirror.config.item_transfer.block", "Block"),
             Map.entry("message.instantworldmirror.config.button.save", "Save"),
+            Map.entry("message.instantworldmirror.config.button.saving", "Saving..."),
             Map.entry("message.instantworldmirror.config.button.cancel", "Cancel"),
             Map.entry("item.instantworldmirror.dimension_mirror", "World Reflection Mirror"),
             Map.entry("item.instantworldmirror.heaven_mirror", "Heaven Mirror"),
@@ -280,7 +281,7 @@ public final class MirrorConfigUiGate {
         ENGLISH_LABELS.keySet().forEach(key -> localized(key, activeLanguage));
     }
 
-    private static Button findButton(Screen screen, String translationKey) {
+    static Button findButton(Screen screen, String translationKey) {
         String expected = localized(translationKey, Minecraft.getInstance().options.languageCode);
         List<? extends GuiEventListener> children = screen.children();
         for (GuiEventListener child : children) {
@@ -291,7 +292,7 @@ public final class MirrorConfigUiGate {
         throw new IllegalStateException("Button not found on " + screen.getClass().getSimpleName() + ": " + expected);
     }
 
-    private static List<EditBox> findEditBoxes(Screen screen) {
+    static List<EditBox> findEditBoxes(Screen screen) {
         List<EditBox> editBoxes = new ArrayList<>();
         for (GuiEventListener child : screen.children()) {
             if (child instanceof EditBox editBox) {
@@ -301,7 +302,7 @@ public final class MirrorConfigUiGate {
         return editBoxes;
     }
 
-    private static List<Button> findSettingsButtons(Screen screen) {
+    static List<Button> findSettingsButtons(Screen screen) {
         List<Button> buttons = new ArrayList<>();
         for (GuiEventListener child : screen.children()) {
             if (child instanceof Button button && isSettingsButton(button)) {

@@ -2413,9 +2413,7 @@ public class WorldCopyService {
         try {
             LevelChunk chunk = mirrorWorld.getChunkSource().getChunkNow(chunkX, chunkZ);
             if (chunk == null) {
-                chunk = mirrorWorld.getChunk(chunkX, chunkZ);
-            }
-            if (chunk == null) {
+                // Quarantine loaded content without generating chunks solely for cleanup.
                 return 0;
             }
 

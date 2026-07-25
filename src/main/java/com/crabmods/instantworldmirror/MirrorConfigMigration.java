@@ -82,6 +82,7 @@ public final class MirrorConfigMigration {
                 config.set(newKey, migrated);
             }
         }
+        config.remove(legacyKey);
         return true;
     }
 
@@ -92,7 +93,8 @@ public final class MirrorConfigMigration {
 
         Object legacyValue = config.get(legacyKey);
         if (!(legacyValue instanceof Number number)) {
-            return false;
+            config.remove(legacyKey);
+            return true;
         }
 
         int migrated = MirrorKindSettings.clampCopyChunkRadius(number.intValue());
@@ -101,6 +103,7 @@ public final class MirrorConfigMigration {
                 config.set(newKey, migrated);
             }
         }
+        config.remove(legacyKey);
         return true;
     }
 
