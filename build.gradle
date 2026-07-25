@@ -48,6 +48,11 @@ neoForge {
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            def quickPlayWorld = providers.environmentVariable('IWM_QUICK_PLAY_WORLD').getOrNull()
+            if (quickPlayWorld) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument quickPlayWorld
+            }
         }
 
         server {
@@ -365,6 +370,8 @@ def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/world/PersistentMirrorData.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorManager.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorRecord.class',
+        'com/crabmods/instantworldmirror/network/MirrorConfigSaveResultPacket.class',
+        'com/crabmods/instantworldmirror/client/MirrorConfigNetworkGate.class',
         'assets/instantworldmirror/models/item/first_dream_mirror.json',
         'assets/instantworldmirror/textures/item/first_dream_mirror.png',
         'data/instantworldmirror/recipe/first_dream_mirror.json'

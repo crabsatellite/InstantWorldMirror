@@ -150,7 +150,6 @@ Config file: `config/instantworldmirror-common.toml`
 
 | Config | Default | Description |
 | --- | --- | --- |
-| `copyChunkRadius` | 10 | Legacy fallback copy radius for old config migration |
 | `copyChunksPerTick` | 2 | Chunks copied per tick |
 | `cleanupChunksPerTick` | 4 | Chunks cleaned per tick |
 | `edgeCleanupRadius` | 3 | Extra radius for edge cleanup scan |

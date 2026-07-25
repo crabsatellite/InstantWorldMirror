@@ -12,7 +12,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 @EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD)
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "1";
+    public static final String PROTOCOL_VERSION = "2";
     
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -48,6 +48,12 @@ public class ModNetworking {
                 MirrorConfigMenuPacket.TYPE,
                 MirrorConfigMenuPacket.STREAM_CODEC,
                 MirrorConfigMenuPacket::handle
+        );
+
+        registrar.playToClient(
+                MirrorConfigSaveResultPacket.TYPE,
+                MirrorConfigSaveResultPacket.STREAM_CODEC,
+                MirrorConfigSaveResultPacket::handle
         );
         
         // Register server-bound packets

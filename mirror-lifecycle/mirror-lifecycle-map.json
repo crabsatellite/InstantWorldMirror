@@ -743,10 +743,10 @@
       "method": "returnToOverworld",
       "texts": [
         "if (PersistentMirrorManager.isInPersistentMirror(player))",
-        "finishPlayerMirrorState(player, allowItemTransfer)",
         "playersBeingTeleported.add(player.getUUID())",
         "player.teleportTo(",
         "playersBeingTeleported.remove(player.getUUID())",
+        "finishPlayerMirrorState(player, allowItemTransfer)",
         "clearDimensionEffectsForPlayer(player, session.getDimensionIndex())",
         "cleanupPlayerTrackingData(player.getUUID())",
         "destroySession(session, server)"
@@ -773,10 +773,10 @@
       "texts": [
         "boolean sandboxMode = persistentData.getBoolean(SANDBOX_SESSION_KEY)",
         "if (allowItemTransfer)",
-        "restoreSandboxState(player, persistentData)",
+        "if (sandboxMode)",
+        "mergeSandboxItemsIntoSavedInventory(player, getSavedMirrorKind(player))",
         "restoreSavedGameMode(player, persistentData)",
         "clearSavedData(player)",
-        "else",
         "restorePlayerInventory(player)"
       ]
     },

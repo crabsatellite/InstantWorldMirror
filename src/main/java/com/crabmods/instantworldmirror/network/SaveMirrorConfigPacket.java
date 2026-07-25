@@ -9,6 +9,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public record SaveMirrorConfigPacket(MirrorConfigState state) implements CustomPacketPayload {
@@ -41,11 +42,23 @@ public record SaveMirrorConfigPacket(MirrorConfigState state) implements CustomP
             }
             if (!MirrorConfig.canManageConfig(player)) {
                 player.displayClientMessage(Component.translatable("message.instantworldmirror.config.no_permission"), false);
+                PacketDistributor.sendToPlayer(player, new MirrorConfigSaveResultPacket(false));
                 return;
             }
 
-            MirrorConfig.saveMirrorConfigState(packet.state);
-            player.displayClientMessage(Component.translatable("message.instantworldmirror.config.saved_restart_required"), false);
+            boolean success = false;
+            try {
+                MirrorConfig.saveMirrorConfigState(packet.state);
+                success = true;
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.config.saved_restart_required"), false);
+            } catch (RuntimeException exception) {
+                InstantWorldMirror.LOGGER.error("Failed to save mirror configuration for {}",
+                        player.getName().getString(), exception);
+                player.displayClientMessage(
+                        Component.translatable("message.instantworldmirror.config.save_failed"), false);
+            }
+            PacketDistributor.sendToPlayer(player, new MirrorConfigSaveResultPacket(success));
         });
     }
 }

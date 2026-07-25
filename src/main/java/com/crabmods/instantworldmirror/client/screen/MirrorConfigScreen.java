@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror.client.screen;
 
+import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfigState;
 import com.crabmods.instantworldmirror.MirrorKindSettings;
 import com.crabmods.instantworldmirror.network.SaveMirrorConfigPacket;
@@ -44,6 +45,9 @@ public class MirrorConfigScreen extends Screen {
     private int radiusX;
     private Component restartHint = Component.empty();
     private List<FormattedCharSequence> helpLines = List.of();
+    @Nullable
+    private Button saveButton;
+    private boolean saving;
 
     public MirrorConfigScreen(MirrorConfigState state) {
         this(state, null, true);
@@ -95,9 +99,10 @@ public class MirrorConfigScreen extends Screen {
 
         int footerY = panelTop + panelHeight - 30;
         int buttonWidth = (panelWidth - 56) / 2;
-        addRenderableWidget(Button.builder(Component.translatable("message.instantworldmirror.config.button.save"), button -> save())
-                .bounds(panelLeft + 24, footerY, buttonWidth, BUTTON_HEIGHT)
-                .build());
+        this.saveButton = addRenderableWidget(
+                Button.builder(Component.translatable("message.instantworldmirror.config.button.save"), button -> save())
+                        .bounds(panelLeft + 24, footerY, buttonWidth, BUTTON_HEIGHT)
+                        .build());
         addRenderableWidget(Button.builder(Component.translatable("message.instantworldmirror.config.button.cancel"), button -> this.onClose())
                 .bounds(panelLeft + 32 + buttonWidth, footerY, buttonWidth, BUTTON_HEIGHT)
                 .build());
@@ -191,13 +196,57 @@ public class MirrorConfigScreen extends Screen {
     }
 
     private void save() {
+        if (saving) {
+            return;
+        }
         commitRadiusBoxes();
         if (serverBacked) {
+            setSaving(true);
             PacketDistributor.sendToServer(new SaveMirrorConfigPacket(state));
         } else {
-            com.crabmods.instantworldmirror.MirrorConfig.saveMirrorConfigState(state);
+            try {
+                com.crabmods.instantworldmirror.MirrorConfig.saveMirrorConfigState(state);
+            } catch (RuntimeException exception) {
+                InstantWorldMirror.LOGGER.error("Failed to save local mirror configuration", exception);
+                if (Minecraft.getInstance().player != null) {
+                    Minecraft.getInstance().player.displayClientMessage(
+                            Component.translatable("message.instantworldmirror.config.save_failed"), false);
+                }
+                return;
+            }
+            Minecraft.getInstance().setScreen(parent);
         }
-        Minecraft.getInstance().setScreen(parent);
+    }
+
+    public static void handleSaveResult(boolean success) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen instanceof MirrorConfigScreen screen) {
+            screen.finishServerSave(success);
+        }
+    }
+
+    private void finishServerSave(boolean success) {
+        if (!saving) {
+            return;
+        }
+        setSaving(false);
+        if (success) {
+            Minecraft.getInstance().setScreen(parent);
+        }
+    }
+
+    private void setSaving(boolean saving) {
+        this.saving = saving;
+        if (saveButton != null) {
+            saveButton.active = !saving;
+            saveButton.setMessage(Component.translatable(saving
+                    ? "message.instantworldmirror.config.button.saving"
+                    : "message.instantworldmirror.config.button.save"));
+        }
+    }
+
+    public boolean savingForTesting() {
+        return saving;
     }
 
     @Override
@@ -250,11 +299,13 @@ public class MirrorConfigScreen extends Screen {
 
     @Override
     public boolean shouldCloseOnEsc() {
-        return true;
+        return !saving;
     }
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().setScreen(parent);
+        if (!saving) {
+            Minecraft.getInstance().setScreen(parent);
+        }
     }
 }

@@ -23,12 +23,6 @@ public class MirrorConfig {
 
     // ==================== World Copy Settings ====================
     
-    public static final ModConfigSpec.IntValue COPY_CHUNK_RADIUS = BUILDER
-            .comment("Legacy/global mirror world copy radius in chunks (default: 10).",
-                    "New worlds use the per-mirror copy radius settings below.",
-                    "This value is kept so old config files can be migrated without losing their previous behavior.")
-            .defineInRange("copyChunkRadius", 10, 1, 32);
-
     public static final ModConfigSpec.IntValue COPY_CHUNKS_PER_TICK = BUILDER
             .comment("Number of chunks to copy per tick (default: 2)",
                     "Higher values = faster copy but more lag")
@@ -70,13 +64,6 @@ public class MirrorConfig {
 
     // ==================== Item Rules ====================
     
-    public static final ModConfigSpec.BooleanValue ALLOW_ITEM_TRANSFER = BUILDER
-            .comment("Legacy/global item transfer default (default: false).",
-                    "New mirror sessions use the per-mirror item transfer settings below.",
-                    "This value is kept so old config files can be migrated without losing their previous behavior.",
-                    "Per-player overrides from /iwm itemtransfer still take priority.")
-            .define("allowItemTransfer", false);
-
     public static final ModConfigSpec.IntValue MIRROR_COOLDOWN = BUILDER
             .comment("World Reflection Mirror cooldown in seconds (default: 300 = 5 minutes)",
                     "This is how long players must wait between using the World Reflection Mirror.",
@@ -115,19 +102,21 @@ public class MirrorConfig {
             .defineEnum("firstDreamMirrorAccess", MirrorAccess.ALL);
 
     public static final ModConfigSpec.BooleanValue WORLD_REFLECTION_MIRROR_MOB_SPAWNING = BUILDER
-            .comment("Enable default mob spawning for the World Reflection Mirror (default: false).",
+            .comment("Enable natural mob spawning for the World Reflection Mirror (default: false).",
+                    "This does not duplicate entities that already exist in the source world.",
                     "This is configurable from the in-game mirror settings screen.",
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .define("worldReflectionMirrorMobSpawning", false);
 
     public static final ModConfigSpec.BooleanValue HEAVEN_MIRROR_MOB_SPAWNING = BUILDER
-            .comment("Enable default mob spawning for the Heaven Mirror (default: false).",
+            .comment("Enable natural mob spawning for the Heaven Mirror (default: false).",
+                    "This does not duplicate entities that already exist in the source world.",
                     "This is configurable from the in-game mirror settings screen.",
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .define("heavenMirrorMobSpawning", false);
 
     public static final ModConfigSpec.BooleanValue FIRST_DREAM_MIRROR_MOB_SPAWNING = BUILDER
-            .comment("Enable default mob spawning for the First Dream Mirror (default: true).",
+            .comment("Enable natural and terrain-generation mob spawning for the First Dream Mirror (default: true).",
                     "This is configurable from the in-game mirror settings screen.",
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .define("firstDreamMirrorMobSpawning", true);
@@ -191,12 +180,6 @@ public class MirrorConfig {
                     "This setting works independently of copyEntities - decoration entities are always copied when true.")
             .define("copyDecorationEntities", true);
 
-    public static final ModConfigSpec.BooleanValue ENABLE_MOB_SPAWNING = BUILDER
-            .comment("Legacy/global natural mob spawning default (default: false).",
-                    "New mirror sessions use the per-mirror mob spawning settings above.",
-                    "This value is kept so old config files can be migrated without losing their previous behavior.")
-            .define("enableMobSpawning", false);
-
     // ==================== Biome and Environment Settings ====================
     
     public static final ModConfigSpec.BooleanValue COPY_BIOMES = BUILDER
@@ -246,17 +229,6 @@ public class MirrorConfig {
 
     // ==================== Helper Methods ====================
     
-    /**
-     * Check if mob spawning is enabled in mirror world
-     * Uses runtime override if set, otherwise falls back to config
-     */
-    public static boolean isMobSpawningEnabled() {
-        if (runtimeMobSpawningEnabled != null) {
-            return runtimeMobSpawningEnabled;
-        }
-        return ENABLE_MOB_SPAWNING.get();
-    }
-
     public static boolean isMobSpawningEnabled(MirrorKind kind) {
         if (runtimeMobSpawningEnabled != null) {
             return runtimeMobSpawningEnabled;
@@ -280,7 +252,7 @@ public class MirrorConfig {
         if (runtimeMobSpawningEnabled != null) {
             return runtimeMobSpawningEnabled ? "on (runtime)" : "off (runtime)";
         }
-        return ENABLE_MOB_SPAWNING.get() ? "on (legacy config)" : "off (legacy config)";
+        return "config (per mirror)";
     }
 
     public static void refreshServerConfigSnapshot() {

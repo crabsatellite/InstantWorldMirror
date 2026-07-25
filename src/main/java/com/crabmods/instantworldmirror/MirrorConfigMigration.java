@@ -39,12 +39,14 @@ public final class MirrorConfigMigration {
                     "enableMobSpawning", "heavenMirrorMobSpawning", false);
             changed |= migrateBoolean(config,
                     "enableMobSpawning", "firstDreamMirrorMobSpawning", true);
+            changed |= removeLegacyKey(config, "enableMobSpawning");
             changed |= migrateBoolean(config,
                     "allowItemTransfer", "worldReflectionMirrorItemTransfer", false);
             changed |= migrateBoolean(config,
                     "allowItemTransfer", "heavenMirrorItemTransfer", false);
             changed |= migrateBoolean(config,
                     "allowItemTransfer", "firstDreamMirrorItemTransfer", false);
+            changed |= removeLegacyKey(config, "allowItemTransfer");
             changed |= migrateInt(config,
                     "copyChunkRadius", "worldReflectionMirrorCopyChunkRadius",
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
@@ -54,6 +56,7 @@ public final class MirrorConfigMigration {
             changed |= migrateInt(config,
                     "copyChunkRadius", "firstDreamMirrorCopyChunkRadius",
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
+            changed |= removeLegacyKey(config, "copyChunkRadius");
             if (changed) {
                 config.save();
                 InstantWorldMirror.LOGGER.info("Migrated legacy mirror config in {}", path);
@@ -89,6 +92,14 @@ public final class MirrorConfigMigration {
             return false;
         }
         config.set(key, access.name());
+        return true;
+    }
+
+    private static boolean removeLegacyKey(CommentedFileConfig config, String key) {
+        if (!config.contains(key)) {
+            return false;
+        }
+        config.remove(key);
         return true;
     }
 
