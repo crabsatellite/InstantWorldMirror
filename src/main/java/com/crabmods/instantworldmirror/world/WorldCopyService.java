@@ -1665,9 +1665,7 @@ public class WorldCopyService {
                                 if (targetPos == null) {
                                     targetPos = new BlockPos(worldX, y, worldZ);
                                 }
-                                copyGeneratedBlockEntity(
-                                        generatedChunk, mirrorWorld, targetChunk, targetPos,
-                                        task.generatedContentRefresh || task.mobSpawningEnabled);
+                                copyGeneratedBlockEntity(generatedChunk, mirrorWorld, targetChunk, targetPos);
                             }
                         }
                     }
@@ -1722,21 +1720,20 @@ public class WorldCopyService {
     }
 
     private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, ServerLevel mirrorWorld,
-                                                 LevelChunk targetChunk, BlockPos pos,
-                                                 boolean generatedContentRefresh) {
+                                                 LevelChunk targetChunk, BlockPos pos) {
         CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
         if (tag != null) {
-            copyGeneratedBlockEntityTag(mirrorWorld, targetChunk, pos, tag, generatedContentRefresh);
+            copyGeneratedBlockEntityTag(mirrorWorld, targetChunk, pos, tag);
         }
     }
 
     static void copyGeneratedBlockEntityTag(ServerLevel mirrorWorld, LevelChunk targetChunk, BlockPos pos,
-                                            CompoundTag tag, boolean generatedContentRefresh) {
+                                            CompoundTag tag) {
         if (isCopyUnsafeNativePhysicsBlockEntityTag(tag)) {
             return;
         }
 
-        CompoundTag copy = filterGeneratedLootTagForConfig(tag, generatedContentRefresh);
+        CompoundTag copy = tag.copy();
         copy.putInt("x", pos.getX());
         copy.putInt("y", pos.getY());
         copy.putInt("z", pos.getZ());
@@ -1753,19 +1750,6 @@ public class WorldCopyService {
             targetBE.load(copy);
             targetBE.setChanged();
         }
-    }
-
-    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag) {
-        return filterGeneratedLootTagForConfig(tag, false);
-    }
-
-    static CompoundTag filterGeneratedLootTagForConfig(CompoundTag tag, boolean keepGeneratedContent) {
-        CompoundTag copy = tag.copy();
-        if (!keepGeneratedContent) {
-            copy.remove("LootTable");
-            copy.remove("LootTableSeed");
-        }
-        return copy;
     }
 
     private static CompoundTag copyEntityDataWithFreshUuid(CompoundTag tag) {

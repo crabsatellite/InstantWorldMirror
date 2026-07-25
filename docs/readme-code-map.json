@@ -326,7 +326,8 @@
         "A copied mirror world includes blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.",
         "Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked",
         "player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work",
-        "Admins can use per-mirror config or `/iwm mob` to control that rule and whether unopened generated loot containers keep their loot."
+        "Admins can use per-mirror config or `/iwm mob` to control that rule.",
+        "First Dream keeps unopened generated loot containers regardless of the mob-spawning setting."
       ],
       "code": [
         {
@@ -339,7 +340,7 @@
             "regenerateHeightmaps",
             "copyBlockEntity",
             "copyEntitiesInChunk",
-            "filterGeneratedLootTagForConfig"
+            "copyGeneratedBlockEntityTag"
           ]
         },
         {
@@ -688,7 +689,7 @@
       "readmeTexts": [
         "Renewal only works on First Dream Mirror.",
         "If First Dream natural mob spawning is off in config or through `/iwm mob off`",
-        "a Renewal First Dream Mirror can refresh generated mobs and unopened generated loot after its cooldown."
+        "a Renewal First Dream Mirror can refresh generated mobs after its cooldown."
       ],
       "code": [
         {
@@ -724,14 +725,13 @@
           ]
         },
         {
-          "label": "generated content refresh",
+          "label": "generated mob refresh",
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
           "texts": [
-            "filterGeneratedLootTagForConfig",
             "generatedContentRefresh",
             "task.copyPristineGeneratedEntitiesToChunk",
-            "copy.remove(\"LootTable\")"
+            "copyEntityDataWithFreshUuid"
           ]
         },
         {
@@ -798,7 +798,7 @@
       "id": "command_table_coverage",
       "readmeTexts": [
         "`/iwm return` | Return to the original world from a mirror world",
-        "`/iwm mob on/off/status` | Toggle natural mob spawning and generated loot preservation in mirror worlds",
+        "`/iwm mob on/off/status` | Toggle natural mob spawning in mirror worlds",
         "`/iwm allow <player>` | Allow a player to use mirror worlds",
         "`/iwm deny <player>` | Deny a player from using mirror worlds",
         "`/iwm itemtransfer <player> <true/false>` | Set whether a player can bring mirror-world items back from any mirror",
@@ -970,7 +970,7 @@
             "getEntryPortalLifetimeTicks",
             "getReturnPortalLifetimeTicks",
             "getMaxPortalLoadingTicks",
-            "getMirrorCooldownTicks",
+            "getMirrorCooldownSeconds",
             "getStaleSessionCleanupTicks",
             "isMirrorKindEnabled",
             "isMobSpawningEnabled",

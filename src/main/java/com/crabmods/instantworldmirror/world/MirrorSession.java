@@ -56,7 +56,7 @@ public class MirrorSession {
     // Whether this session was opened with a mirror carrying the permanence enchantment.
     private final boolean persistentAccess;
 
-    // Whether this first-dream session may keep generated mobs and generated loot.
+    // Whether this first-dream session may keep generated mobs while natural spawning is disabled.
     private final boolean generatedContentRefresh;
     
     // Creation timestamp for debugging

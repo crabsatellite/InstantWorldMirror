@@ -383,10 +383,10 @@ public class MirrorConfig {
     }
     
     /**
-     * Get mirror cooldown in ticks
+     * Get mirror cooldown in seconds.
      */
-    public static int getMirrorCooldownTicks() {
-        return MIRROR_COOLDOWN.get() * 20;
+    public static int getMirrorCooldownSeconds() {
+        return MIRROR_COOLDOWN.get();
     }
     
     /**

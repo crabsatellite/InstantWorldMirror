@@ -73,7 +73,7 @@
         "copy.pristine_generator_features",
         "copy.pristine_generator_pipeline",
         "copy.pristine_scratch_world_skips_poi_updates",
-        "copy.pristine_loot_uses_mob_spawn_config",
+        "copy.pristine_loot_preserved_independently",
         "session.generated_content_refresh_field",
         "copy.generated_content_refresh_task_flag",
         "events.generated_content_refresh_allows_mob_spawn"
