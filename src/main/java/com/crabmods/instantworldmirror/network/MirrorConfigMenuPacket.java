@@ -17,13 +17,15 @@ public record MirrorConfigMenuPacket(MirrorConfigState state) {
         encodeKindSettings(buf, state.worldReflectionMirror());
         encodeKindSettings(buf, state.heavenMirror());
         encodeKindSettings(buf, state.firstDreamMirror());
+        buf.writeVarInt(state.mirrorCooldownSeconds());
     }
 
     static MirrorConfigState decodeConfigState(FriendlyByteBuf buf) {
         return new MirrorConfigState(
                 decodeKindSettings(buf, MirrorKind.DIMENSION),
                 decodeKindSettings(buf, MirrorKind.HEAVEN),
-                decodeKindSettings(buf, MirrorKind.FIRST_DREAM)
+                decodeKindSettings(buf, MirrorKind.FIRST_DREAM),
+                MirrorConfigState.clampMirrorCooldownSeconds(buf.readVarInt())
         );
     }
 

@@ -40,6 +40,7 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.config.header.mob_spawning", "Spawning"),
             Map.entry("message.instantworldmirror.config.header.item_transfer", "Items"),
             Map.entry("message.instantworldmirror.config.header.copy_radius", "Radius"),
+            Map.entry("message.instantworldmirror.config.global.mirror_cooldown", "Base cooldown (seconds)"),
             Map.entry("message.instantworldmirror.config.toggle.on", "On"),
             Map.entry("message.instantworldmirror.config.toggle.off", "Off"),
             Map.entry("message.instantworldmirror.config.item_transfer.allow", "Allow"),
@@ -129,11 +130,11 @@ public final class MirrorConfigUiGate {
                 "Mirror config screen did not expose the restart-required hint in the active language");
 
         List<Button> settingsButtons = findSettingsButtons(configScreen);
-        List<EditBox> radiusBoxes = findEditBoxes(configScreen);
+        List<EditBox> numericInputs = findEditBoxes(configScreen);
         assertTrue(settingsButtons.size() == MirrorKind.values().length * BUTTONS_PER_MIRROR,
                 "Mirror config screen must expose three setting buttons for every mirror row");
-        assertTrue(radiusBoxes.size() == MirrorKind.values().length,
-                "Mirror config screen must expose one radius input for every mirror row");
+        assertTrue(numericInputs.size() == MirrorKind.values().length + 1,
+                "Mirror config screen must expose every radius input and the global cooldown input");
 
         int uiActions = 0;
         int row = 0;
@@ -161,12 +162,16 @@ public final class MirrorConfigUiGate {
             expectedState = expectedState.withItemTransfer(kind, true);
 
             int targetRadius = 7 + row;
-            radiusBoxes.get(row).setValue(Integer.toString(targetRadius));
+            numericInputs.get(row).setValue(Integer.toString(targetRadius));
             uiActions++;
             expectedState = expectedState.withCopyChunkRadius(kind, targetRadius);
 
             row++;
         }
+        int targetCooldownSeconds = 420;
+        numericInputs.get(MirrorKind.values().length).setValue(Integer.toString(targetCooldownSeconds));
+        uiActions++;
+        expectedState = expectedState.withMirrorCooldownSeconds(targetCooldownSeconds);
 
         assertTrue(mirrorConfigScreen.currentStateForTesting().equals(expectedState),
                 "Mirror config screen state must match every UI-edited setting before save");
@@ -187,9 +192,9 @@ public final class MirrorConfigUiGate {
                 "IWM_CLIENT_UI_GATE_METRICS language={} mirrors={} settings={} uiActions={} restartChecks={}",
                 activeLanguage,
                 MirrorKind.values().length,
-                MirrorKind.values().length * SETTINGS_PER_MIRROR,
+                MirrorKind.values().length * SETTINGS_PER_MIRROR + 1,
                 uiActions,
-                MirrorKind.values().length * SETTINGS_PER_MIRROR * 2
+                (MirrorKind.values().length * SETTINGS_PER_MIRROR + 1) * 2
         );
         InstantWorldMirror.LOGGER.info(
                 "IWM_CLIENT_UI_GATE_BEHAVIOR language={} before={} after={}",
@@ -253,6 +258,9 @@ public final class MirrorConfigUiGate {
             assertTrue(MirrorConfig.configuredMirrorSettings(kind).equals(expected.get(kind)),
                     phase + " did not write configured settings for " + kind.id());
         }
+        assertTrue(MirrorConfig.configuredMirrorConfigState().mirrorCooldownSeconds()
+                        == expected.mirrorCooldownSeconds(),
+                phase + " did not write the configured base cooldown");
     }
 
     private static void assertClientBehaviorMatchesState(MirrorConfigState expected, String phase) {
@@ -266,6 +274,8 @@ public final class MirrorConfigUiGate {
             assertTrue(MirrorConfig.copyChunkRadius(kind) == expected.get(kind).copyChunkRadius(),
                     phase + " copy-radius behavior mismatch for " + kind.id());
         }
+        assertTrue(MirrorConfig.getMirrorCooldownSeconds() == expected.mirrorCooldownSeconds(),
+                phase + " base-cooldown behavior mismatch");
     }
 
     private static void assertExpectedLanguage(String activeLanguage) {

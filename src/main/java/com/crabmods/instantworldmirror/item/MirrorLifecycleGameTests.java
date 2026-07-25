@@ -214,6 +214,8 @@ public final class MirrorLifecycleGameTests {
                 behaviorChecks++;
                 behaviorChecks += assertWorldCopyActiveBehavior(helper, kind, false, 1, scenarioIndex++);
             }
+            assertConfiguredCooldownBehavior(helper, player, optionBase.mirrorCooldownSeconds());
+            behaviorChecks++;
 
             MirrorConfig.refreshServerConfigSnapshot();
 
@@ -223,11 +225,13 @@ public final class MirrorLifecycleGameTests {
                 behaviorChecks++;
                 behaviorChecks += assertWorldCopyActiveBehavior(helper, kind, true, targetRadius, scenarioIndex++);
             }
+            assertConfiguredCooldownBehavior(helper, player, optionTarget.mirrorCooldownSeconds());
+            behaviorChecks++;
 
             InstantWorldMirror.LOGGER.info(
                     "IWM_GAME_CONFIG_STRICT_GATE_METRICS mirrors={} settings={} accessChecks={} behaviorChecks={} restartPhases={}",
                     MirrorKind.values().length,
-                    MirrorKind.values().length * 4,
+                    MirrorKind.values().length * 4 + 1,
                     accessChecks,
                     behaviorChecks,
                     2
@@ -264,7 +268,8 @@ public final class MirrorLifecycleGameTests {
                 .withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.ALL)
                 .withMobSpawning(MirrorKind.FIRST_DREAM, false)
                 .withItemTransfer(MirrorKind.FIRST_DREAM, false)
-                .withCopyChunkRadius(MirrorKind.FIRST_DREAM, 5);
+                .withCopyChunkRadius(MirrorKind.FIRST_DREAM, 5)
+                .withMirrorCooldownSeconds(420);
         Path configPath = Path.of("config", InstantWorldMirror.MODID + "-common.toml");
 
         try {
@@ -279,6 +284,9 @@ public final class MirrorLifecycleGameTests {
                         target.get(MirrorKind.HEAVEN));
                 assertPersistedMirrorSettings(helper, config, "firstDreamMirror",
                         target.get(MirrorKind.FIRST_DREAM));
+                helper.assertTrue(((Number) config.get("mirrorCooldown")).intValue()
+                                == target.mirrorCooldownSeconds(),
+                        "Saving from the UI service must persist the global mirror cooldown");
                 assertLegacyConfigKeysAbsent(helper, config);
             }
             helper.assertTrue(MirrorConfig.activeMirrorConfigState().equals(previousActive),
@@ -304,9 +312,10 @@ public final class MirrorLifecycleGameTests {
                     "enableMobSpawning = false",
                     "worldReflectionMirrorMobSpawning = true",
                     "allowItemTransfer = true",
-                    "heavenMirrorItemTransfer = false",
-                    "copyChunkRadius = 12",
-                    "firstDreamMirrorCopyChunkRadius = 5"));
+                     "heavenMirrorItemTransfer = false",
+                     "copyChunkRadius = 12",
+                     "mirrorCooldown = 0",
+                     "firstDreamMirrorCopyChunkRadius = 5"));
 
             MirrorConfigMigration.migrateCommonConfig(path);
             try (CommentedFileConfig config = CommentedFileConfig.builder(path).build()) {
@@ -342,6 +351,17 @@ public final class MirrorLifecycleGameTests {
                         "Legacy copy radius must initialize Heaven Mirror copy radius");
                 helper.assertTrue(((Number) config.get("firstDreamMirrorCopyChunkRadius")).intValue() == 5,
                         "Existing First Dream Mirror copy radius must not be overwritten");
+                helper.assertTrue(((Number) config.get("mirrorCooldown")).intValue()
+                                == MirrorConfigState.DEFAULT_MIRROR_COOLDOWN_SECONDS,
+                        "Legacy invalid cooldown values must migrate to the 300-second default");
+            }
+
+            Files.writeString(path, "mirrorCooldown = 30");
+            MirrorConfigMigration.migrateCommonConfig(path);
+            try (CommentedFileConfig config = CommentedFileConfig.builder(path).build()) {
+                config.load();
+                helper.assertTrue(((Number) config.get("mirrorCooldown")).intValue() == 30,
+                        "Migration must preserve an explicitly configured valid cooldown");
             }
         } catch (Exception e) {
             throw new IllegalStateException("Legacy access migration test failed", e);
@@ -433,12 +453,11 @@ public final class MirrorLifecycleGameTests {
     public static void unenchantedMirrorUseAppliesFiveMinuteCooldownForEveryKind(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
-        int previousCooldownSeconds = MirrorConfig.MIRROR_COOLDOWN.get();
 
         try {
-            MirrorConfig.MIRROR_COOLDOWN.set(300);
             MirrorConfig.setActiveMirrorConfigStateForTesting(
                     strictGateBaseConfigState(1)
+                            .withMirrorCooldownSeconds(300)
                             .withAccess(MirrorKind.DIMENSION, MirrorAccess.ALL)
                             .withAccess(MirrorKind.HEAVEN, MirrorAccess.ALL)
                             .withAccess(MirrorKind.FIRST_DREAM, MirrorAccess.ALL));
@@ -479,7 +498,6 @@ public final class MirrorLifecycleGameTests {
                 clearDimensionPoolTestState(player);
             }
         } finally {
-            MirrorConfig.MIRROR_COOLDOWN.set(previousCooldownSeconds);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
             DimensionMirrorItem.clearCooldown(player.getUUID());
             MirrorWorldManager.clearAllSessions(player.getServer());
@@ -1025,7 +1043,23 @@ public final class MirrorLifecycleGameTests {
                     .withItemTransfer(kind, true)
                     .withCopyChunkRadius(kind, 2 + kind.ordinal());
         }
-        return state;
+        return state.withMirrorCooldownSeconds(420);
+    }
+
+    private static void assertConfiguredCooldownBehavior(GameTestHelper helper, ServerPlayer player,
+                                                         int expectedSeconds) {
+        ItemStack mirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, mirror);
+        DimensionMirrorItem.clearCooldown(player.getUUID());
+        DimensionMirrorItem.applyCooldown(player, mirror);
+        long remainingMillis = DimensionMirrorItem.getRemainingCooldownMillis(player.getUUID());
+        helper.assertTrue(
+                remainingMillis > expectedSeconds * 1000L - 5_000L
+                        && remainingMillis <= expectedSeconds * 1000L,
+                "Actual mirror cooldown must use the restart-gated configured value of "
+                        + expectedSeconds + " seconds"
+        );
+        DimensionMirrorItem.clearCooldown(player.getUUID());
     }
 
     private static int assertAccessRestartGateWithMirrorUse(GameTestHelper helper, ServerPlayer player,

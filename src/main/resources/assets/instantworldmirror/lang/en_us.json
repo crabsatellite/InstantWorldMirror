@@ -90,6 +90,7 @@
   "message.instantworldmirror.config.header.mob_spawning": "Spawning",
   "message.instantworldmirror.config.header.item_transfer": "Items",
   "message.instantworldmirror.config.header.copy_radius": "Radius",
+  "message.instantworldmirror.config.global.mirror_cooldown": "Base cooldown (seconds)",
   "message.instantworldmirror.config.toggle.on": "On",
   "message.instantworldmirror.config.toggle.off": "Off",
   "message.instantworldmirror.config.item_transfer.allow": "Allow",

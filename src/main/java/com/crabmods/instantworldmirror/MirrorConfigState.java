@@ -5,13 +5,19 @@ import com.crabmods.instantworldmirror.world.MirrorKind;
 public record MirrorConfigState(
         MirrorKindSettings worldReflectionMirror,
         MirrorKindSettings heavenMirror,
-        MirrorKindSettings firstDreamMirror
+        MirrorKindSettings firstDreamMirror,
+        int mirrorCooldownSeconds
 ) {
+    public static final int MIN_MIRROR_COOLDOWN_SECONDS = 30;
+    public static final int MAX_MIRROR_COOLDOWN_SECONDS = 3600;
+    public static final int DEFAULT_MIRROR_COOLDOWN_SECONDS = 300;
+
     public static MirrorConfigState defaults() {
         return new MirrorConfigState(
                 MirrorKindSettings.defaults(MirrorKind.DIMENSION),
                 MirrorKindSettings.defaults(MirrorKind.HEAVEN),
-                MirrorKindSettings.defaults(MirrorKind.FIRST_DREAM)
+                MirrorKindSettings.defaults(MirrorKind.FIRST_DREAM),
+                DEFAULT_MIRROR_COOLDOWN_SECONDS
         );
     }
 
@@ -20,7 +26,8 @@ public record MirrorConfigState(
         return new MirrorConfigState(
                 defaults.worldReflectionMirror.withAccess(access),
                 defaults.heavenMirror.withAccess(access),
-                defaults.firstDreamMirror.withAccess(access)
+                defaults.firstDreamMirror.withAccess(access),
+                defaults.mirrorCooldownSeconds
         );
     }
 
@@ -34,10 +41,19 @@ public record MirrorConfigState(
 
     public MirrorConfigState withSettings(MirrorKind kind, MirrorKindSettings settings) {
         return switch (kind) {
-            case DIMENSION -> new MirrorConfigState(settings, heavenMirror, firstDreamMirror);
-            case HEAVEN -> new MirrorConfigState(worldReflectionMirror, settings, firstDreamMirror);
-            case FIRST_DREAM -> new MirrorConfigState(worldReflectionMirror, heavenMirror, settings);
+            case DIMENSION -> new MirrorConfigState(settings, heavenMirror, firstDreamMirror, mirrorCooldownSeconds);
+            case HEAVEN -> new MirrorConfigState(worldReflectionMirror, settings, firstDreamMirror, mirrorCooldownSeconds);
+            case FIRST_DREAM -> new MirrorConfigState(worldReflectionMirror, heavenMirror, settings, mirrorCooldownSeconds);
         };
+    }
+
+    public MirrorConfigState withMirrorCooldownSeconds(int value) {
+        return new MirrorConfigState(
+                worldReflectionMirror,
+                heavenMirror,
+                firstDreamMirror,
+                clampMirrorCooldownSeconds(value)
+        );
     }
 
     public MirrorConfigState withAccess(MirrorKind kind, MirrorAccess access) {
@@ -66,5 +82,9 @@ public record MirrorConfigState(
 
     public MirrorConfigState toggleItemTransfer(MirrorKind kind) {
         return withSettings(kind, get(kind).toggleItemTransfer());
+    }
+
+    public static int clampMirrorCooldownSeconds(int value) {
+        return Math.max(MIN_MIRROR_COOLDOWN_SECONDS, Math.min(MAX_MIRROR_COOLDOWN_SECONDS, value));
     }
 }

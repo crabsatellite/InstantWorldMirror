@@ -70,7 +70,12 @@ public class MirrorConfig {
                     "Can be reduced with Efficiency enchantment (each level reduces by 20%).",
                     "Efficiency 5 = minimum cooldown of 30 seconds.",
                     "Creative mode players have no cooldown.")
-            .defineInRange("mirrorCooldown", 300, 0, 3600);
+            .defineInRange(
+                    "mirrorCooldown",
+                    MirrorConfigState.DEFAULT_MIRROR_COOLDOWN_SECONDS,
+                    MirrorConfigState.MIN_MIRROR_COOLDOWN_SECONDS,
+                    MirrorConfigState.MAX_MIRROR_COOLDOWN_SECONDS
+            );
 
     // ==================== Mirror Access ====================
 
@@ -269,7 +274,8 @@ public class MirrorConfig {
                         FIRST_DREAM_MIRROR_MOB_SPAWNING.get(),
                         FIRST_DREAM_MIRROR_ITEM_TRANSFER.get(),
                         FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS.get()
-                )
+                ),
+                MIRROR_COOLDOWN.get()
         );
     }
 
@@ -281,6 +287,7 @@ public class MirrorConfig {
         saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
         saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
         saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+        MIRROR_COOLDOWN.set(state.mirrorCooldownSeconds());
         SPEC.save();
     }
 
@@ -343,6 +350,7 @@ public class MirrorConfig {
         saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
         saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
         saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+        MIRROR_COOLDOWN.set(state.mirrorCooldownSeconds());
     }
 
     public static MirrorAccess configuredMirrorAccess(MirrorKind kind) {
@@ -386,7 +394,7 @@ public class MirrorConfig {
      * Get mirror cooldown in seconds.
      */
     public static int getMirrorCooldownSeconds() {
-        return MIRROR_COOLDOWN.get();
+        return activeMirrorConfig.mirrorCooldownSeconds();
     }
     
     /**

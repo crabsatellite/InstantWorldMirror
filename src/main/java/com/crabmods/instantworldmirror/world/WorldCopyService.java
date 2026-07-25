@@ -1665,7 +1665,7 @@ public class WorldCopyService {
                                 if (targetPos == null) {
                                     targetPos = new BlockPos(worldX, y, worldZ);
                                 }
-                                copyGeneratedBlockEntity(generatedChunk, mirrorWorld, targetChunk, targetPos);
+                                copyGeneratedBlockEntity(generatedChunk, targetPos, mirrorWorld, targetChunk, targetPos);
                             }
                         }
                     }
@@ -1719,11 +1719,11 @@ public class WorldCopyService {
         }
     }
 
-    private static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, ServerLevel mirrorWorld,
-                                                 LevelChunk targetChunk, BlockPos pos) {
-        CompoundTag tag = generatedChunk.getBlockEntityNbt(pos);
+    static void copyGeneratedBlockEntity(ChunkAccess generatedChunk, BlockPos generatedPos,
+                                         ServerLevel mirrorWorld, LevelChunk targetChunk, BlockPos targetPos) {
+        CompoundTag tag = generatedChunk.getBlockEntityNbtForSaving(generatedPos);
         if (tag != null) {
-            copyGeneratedBlockEntityTag(mirrorWorld, targetChunk, pos, tag);
+            copyGeneratedBlockEntityTag(mirrorWorld, targetChunk, targetPos, tag);
         }
     }
 

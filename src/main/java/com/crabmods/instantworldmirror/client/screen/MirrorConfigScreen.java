@@ -28,6 +28,7 @@ public class MirrorConfigScreen extends Screen {
     private static final int ACCESS_WIDTH = 108;
     private static final int TOGGLE_WIDTH = 72;
     private static final int RADIUS_WIDTH = 50;
+    private static final int COOLDOWN_WIDTH = 72;
     private static final int GAP = 8;
 
     private MirrorConfigState state;
@@ -35,6 +36,8 @@ public class MirrorConfigScreen extends Screen {
     private final Screen parent;
     private final boolean serverBacked;
     private final EnumMap<MirrorKind, EditBox> radiusBoxes = new EnumMap<>(MirrorKind.class);
+    @Nullable
+    private EditBox cooldownBox;
     private int panelLeft;
     private int panelTop;
     private int panelWidth;
@@ -70,7 +73,7 @@ public class MirrorConfigScreen extends Screen {
     }
 
     public MirrorConfigState currentStateForTesting() {
-        commitRadiusBoxes();
+        commitNumericInputs();
         return state;
     }
 
@@ -81,7 +84,7 @@ public class MirrorConfigScreen extends Screen {
         this.restartHint = Component.translatable("message.instantworldmirror.config.gui.restart_hint");
         this.helpLines = this.font.split(restartHint, panelWidth - 40);
         int rowCount = MirrorKind.values().length;
-        this.panelHeight = Math.min(this.height - 24, 116 + helpLines.size() * 12 + rowCount * ROW_HEIGHT + 32);
+        this.panelHeight = Math.min(this.height - 24, 116 + helpLines.size() * 12 + (rowCount + 1) * ROW_HEIGHT + 32);
         this.panelLeft = (this.width - panelWidth) / 2;
         this.panelTop = (this.height - panelHeight) / 2;
 
@@ -98,6 +101,7 @@ public class MirrorConfigScreen extends Screen {
         addSettingsRow(MirrorKind.DIMENSION, y);
         addSettingsRow(MirrorKind.HEAVEN, y + ROW_HEIGHT);
         addSettingsRow(MirrorKind.FIRST_DREAM, y + ROW_HEIGHT * 2);
+        addCooldownRow(y + ROW_HEIGHT * 3);
 
         int footerY = panelTop + panelHeight - 30;
         int buttonWidth = (panelWidth - 56) / 2;
@@ -145,6 +149,22 @@ public class MirrorConfigScreen extends Screen {
         addRenderableWidget(radiusBox);
     }
 
+    private void addCooldownRow(int y) {
+        int x = panelLeft + panelWidth - 24 - COOLDOWN_WIDTH;
+        cooldownBox = new EditBox(
+                this.font,
+                x,
+                y,
+                COOLDOWN_WIDTH,
+                BUTTON_HEIGHT,
+                Component.translatable("message.instantworldmirror.config.global.mirror_cooldown")
+        );
+        cooldownBox.setMaxLength(4);
+        cooldownBox.setValue(Integer.toString(state.mirrorCooldownSeconds()));
+        cooldownBox.setResponder(this::updateCooldown);
+        addRenderableWidget(cooldownBox);
+    }
+
     private Component accessLabel(MirrorKind kind) {
         return Component.translatable(state.get(kind).access().translationKey());
     }
@@ -176,7 +196,18 @@ public class MirrorConfigScreen extends Screen {
         }
     }
 
-    private void commitRadiusBoxes() {
+    private void updateCooldown(String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            state = state.withMirrorCooldownSeconds(Integer.parseInt(value));
+        } catch (NumberFormatException ignored) {
+            cooldownBox.setValue(Integer.toString(state.mirrorCooldownSeconds()));
+        }
+    }
+
+    private void commitNumericInputs() {
         for (MirrorKind kind : MirrorKind.values()) {
             EditBox box = radiusBoxes.get(kind);
             if (box == null) {
@@ -195,13 +226,24 @@ public class MirrorConfigScreen extends Screen {
             state = state.withCopyChunkRadius(kind, value);
             box.setValue(Integer.toString(value));
         }
+        if (cooldownBox != null) {
+            int value = state.mirrorCooldownSeconds();
+            try {
+                value = Integer.parseInt(cooldownBox.getValue());
+            } catch (NumberFormatException ignored) {
+                // Keep the last valid value.
+            }
+            value = MirrorConfigState.clampMirrorCooldownSeconds(value);
+            state = state.withMirrorCooldownSeconds(value);
+            cooldownBox.setValue(Integer.toString(value));
+        }
     }
 
     private void save() {
         if (saving) {
             return;
         }
-        commitRadiusBoxes();
+        commitNumericInputs();
         if (serverBacked) {
             setSaving(true);
             ModNetworking.sendToServer(new SaveMirrorConfigPacket(state));
@@ -283,6 +325,14 @@ public class MirrorConfigScreen extends Screen {
         drawRowLabel(guiGraphics, MirrorKind.DIMENSION, rowY);
         drawRowLabel(guiGraphics, MirrorKind.HEAVEN, rowY + ROW_HEIGHT);
         drawRowLabel(guiGraphics, MirrorKind.FIRST_DREAM, rowY + ROW_HEIGHT * 2);
+        guiGraphics.drawString(
+                this.font,
+                Component.translatable("message.instantworldmirror.config.global.mirror_cooldown"),
+                panelLeft + 24,
+                rowY + ROW_HEIGHT * 3 + 6,
+                TEXT_COLOR,
+                false
+        );
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
     }
