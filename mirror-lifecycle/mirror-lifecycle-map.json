@@ -106,6 +106,7 @@
             "item.stranded_capture_ui",
             "network.stranded_packets",
             "client.stranded_ui_gate",
+            "runtime.stranded_item_registration",
             "runtime.stranded_interaction_routes",
             "runtime.stranded_packet_roundtrip"
           ]
@@ -2350,6 +2351,17 @@
         "Completed capture must not open a mirror session",
         "Completed capture must not spawn a rotating entry mirror",
         "Incomplete Stranded Mirror caches must not create sessions"
+      ]
+    },
+    {
+      "id": "runtime.stranded_item_registration",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "instantworldmirror:stranded_mirror",
+        "The runtime item registry must expose the Stranded Mirror",
+        "ModCreativeTabs.MIRROR_TAB.get()",
+        "The actual World Mirrors creative tab must display the Stranded Mirror item"
       ]
     },
     {

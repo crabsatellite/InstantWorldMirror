@@ -373,6 +373,8 @@ tasks.register('modListConfigScreenRegistrationTest') {
 
 def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/registry/ModEnchantments.class',
+        'com/crabmods/instantworldmirror/registry/ModItems.class',
+        'com/crabmods/instantworldmirror/registry/ModCreativeTabs.class',
         'com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.class',
         'com/crabmods/instantworldmirror/item/StrandedMirrorItem.class',
         'com/crabmods/instantworldmirror/world/StrandedSnapshotManager.class',
