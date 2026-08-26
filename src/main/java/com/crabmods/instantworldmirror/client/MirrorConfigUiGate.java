@@ -13,6 +13,8 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.client.gui.ModListScreen;
+import net.neoforged.neoforge.client.gui.widget.ModListWidget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +29,11 @@ public final class MirrorConfigUiGate {
     private static final String LANGUAGE_ENVIRONMENT = "IWM_CLIENT_UI_GATE_LANGUAGE";
     private static final int SETTINGS_PER_MIRROR = 4;
     private static final int BUTTONS_PER_MIRROR = 3;
+    private static final Map<String, String> LEGACY_OPTIONS_LABELS = Map.of(
+            "en_us", "World Mirror Settings...",
+            "zh_cn", "世界之镜设置..."
+    );
     private static final Map<String, String> ENGLISH_LABELS = Map.ofEntries(
-            Map.entry("message.instantworldmirror.options.button", "World Mirror Settings..."),
             Map.entry("message.instantworldmirror.config.gui.title", "Mirror Settings"),
             Map.entry("message.instantworldmirror.config.gui.restart_hint",
                     "Changes are saved to the server config and take effect after the server restarts."),
@@ -115,12 +120,11 @@ public final class MirrorConfigUiGate {
         Screen parent = minecraft.screen;
         minecraft.setScreen(new OptionsScreen(parent, minecraft.options));
         assertTrue(minecraft.screen instanceof OptionsScreen, "Options screen did not open");
-        Screen optionsScreen = minecraft.screen;
+        assertLegacyOptionsButtonAbsent(minecraft.screen, activeLanguage);
 
-        Button optionsButton = findButton(optionsScreen, "message.instantworldmirror.options.button");
-        optionsButton.onPress();
+        Button configEntryButton = openFromModList(minecraft, parent);
 
-        assertTrue(minecraft.screen instanceof MirrorConfigScreen, "Options button did not open MirrorConfigScreen");
+        assertTrue(minecraft.screen instanceof MirrorConfigScreen, "Mod config button did not open MirrorConfigScreen");
         Screen configScreen = minecraft.screen;
         MirrorConfigScreen mirrorConfigScreen = (MirrorConfigScreen) configScreen;
         assertTrue(localized("message.instantworldmirror.config.gui.title", activeLanguage).equals(configScreen.getTitle().getString()),
@@ -179,7 +183,7 @@ public final class MirrorConfigUiGate {
         Button saveButton = findButton(configScreen, "message.instantworldmirror.config.button.save");
         saveButton.onPress();
 
-        assertTrue(minecraft.screen instanceof OptionsScreen, "Mirror config save did not return to Options screen");
+        assertTrue(minecraft.screen instanceof ModListScreen, "Mirror config save did not return to the mod list");
         assertConfiguredState(expectedState, "UI save");
         assertTrue(MirrorConfig.activeMirrorConfigState().equals(baseState),
                 "UI save must not change active mirror behavior before the restart snapshot is refreshed");
@@ -203,9 +207,9 @@ public final class MirrorConfigUiGate {
                 expectedState
         );
         InstantWorldMirror.LOGGER.info(
-                "IWM_CLIENT_UI_GATE_LANGUAGE language={} optionsButton=\"{}\" saveButton=\"{}\"",
+                "IWM_CLIENT_UI_GATE_LANGUAGE language={} entry=mod_list configButton=\"{}\" saveButton=\"{}\"",
                 activeLanguage,
-                localized("message.instantworldmirror.options.button", activeLanguage),
+                configEntryButton.getMessage().getString(),
                 localized("message.instantworldmirror.config.button.save", activeLanguage)
         );
         return activeLanguage;
@@ -293,6 +297,14 @@ public final class MirrorConfigUiGate {
 
     static Button findButton(Screen screen, String translationKey) {
         String expected = localized(translationKey, Minecraft.getInstance().options.languageCode);
+        return findButtonByLabel(screen, expected);
+    }
+
+    private static Button findTranslatedButton(Screen screen, String translationKey) {
+        return findButtonByLabel(screen, Component.translatable(translationKey).getString());
+    }
+
+    private static Button findButtonByLabel(Screen screen, String expected) {
         List<? extends GuiEventListener> children = screen.children();
         for (GuiEventListener child : children) {
             if (child instanceof Button button && expected.equals(button.getMessage().getString())) {
@@ -300,6 +312,45 @@ public final class MirrorConfigUiGate {
             }
         }
         throw new IllegalStateException("Button not found on " + screen.getClass().getSimpleName() + ": " + expected);
+    }
+
+    static Button openFromModList(Minecraft minecraft, Screen parent) {
+        ModListScreen modListScreen = new ModListScreen(parent);
+        minecraft.setScreen(modListScreen);
+        assertTrue(minecraft.screen == modListScreen, "Mod list screen did not open");
+
+        ModListWidget modList = null;
+        for (GuiEventListener child : modListScreen.children()) {
+            if (child instanceof ModListWidget widget) {
+                modList = widget;
+                break;
+            }
+        }
+        assertTrue(modList != null, "Mod list widget was not present");
+
+        ModListWidget.ModEntry mirrorEntry = modList.children().stream()
+                .filter(entry -> InstantWorldMirror.MODID.equals(entry.getInfo().getModId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Instant World Mirror was not listed in the mod menu"));
+        modListScreen.setSelected(mirrorEntry);
+        modList.setSelected(mirrorEntry);
+
+        Button configButton = findTranslatedButton(modListScreen, "fml.menu.mods.config");
+        assertTrue(configButton.active, "Mod config button was disabled for Instant World Mirror");
+        configButton.onPress();
+        return configButton;
+    }
+
+    private static void assertLegacyOptionsButtonAbsent(Screen optionsScreen, String activeLanguage) {
+        String legacyLabel = LEGACY_OPTIONS_LABELS.get(activeLanguage);
+        if (legacyLabel == null) {
+            return;
+        }
+        for (GuiEventListener child : optionsScreen.children()) {
+            if (child instanceof Button button && legacyLabel.equals(button.getMessage().getString())) {
+                throw new IllegalStateException("Legacy World Mirror button is still present on the Options screen");
+            }
+        }
     }
 
     static List<EditBox> findEditBoxes(Screen screen) {

@@ -61,6 +61,7 @@ public class InstantWorldMirror {
         // Only register client config on client side
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modContainer.registerConfig(ModConfig.Type.CLIENT, com.crabmods.instantworldmirror.client.ClientConfig.SPEC);
+            com.crabmods.instantworldmirror.client.ClientMirrorConfigAccess.registerConfigScreen(modContainer);
         }
     }
 

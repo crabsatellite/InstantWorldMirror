@@ -347,19 +347,27 @@ tasks.register('persistentMirrorStaticTest') {
     }
 }
 
-def optionsScreenMixinSource = layout.projectDirectory.file(
+def modListConfigScreenSources = files(
+        'src/main/java/com/crabmods/instantworldmirror/InstantWorldMirror.java',
+        'src/main/java/com/crabmods/instantworldmirror/client/ClientMirrorConfigAccess.java',
+        'src/main/resources/instantworldmirror.mixins.json')
+def removedOptionsScreenMixinSource = file(
         'src/main/java/com/crabmods/instantworldmirror/mixin/client/OptionsScreenMixin.java')
 
-tasks.register('optionsScreenMixinCompatibilityTest') {
+tasks.register('modListConfigScreenRegistrationTest') {
     group = 'verification'
-    description = 'Prevents fragile local-variable capture in the Options screen integration.'
-    inputs.file(optionsScreenMixinSource)
+    description = 'Keeps mirror settings on the NeoForge mod-list config entry without an Options mixin.'
+    inputs.files(modListConfigScreenSources)
 
     doLast {
-        def source = optionsScreenMixinSource.asFile.text
-        assert source.contains('@ModifyArg'): 'OptionsScreenMixin must modify a stable invocation argument'
-        assert !source.contains('LocalCapture'): 'OptionsScreenMixin must not depend on the target local-variable table'
-        assert !source.contains('CAPTURE_FAILHARD'): 'OptionsScreenMixin must not crash when another mod changes target locals'
+        def bootstrap = modListConfigScreenSources[0].text
+        def clientAccess = modListConfigScreenSources[1].text
+        def mixins = modListConfigScreenSources[2].text
+        assert bootstrap.contains('ClientMirrorConfigAccess.registerConfigScreen(modContainer)')
+        assert clientAccess.contains('IConfigScreenFactory')
+        assert clientAccess.contains('registerExtensionPoint')
+        assert !mixins.contains('OptionsScreenMixin')
+        assert !removedOptionsScreenMixinSource.exists()
     }
 }
 
@@ -421,7 +429,7 @@ tasks.named('check') {
     dependsOn tasks.named('testReadmeCodeMapChecker')
     dependsOn tasks.named('checkReadmeCodeMap')
     dependsOn tasks.named('persistentMirrorStaticTest')
-    dependsOn tasks.named('optionsScreenMixinCompatibilityTest')
+    dependsOn tasks.named('modListConfigScreenRegistrationTest')
     dependsOn tasks.named('checkLanguageResourceEncoding')
 }
 
