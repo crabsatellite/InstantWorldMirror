@@ -162,6 +162,13 @@ public class PersistentMirrorManager {
         sendPersistentListMenu(player, heldKind, PersistentMirrorData.get(server).records());
     }
 
+    public static void openStrandedLongTermMenu(ServerPlayer player) {
+        MinecraftServer server = player.getServer();
+        if (server != null) {
+            sendPersistentListMenu(player, MirrorKind.STRANDED, PersistentMirrorData.get(server).records());
+        }
+    }
+
     private static void sendTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,
                                                 boolean heldHasPermanence) {
         MirrorKind sessionKind = session.getKind();

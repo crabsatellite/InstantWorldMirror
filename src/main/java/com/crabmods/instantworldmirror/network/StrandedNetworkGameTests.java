@@ -49,6 +49,15 @@ public final class StrandedNetworkGameTests {
         helper.assertTrue(delete.targetPos().equals(target) && delete.snapshotId().equals(snapshotId),
                 "Delete packet must preserve the confirmed snapshot identity");
 
+        helper.assertTrue(roundTrip(
+                        OpenStrandedSnapshotMenuPacket.STREAM_CODEC,
+                        new OpenStrandedSnapshotMenuPacket()) != null,
+                "Long-term menu must preserve the cross-save tab request");
+        helper.assertTrue(roundTrip(
+                        OpenPersistentMirrorLibraryPacket.STREAM_CODEC,
+                        new OpenPersistentMirrorLibraryPacket()) != null,
+                "Long-term menu must preserve the persistent-world tab request");
+
         List<StrandedSnapshotMenuPacket.Entry> entries = List.of(
                 new StrandedSnapshotMenuPacket.Entry(snapshotId, "Available", 10, 123L, true),
                 new StrandedSnapshotMenuPacket.Entry(UUID.randomUUID(), "Old version", 2, 456L, false));

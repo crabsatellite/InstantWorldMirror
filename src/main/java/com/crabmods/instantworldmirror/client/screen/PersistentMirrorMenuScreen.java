@@ -1,6 +1,8 @@
 package com.crabmods.instantworldmirror.client.screen;
 
 import com.crabmods.instantworldmirror.network.PersistentMirrorMenuPacket;
+import com.crabmods.instantworldmirror.network.OpenStrandedSnapshotMenuPacket;
+import com.crabmods.instantworldmirror.world.MirrorKind;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -9,6 +11,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,6 +76,11 @@ public class PersistentMirrorMenuScreen extends Screen {
             }
             addManageButtons(y, menu.currentSelector(), menu.showRenameButton(), menu.showDeleteButton());
         } else {
+            if (isStrandedList()) {
+                addWideButton(Component.translatable("message.instantworldmirror.library.snapshots"),
+                        y, () -> PacketDistributor.sendToServer(new OpenStrandedSnapshotMenuPacket()));
+                y += ROW_HEIGHT;
+            }
             for (PersistentMirrorMenuPacket.Entry entry : menu.entries()) {
                 addEntryRow(y, entry);
                 y += ROW_HEIGHT;
@@ -152,7 +160,12 @@ public class PersistentMirrorMenuScreen extends Screen {
             if (menu.showRenameButton() || menu.showDeleteButton()) rows++;
             return Math.max(1, rows);
         }
-        return Math.max(1, menu.entries().size());
+        return Math.max(1, menu.entries().size() + (isStrandedList() ? 1 : 0));
+    }
+
+    private boolean isStrandedList() {
+        return PersistentMirrorMenuPacket.MODE_LIST.equals(menu.mode())
+                && MirrorKind.STRANDED.translationKey().equals(menu.kindTranslationKey());
     }
 
     private Component contextComponent() {

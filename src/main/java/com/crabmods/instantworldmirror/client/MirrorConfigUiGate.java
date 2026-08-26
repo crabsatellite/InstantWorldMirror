@@ -7,8 +7,10 @@ import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.client.screen.MirrorConfigScreen;
 import com.crabmods.instantworldmirror.client.screen.StrandedCaptureScreen;
 import com.crabmods.instantworldmirror.client.screen.StrandedSnapshotScreen;
+import com.crabmods.instantworldmirror.client.screen.PersistentMirrorMenuScreen;
 import com.crabmods.instantworldmirror.client.renderer.MirrorItemRenderer;
 import com.crabmods.instantworldmirror.network.StrandedSnapshotMenuPacket;
+import com.crabmods.instantworldmirror.network.PersistentMirrorMenuPacket;
 import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import net.minecraft.core.BlockPos;
@@ -70,6 +72,10 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.stranded.open.unavailable", " (unavailable)"),
             Map.entry("message.instantworldmirror.stranded.delete.tooltip", "Delete this snapshot"),
             Map.entry("message.instantworldmirror.stranded.delete.confirm.tooltip", "Click again to confirm deletion"),
+            Map.entry("message.instantworldmirror.library.persistent", "Persistent mirror worlds"),
+            Map.entry("message.instantworldmirror.library.snapshots", "Cross-save world slices"),
+            Map.entry("message.instantworldmirror.stranded.tooltip.capture", "Right-click a block: save a named world slice"),
+            Map.entry("message.instantworldmirror.stranded.tooltip.library", "Use in air or Shift-right-click: open long-term mirrors"),
             Map.entry("message.instantworldmirror.stranded.previous", "Previous"),
             Map.entry("message.instantworldmirror.stranded.next", "Next"),
             Map.entry("message.instantworldmirror.stranded.cancel", "Cancel"),
@@ -273,6 +279,7 @@ public final class MirrorConfigUiGate {
         StrandedSnapshotScreen.open(BlockPos.ZERO, entries);
         assertTrue(minecraft.screen instanceof StrandedSnapshotScreen,
                 "Stranded Mirror snapshot selection screen did not open");
+        findButton(minecraft.screen, "message.instantworldmirror.library.persistent");
         assertTrue(localized("message.instantworldmirror.stranded.open.title", minecraft.options.languageCode)
                         .equals(minecraft.screen.getTitle().getString()),
                 "Stranded Mirror snapshot selection title was not localized");
@@ -300,7 +307,14 @@ public final class MirrorConfigUiGate {
         findButton(minecraft.screen, "message.instantworldmirror.stranded.cancel").onPress();
         assertTrue(minecraft.screen == parent,
                 "Stranded Mirror selection cancel button must return to the previous screen");
-        return 13;
+
+        minecraft.setScreen(new PersistentMirrorMenuScreen(PersistentMirrorMenuPacket.list(
+                MirrorKind.STRANDED.translationKey(), List.of())));
+        assertTrue(minecraft.screen instanceof PersistentMirrorMenuScreen,
+                "Stranded Mirror long-term menu did not open the persistent section");
+        findButton(minecraft.screen, "message.instantworldmirror.library.snapshots");
+        minecraft.setScreen(parent);
+        return 16;
     }
 
     private static MirrorConfigState strictGateBaseState() {

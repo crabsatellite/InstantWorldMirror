@@ -117,6 +117,8 @@
             "snapshot.global_cache",
             "snapshot.same_version_owner_gate",
             "runtime.stranded_snapshot_round_trip",
+            "portal.snapshot_load_message",
+            "runtime.snapshot_no_source_world",
             "runtime.stranded_capture_flow",
             "runtime.stranded_permissions_and_delete"
           ]
@@ -2250,10 +2252,11 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/item/StrandedMirrorItem.java",
       "texts": [
         "StrandedCapturePromptPacket",
-        "StrandedSnapshotMenuPacket.create",
+        "PersistentMirrorMenuPacket",
+        "openStrandedLongTermMenu",
         "resolveUseMode",
-        "UseMode.PERSISTENT_MENU",
-        "return super.useOn(context)"
+        "UseMode.LIBRARY",
+        "UseMode.MIRROR_WORLD"
       ]
     },
     {
@@ -2265,7 +2268,9 @@
         "StrandedSnapshotMenuPacket",
         "CreateStrandedSnapshotPacket",
         "OpenStrandedSnapshotPacket",
-        "DeleteStrandedSnapshotPacket"
+        "DeleteStrandedSnapshotPacket",
+        "OpenStrandedSnapshotMenuPacket",
+        "OpenPersistentMirrorLibraryPacket"
       ]
     },
     {
@@ -2305,6 +2310,25 @@
       ]
     },
     {
+      "id": "portal.snapshot_load_message",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/entity/MirrorPortalEntity.java",
+      "texts": [
+        "loadingStartedTranslationKey",
+        "MirrorTerrainMode.SNAPSHOT",
+        "message.instantworldmirror.snapshot_load_started"
+      ]
+    },
+    {
+      "id": "runtime.snapshot_no_source_world",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
+      "texts": [
+        "null, helper.getLevel(), targetChunkX, targetChunkZ, task",
+        "must load cached blocks without reading any current source world"
+      ]
+    },
+    {
       "id": "runtime.stranded_snapshot_round_trip",
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
@@ -2320,10 +2344,11 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
       "texts": [
-        "strandedMirrorCapturesNamedSnapshotAndOpensTemporaryPortal",
+        "strandedMirrorCapturesNamedSnapshotWithoutOpeningPortal",
         "strandedMirrorHidesIncompleteAndIncompatibleSnapshots",
         "StrandedSnapshotManager.requestCapture",
-        "Completed capture must open a temporary portal",
+        "Completed capture must not open a mirror session",
+        "Completed capture must not spawn a rotating entry mirror",
         "Incomplete Stranded Mirror caches must not create sessions"
       ]
     },
@@ -2346,8 +2371,7 @@
       "texts": [
         "strandedMirrorUsesSharedPersistentAndReturnInteractions",
         "UseMode.CAPTURE",
-        "UseMode.SELECT",
-        "UseMode.PERSISTENT_MENU",
+        "UseMode.LIBRARY",
         "Using Stranded Mirror on a block inside its mirror world must succeed"
       ]
     },

@@ -486,8 +486,8 @@
       "readmeTexts": [
         "captures a named world slice into a global local cache",
         "Right-click a solid block with Stranded Mirror, enter a name",
-        "Use it in the air without Shift to choose a cached slice and open it at the current location.",
-        "Shift-right-click remains the shared Permanence menu interaction.",
+        "Saving does not create a portal.",
+        "Use it in the air or Shift-right-click to open one long-term menu",
         "instantworldmirror-cache/stranded_snapshots"
       ],
       "code": [
@@ -497,9 +497,10 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/item/StrandedMirrorItem.java",
           "texts": [
             "StrandedCapturePromptPacket",
-            "StrandedSnapshotMenuPacket",
+            "PersistentMirrorMenuPacket",
+            "openStrandedLongTermMenu",
             "resolveUseMode",
-            "PERSISTENT_MENU"
+            "UseMode.LIBRARY"
           ]
         },
         {

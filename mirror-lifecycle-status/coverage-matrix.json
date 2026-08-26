@@ -99,6 +99,8 @@
         "snapshot.global_cache",
         "snapshot.same_version_owner_gate",
         "runtime.stranded_snapshot_round_trip",
+        "portal.snapshot_load_message",
+        "runtime.snapshot_no_source_world",
         "runtime.stranded_capture_flow",
         "runtime.stranded_permissions_and_delete"
       ],

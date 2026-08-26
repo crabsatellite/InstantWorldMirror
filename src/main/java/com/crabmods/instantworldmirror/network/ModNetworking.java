@@ -104,6 +104,18 @@ public class ModNetworking {
                 DeleteStrandedSnapshotPacket.STREAM_CODEC,
                 DeleteStrandedSnapshotPacket::handle
         );
+
+        registrar.playToServer(
+                OpenStrandedSnapshotMenuPacket.TYPE,
+                OpenStrandedSnapshotMenuPacket.STREAM_CODEC,
+                OpenStrandedSnapshotMenuPacket::handle
+        );
+
+        registrar.playToServer(
+                OpenPersistentMirrorLibraryPacket.TYPE,
+                OpenPersistentMirrorLibraryPacket.STREAM_CODEC,
+                OpenPersistentMirrorLibraryPacket::handle
+        );
         
         InstantWorldMirror.LOGGER.info("Registered network packets");
     }

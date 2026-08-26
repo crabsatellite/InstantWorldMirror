@@ -536,7 +536,7 @@ public class MirrorPortalEntity extends Entity {
                 this.copyActivelyProcessing = true;
                 serverPlayer.displayClientMessage(
                         net.minecraft.network.chat.Component.translatable(
-                                "message.instantworldmirror.copy_started"),
+                                loadingStartedTranslationKey()),
                         true
                 );
             }
@@ -569,7 +569,7 @@ public class MirrorPortalEntity extends Entity {
             copyActivelyProcessing = true;
             serverPlayer.displayClientMessage(
                     net.minecraft.network.chat.Component.translatable(
-                            "message.instantworldmirror.copy_started"),
+                            loadingStartedTranslationKey()),
                     true
             );
             lastDisplayedQueuePosition = 1;
@@ -889,6 +889,13 @@ public class MirrorPortalEntity extends Entity {
 
     public boolean isLoading() {
         return this.entityData.get(DATA_LOADING);
+    }
+
+    private String loadingStartedTranslationKey() {
+        return MirrorWorldManager.getSession(sessionId)
+                .filter(session -> session.getTerrainMode() == com.crabmods.instantworldmirror.world.MirrorTerrainMode.SNAPSHOT)
+                .map(session -> "message.instantworldmirror.snapshot_load_started")
+                .orElse("message.instantworldmirror.copy_started");
     }
 
     public MirrorKind getMirrorKind() {
