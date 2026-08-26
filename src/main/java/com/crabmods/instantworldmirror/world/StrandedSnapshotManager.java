@@ -73,8 +73,7 @@ public final class StrandedSnapshotManager {
         if (mirror.isEmpty()) {
             return false;
         }
-        boolean started = startCapture(
-                player, targetPos, name, DimensionMirrorItem.hasPermanence(player.level(), mirror));
+        boolean started = startCapture(player, targetPos, name);
         if (started) {
             applyUseCooldown(player, mirror);
         }
@@ -98,8 +97,7 @@ public final class StrandedSnapshotManager {
         return opened;
     }
 
-    public static boolean startCapture(ServerPlayer player, BlockPos center, String requestedName,
-                                       boolean persistentAccess) {
+    private static boolean startCapture(ServerPlayer player, BlockPos center, String requestedName) {
         if (CAPTURE_TASKS.containsKey(player.getUUID())) {
             player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                     "message.instantworldmirror.stranded.capture_in_progress"), false);
@@ -111,7 +109,7 @@ public final class StrandedSnapshotManager {
         String name = sanitizeName(requestedName);
         try {
             CaptureTask task = new CaptureTask(
-                    id, player.getUUID(), player.level().dimension(), center, radius, name, persistentAccess);
+                    id, player.getUUID(), player.level().dimension(), center, radius, name);
             CAPTURE_TASKS.put(player.getUUID(), task);
             player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                     "message.instantworldmirror.stranded.capture_started", name, (radius * 2 + 1) * (radius * 2 + 1)), false);
@@ -137,7 +135,6 @@ public final class StrandedSnapshotManager {
                 if (player != null) {
                     player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                             "message.instantworldmirror.stranded.capture_complete", task.name), false);
-                    openSnapshot(player, task.center, task.id, task.persistentAccess);
                 }
             }
         } catch (Exception e) {
@@ -666,20 +663,18 @@ public final class StrandedSnapshotManager {
         private final BlockPos center;
         private final int radius;
         private final String name;
-        private final boolean persistentAccess;
         private final Path temporaryDirectory;
         private int dx;
         private int dz;
 
         private CaptureTask(UUID id, UUID ownerId, ResourceKey<Level> sourceDimension, BlockPos center,
-                            int radius, String name, boolean persistentAccess) throws IOException {
+                            int radius, String name) throws IOException {
             this.id = id;
             this.ownerId = ownerId;
             this.sourceDimension = sourceDimension;
             this.center = center;
             this.radius = radius;
             this.name = name;
-            this.persistentAccess = persistentAccess;
             this.dx = -radius;
             this.dz = -radius;
             this.temporaryDirectory = cacheRoot().resolve(id + ".tmp");

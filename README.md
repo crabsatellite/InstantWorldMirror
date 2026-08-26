@@ -24,7 +24,7 @@ Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testi
 ## Session Flow
 
 - Right-click a solid block with World Reflection, Heaven, or First Dream Mirror to create an entry portal.
-- Right-click a solid block with Stranded Mirror, enter a name, and wait for the configured area to be cached. Use it in the air without Shift to choose a cached slice and open it at the current location. Shift-right-click remains the shared Permanence menu interaction.
+- Right-click a solid block with Stranded Mirror, enter a name, and wait for the configured area to be cached. Saving does not create a portal. Use it in the air or Shift-right-click to open one long-term menu with separate Persistent mirror world and Cross-save world slice sections.
 - When the portal finishes copying or generating the area, step in to enter the mirror world.
 - Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal. If that portal is far from the entrance, it returns you to the matching position in the original world.
 - Hold right-click in the air inside a mirror world to return to that mirror world's entrance point without leaving the mirror world.

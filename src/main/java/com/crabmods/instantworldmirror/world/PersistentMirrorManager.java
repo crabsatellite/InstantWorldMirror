@@ -132,6 +132,13 @@ public class PersistentMirrorManager {
         openMirrorMenu(player, heldKind, false);
     }
 
+    public static void openStrandedLongTermMenu(ServerPlayer player) {
+        MinecraftServer server = player.getServer();
+        if (server != null) {
+            sendPersistentListMenu(player, MirrorKind.STRANDED, PersistentMirrorData.get(server).records());
+        }
+    }
+
     public static void openMirrorMenu(ServerPlayer player, ItemStack heldStack) {
         if (!DimensionMirrorItem.hasPermanence(player.level(), heldStack)) {
             player.displayClientMessage(Component.translatable("message.instantworldmirror.permanence_required"), true);

@@ -639,7 +639,7 @@ public final class MirrorLifecycleGameTests {
     }
 
     @GameTest(template = TEMPLATE, batch = "stranded_capture_flow", timeoutTicks = 120)
-    public static void strandedMirrorCapturesNamedSnapshotAndOpensTemporaryPortal(GameTestHelper helper) {
+    public static void strandedMirrorCapturesNamedSnapshotWithoutOpeningPortal(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         BlockPos targetPos = new BlockPos(240, 64, 240);
@@ -673,15 +673,15 @@ public final class MirrorLifecycleGameTests {
                     .orElseThrow(() -> new IllegalStateException("Named Stranded Mirror snapshot was not cached"));
             helper.assertTrue(captured.radius() == 1,
                     "Stranded Mirror capture must use its active configured chunk radius");
-            helper.assertTrue(MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
-                            .filter(session -> session.getKind() == MirrorKind.STRANDED)
-                            .filter(session -> captured.id().equals(session.getSnapshotId()))
-                            .isPresent(),
-                    "Completed capture must open a temporary portal backed by the new snapshot");
+            helper.assertFalse(MirrorWorldManager.hasActiveSession(player.getUUID()),
+                    "Completed capture must not open a mirror session until the player selects the snapshot");
+            helper.assertTrue(helper.getLevel().getEntitiesOfClass(
+                            MirrorPortalEntity.class,
+                            new net.minecraft.world.phys.AABB(targetPos.above()).inflate(3.0),
+                            portal -> !portal.isReturnPortal()).isEmpty(),
+                    "Completed capture must not spawn a rotating entry mirror on the ground");
             helper.assertTrue(DimensionMirrorItem.getRemainingCooldownMillis(player.getUUID()) > 295_000L,
                     "Successful Stranded Mirror capture must apply the configured cooldown");
-            helper.assertFalse(StrandedSnapshotManager.requestDelete(player, captured.id()),
-                    "A Stranded Mirror snapshot must not be deletable while a session still uses it");
 
             MirrorWorldManager.clearAllSessions(player.getServer());
             WorldCopyService.clearAllTasks();
@@ -706,6 +706,8 @@ public final class MirrorLifecycleGameTests {
                             && captured.id().equals(reopened.getSnapshotId())
                             && reopened.getSourcePosition().equals(reopenPos),
                     "Reopened snapshots must bind the cached slice to the new entry location");
+            helper.assertFalse(StrandedSnapshotManager.requestDelete(player, captured.id()),
+                    "A Stranded Mirror snapshot must not be deletable while a selected session uses it");
 
             MirrorWorldManager.clearAllSessions(player.getServer());
             WorldCopyService.clearAllTasks();
@@ -810,8 +812,8 @@ public final class MirrorLifecycleGameTests {
                             == StrandedMirrorItem.UseMode.CAPTURE,
                     "Normal block use outside mirror worlds must route to named capture");
             helper.assertTrue(StrandedMirrorItem.resolveUseMode(helper.getLevel(), player, false)
-                            == StrandedMirrorItem.UseMode.SELECT,
-                    "Normal air use outside mirror worlds must route to snapshot selection");
+                            == StrandedMirrorItem.UseMode.LIBRARY,
+                    "Normal air use outside mirror worlds must route to the unified long-term menu");
             BlockHitResult sourceHit = new BlockHitResult(
                     Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
             helper.assertTrue(mirror.useOn(new UseOnContext(
@@ -824,8 +826,8 @@ public final class MirrorLifecycleGameTests {
 
             player.setShiftKeyDown(true);
             helper.assertTrue(StrandedMirrorItem.resolveUseMode(helper.getLevel(), player, true)
-                            == StrandedMirrorItem.UseMode.PERSISTENT_MENU,
-                    "Shift block use must remain reserved for the shared persistent mirror menu");
+                            == StrandedMirrorItem.UseMode.LIBRARY,
+                    "Shift block use must route to the unified long-term mirror menu");
             helper.assertTrue(mirror.useOn(new UseOnContext(
                             player, InteractionHand.MAIN_HAND, sourceHit)).consumesAction(),
                     "Shift block use must be handled by the shared persistent mirror interaction");

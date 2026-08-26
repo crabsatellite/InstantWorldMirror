@@ -795,6 +795,12 @@
       "message": "all text found",
       "passed": true
     },
+    "portal.snapshot_load_message": {
+      "adapter": "file_contains_all",
+      "id": "portal.snapshot_load_message",
+      "message": "all text found",
+      "passed": true
+    },
     "record.kind_saved_from_session": {
       "adapter": "file_contains",
       "id": "record.kind_saved_from_session",
@@ -864,6 +870,12 @@
     "runtime.shared_item_transfer_behavior": {
       "adapter": "file_contains_all",
       "id": "runtime.shared_item_transfer_behavior",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.snapshot_no_source_world": {
+      "adapter": "file_contains_all",
+      "id": "runtime.snapshot_no_source_world",
       "message": "all text found",
       "passed": true
     },
@@ -1005,11 +1017,11 @@
     }
   },
   "completion": {
-    "checkCount": 136,
+    "checkCount": 138,
     "complete": true,
     "coveredRouteCount": 16,
     "failedChecks": [],
-    "passedCheckCount": 136,
+    "passedCheckCount": 138,
     "routeCount": 16
   },
   "minecraftVersion": "1.20.1",
@@ -1138,6 +1150,8 @@
             "snapshot.global_cache",
             "snapshot.same_version_owner_gate",
             "runtime.stranded_snapshot_round_trip",
+            "portal.snapshot_load_message",
+            "runtime.snapshot_no_source_world",
             "runtime.stranded_capture_flow",
             "runtime.stranded_permissions_and_delete"
           ],

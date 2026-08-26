@@ -194,12 +194,12 @@ public final class MirrorTerrainGameTests {
                     UUID.randomUUID(), targetCenter, 0, helper.getLevel().dimension(), 0,
                     MirrorTerrainMode.SNAPSHOT, false, false, snapshotId);
             int blocksPlaced = WorldCopyService.copyChunk(
-                    helper.getLevel(), helper.getLevel(), targetChunkX, targetChunkZ, task);
+                    null, helper.getLevel(), targetChunkX, targetChunkZ, task);
 
             BlockPos targetMarker = new BlockPos(targetChunkX * 16 + 3, y, targetChunkZ * 16 + 5);
             BlockPos targetChest = targetMarker.east();
             helper.assertTrue(blocksPlaced > 0,
-                    "Stranded snapshot must place captured blocks in the destination chunk");
+                    "Stranded snapshot must load cached blocks without reading any current source world");
             helper.assertTrue(helper.getLevel().getBlockState(targetMarker).is(Blocks.DIAMOND_BLOCK),
                     "Stranded snapshot must preserve local block positions at a new world location");
             helper.assertTrue(helper.getLevel().getBlockEntity(targetChest) instanceof ChestBlockEntity,

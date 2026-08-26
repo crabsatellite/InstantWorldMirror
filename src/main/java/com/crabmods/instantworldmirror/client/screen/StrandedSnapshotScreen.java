@@ -3,6 +3,7 @@ package com.crabmods.instantworldmirror.client.screen;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.OpenStrandedSnapshotPacket;
 import com.crabmods.instantworldmirror.network.DeleteStrandedSnapshotPacket;
+import com.crabmods.instantworldmirror.network.OpenPersistentMirrorLibraryPacket;
 import com.crabmods.instantworldmirror.network.StrandedSnapshotMenuPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -48,6 +49,12 @@ public class StrandedSnapshotScreen extends Screen {
         int width = Math.min(360, this.width - 32);
         int left = (this.width - width) / 2;
         int top = Math.max(42, this.height / 2 - 88);
+        addRenderableWidget(Button.builder(
+                        Component.translatable("message.instantworldmirror.library.persistent"),
+                        button -> ModNetworking.sendToServer(new OpenPersistentMirrorLibraryPacket()))
+                .bounds(left, top, width, 20)
+                .build());
+        top += 24;
         int start = page * PAGE_SIZE;
         int end = Math.min(entries.size(), start + PAGE_SIZE);
         for (int index = start; index < end; index++) {

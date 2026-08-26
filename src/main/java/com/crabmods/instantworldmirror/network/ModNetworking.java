@@ -158,6 +158,24 @@ public class ModNetworking {
                 DeleteStrandedSnapshotPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER)
         );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                OpenStrandedSnapshotMenuPacket.class,
+                OpenStrandedSnapshotMenuPacket::encode,
+                OpenStrandedSnapshotMenuPacket::decode,
+                OpenStrandedSnapshotMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                OpenPersistentMirrorLibraryPacket.class,
+                OpenPersistentMirrorLibraryPacket::encode,
+                OpenPersistentMirrorLibraryPacket::decode,
+                OpenPersistentMirrorLibraryPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
         
         InstantWorldMirror.LOGGER.info("Registered network packets");
     }

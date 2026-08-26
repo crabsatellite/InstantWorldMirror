@@ -103,6 +103,7 @@
 - [x] `manager.shared_item_transfer_snapshot` - all text found
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `network.stranded_packets` - all text found
+- [x] `portal.snapshot_load_message` - all text found
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text
 - [x] `record.source_session_persisted` - all text found
@@ -115,6 +116,7 @@
 - [x] `runtime.gametest_source_registered` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found
 - [x] `runtime.shared_item_transfer_behavior` - all text found
+- [x] `runtime.snapshot_no_source_world` - all text found
 - [x] `runtime.stranded_capture_flow` - all text found
 - [x] `runtime.stranded_interaction_routes` - all text found
 - [x] `runtime.stranded_packet_roundtrip` - all text found
