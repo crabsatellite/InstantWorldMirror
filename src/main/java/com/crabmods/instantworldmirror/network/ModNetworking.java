@@ -12,7 +12,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 @EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD)
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "3";
+    public static final String PROTOCOL_VERSION = "4";
     
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -103,6 +103,18 @@ public class ModNetworking {
                 DeleteStrandedSnapshotPacket.TYPE,
                 DeleteStrandedSnapshotPacket.STREAM_CODEC,
                 DeleteStrandedSnapshotPacket::handle
+        );
+
+        registrar.playToServer(
+                BackupStrandedSnapshotPacket.TYPE,
+                BackupStrandedSnapshotPacket.STREAM_CODEC,
+                BackupStrandedSnapshotPacket::handle
+        );
+
+        registrar.playToServer(
+                BackupPersistentMirrorPacket.TYPE,
+                BackupPersistentMirrorPacket.STREAM_CODEC,
+                BackupPersistentMirrorPacket::handle
         );
 
         registrar.playToServer(

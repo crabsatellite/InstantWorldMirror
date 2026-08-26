@@ -103,7 +103,8 @@
         "portal.snapshot_load_message",
         "runtime.snapshot_no_source_world",
         "runtime.stranded_capture_flow",
-        "runtime.stranded_permissions_and_delete"
+        "runtime.stranded_permissions_and_delete",
+        "runtime.stranded_snapshot_backups"
       ],
       "route": "temporary.stranded_mirror",
       "stage": "snapshot",
@@ -340,6 +341,14 @@
       ],
       "route": "persistent.record_lifecycle",
       "stage": "rename",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "runtime.persistent_record_backups"
+      ],
+      "route": "persistent.record_lifecycle",
+      "stage": "backup",
       "status": "covered"
     },
     {

@@ -29,6 +29,7 @@ public class PersistentMirrorManager {
     private static final Map<UUID, UUID> playerToPersistentMirror = new ConcurrentHashMap<>();
     private static final Map<UUID, UUID> pendingCopyCreators = new ConcurrentHashMap<>();
     private static final Map<UUID, UUID> pendingCopySourceSessions = new ConcurrentHashMap<>();
+    private static final Map<UUID, UUID> pendingBackupSources = new ConcurrentHashMap<>();
 
     public static boolean canCreatePersistentMirror(ServerPlayer player) {
         if (player.hasPermissions(3)) {
@@ -55,6 +56,7 @@ public class PersistentMirrorManager {
         playerToPersistentMirror.clear();
         pendingCopyCreators.clear();
         pendingCopySourceSessions.clear();
+        pendingBackupSources.clear();
     }
 
     public record DeadDataRepairResult(int recordsRemoved, int worldsCleaned, int liveRecordsSkipped) {
@@ -79,11 +81,14 @@ public class PersistentMirrorManager {
             }
 
             pendingCopyCreators.remove(record.id());
+            boolean backup = pendingBackupSources.remove(record.id()) != null;
             UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
-            if (sourceSessionId == null) {
+            if (sourceSessionId == null && !backup) {
                 sourceSessionId = record.sourceSessionId();
             }
-            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            if (sourceSessionId != null) {
+                MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            }
             WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
             data.removeRecord(record.id());
             recordsRemoved++;
@@ -325,30 +330,107 @@ public class PersistentMirrorManager {
         return true;
     }
 
+    public static synchronized boolean backupRecord(ServerPlayer player, UUID recordId) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return false;
+        }
+
+        PersistentMirrorData data = PersistentMirrorData.get(server);
+        PersistentMirrorRecord source = data.getRecord(recordId).orElse(null);
+        if (source == null || !canManageRecord(player, source)) {
+            player.displayClientMessage(Component.translatable(
+                    "message.instantworldmirror.persistent.cannot_backup"), false);
+            return false;
+        }
+        if (!source.ready()) {
+            player.displayClientMessage(Component.translatable(
+                    "message.instantworldmirror.persistent.backup_source_not_ready"), false);
+            return false;
+        }
+
+        int dimensionIndex = data.allocateDimensionIndex();
+        if (dimensionIndex < 0) {
+            player.displayClientMessage(Component.translatable(
+                    "message.instantworldmirror.persistent.no_slots"), false);
+            return false;
+        }
+        ServerLevel sourceWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(source.dimensionIndex()));
+        ServerLevel targetWorld = server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex));
+        if (sourceWorld == null || targetWorld == null) {
+            player.displayClientMessage(Component.translatable(
+                    "message.instantworldmirror.persistent.dimension_not_loaded"), false);
+            return false;
+        }
+
+        UUID backupId = UUID.randomUUID();
+        String name = BackupNameAllocator.next(
+                source.name(), data.records().stream().map(PersistentMirrorRecord::name).toList(), 32);
+        PersistentMirrorRecord backup = new PersistentMirrorRecord(
+                backupId,
+                source.ownerId(),
+                UUID.randomUUID(),
+                name,
+                source.kind(),
+                dimensionIndex,
+                source.sourceDimension(),
+                source.sourcePosition(),
+                source.entryPosition(),
+                source.sourceInWater(),
+                System.currentTimeMillis(),
+                false,
+                source.terrainMode());
+        int queuePosition;
+        try {
+            data.addRecord(backup);
+            pendingCopyCreators.put(backupId, player.getUUID());
+            pendingBackupSources.put(backupId, source.id());
+            queuePosition = WorldCopyService.queuePersistentWorldBackup(backup, sourceWorld, targetWorld);
+        } catch (RuntimeException e) {
+            data.removeRecord(backupId);
+            pendingCopyCreators.remove(backupId);
+            pendingBackupSources.remove(backupId);
+            throw e;
+        }
+
+        player.sendSystemMessage(Component.translatable(
+                "message.instantworldmirror.persistent.backup_queued", name, queuePosition)
+                .withStyle(ChatFormatting.GREEN));
+        return true;
+    }
+
     public static void handlePersistentCopyComplete(UUID recordId, MinecraftServer server) {
         PersistentMirrorData data = PersistentMirrorData.get(server);
         Optional<PersistentMirrorRecord> recordOpt = data.getRecord(recordId);
         if (recordOpt.isEmpty()) {
             pendingCopyCreators.remove(recordId);
+            boolean backup = pendingBackupSources.remove(recordId) != null;
             UUID sourceSessionId = pendingCopySourceSessions.remove(recordId);
-            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            if (sourceSessionId != null && !backup) {
+                MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            }
             return;
         }
 
         PersistentMirrorRecord record = recordOpt.get();
+        boolean backup = pendingBackupSources.remove(recordId) != null;
         record.setReady(true);
         data.setDirty();
         UUID sourceSessionId = pendingCopySourceSessions.remove(recordId);
-        if (sourceSessionId == null) {
+        if (sourceSessionId == null && !backup) {
             sourceSessionId = record.sourceSessionId();
         }
-        MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+        if (sourceSessionId != null) {
+            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+        }
 
         UUID creatorId = pendingCopyCreators.remove(recordId);
         if (creatorId != null) {
             ServerPlayer creator = server.getPlayerList().getPlayer(creatorId);
             if (creator != null) {
-                creator.sendSystemMessage(Component.translatable("message.instantworldmirror.persistent.saved", record.name())
+                creator.sendSystemMessage(Component.translatable(backup
+                                ? "message.instantworldmirror.persistent.backup_created"
+                                : "message.instantworldmirror.persistent.saved", record.name())
                         .withStyle(ChatFormatting.GREEN));
             }
         }
@@ -365,11 +447,14 @@ public class PersistentMirrorManager {
 
         for (PersistentMirrorRecord record : unreadyRecords) {
             pendingCopyCreators.remove(record.id());
+            boolean backup = pendingBackupSources.remove(record.id()) != null;
             UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
-            if (sourceSessionId == null) {
+            if (sourceSessionId == null && !backup) {
                 sourceSessionId = record.sourceSessionId();
             }
-            MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            if (sourceSessionId != null) {
+                MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
+            }
             WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());
 
             ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
@@ -578,14 +663,20 @@ public class PersistentMirrorManager {
             player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.cannot_delete"), false);
             return false;
         }
+        if (pendingBackupSources.containsValue(record.id())) {
+            player.displayClientMessage(Component.translatable(
+                    "message.instantworldmirror.persistent.backup_source_in_use"), false);
+            return false;
+        }
 
         ServerLevel persistentLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()));
         pendingCopyCreators.remove(record.id());
+        boolean backup = pendingBackupSources.remove(record.id()) != null;
         UUID sourceSessionId = pendingCopySourceSessions.remove(record.id());
-        if (sourceSessionId == null) {
+        if (sourceSessionId == null && !backup) {
             sourceSessionId = record.sourceSessionId();
         }
-        if (!record.ready()) {
+        if (!record.ready() && sourceSessionId != null) {
             MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server);
         }
         WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex());

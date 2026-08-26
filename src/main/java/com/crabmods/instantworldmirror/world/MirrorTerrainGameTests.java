@@ -4,10 +4,14 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.MirrorConfigState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.SharedConstants;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,6 +25,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
@@ -29,8 +34,10 @@ import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-import java.util.UUID;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
 
 @GameTestHolder(InstantWorldMirror.MODID)
 @PrefixGameTestTemplate(false)
@@ -214,6 +221,189 @@ public final class MirrorTerrainGameTests {
         }
 
         helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_snapshot_cross_version", timeoutTicks = 160)
+    public static void strandedSnapshotUpgradesReal1201FixtureWithoutChangingOriginal(GameTestHelper helper) {
+        UUID snapshotId = UUID.randomUUID();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        int targetChunkX = (origin.getX() >> 4) + 6;
+        int targetChunkZ = (origin.getZ() >> 4) + 6;
+        int y = 64;
+
+        try {
+            CompoundTag fixture = load1201SnapshotFixture();
+            helper.assertTrue(hasPaletteState(fixture, "minecraft:grass"),
+                    "The fixture must retain the real Minecraft 1.20.1 grass identifier");
+            helper.assertTrue(hasLegacyItemStack(fixture),
+                    "The fixture must retain pre-component item NBT from Minecraft 1.20.1");
+
+            StrandedSnapshotManager.SnapshotSummary summary = new StrandedSnapshotManager.SnapshotSummary(
+                    snapshotId, UUID.randomUUID(), "Minecraft 1.20.1 fixture", 0,
+                    new BlockPos(0, y, 0), System.currentTimeMillis(), "1.20.1", 3465);
+            StrandedSnapshotManager.writeSnapshotForTesting(summary, Map.of(0L, fixture));
+            StrandedSnapshotManager.removeSnapshotDataVersionForTesting(snapshotId);
+            helper.assertTrue(StrandedSnapshotManager.readSnapshotSummaryForTesting(snapshotId)
+                            .map(stored -> stored.dataVersion() == 3465)
+                            .orElse(false),
+                    "Legacy 1.20.1 snapshots without data_version must infer DataVersion 3465");
+            CompoundTag originalBeforeUpgrade = StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, false);
+
+            helper.assertTrue(StrandedSnapshotManager.prepareSnapshotForTesting(
+                            snapshotId, helper.getLevel().registryAccess()),
+                    "Minecraft 1.20.1 snapshots must upgrade on Minecraft 1.21.1");
+            CompoundTag originalAfterUpgrade = StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, false);
+            CompoundTag upgraded = StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, true);
+            helper.assertTrue(originalBeforeUpgrade.equals(originalAfterUpgrade),
+                    "Cross-version upgrades must never rewrite the original snapshot cache");
+            helper.assertTrue(hasPaletteState(upgraded, "minecraft:short_grass")
+                            && !hasPaletteState(upgraded, "minecraft:grass"),
+                    "DataFixer must upgrade renamed block states before loading the slice");
+            helper.assertFalse(hasLegacyItemStack(upgraded),
+                    "DataFixer must componentize legacy item stacks before loading block entities");
+            CompoundTag upgradeMarker = StrandedSnapshotManager.readUpgradeMarkerForTesting(snapshotId).orElseThrow();
+            helper.assertTrue(upgradeMarker.getInt("requirements_version") == 1
+                            && containsString(upgradeMarker.getList("required_blocks", Tag.TAG_STRING),
+                            "minecraft:short_grass")
+                            && containsString(upgradeMarker.getList("required_items", Tag.TAG_STRING),
+                            "minecraft:diamond_sword"),
+                    "The reusable upgrade cache must record its runtime registry dependencies");
+            StrandedSnapshotManager.clearTransientState();
+            helper.assertTrue(StrandedSnapshotManager.prepareSnapshotForTesting(
+                            snapshotId, helper.getLevel().registryAccess())
+                            && upgraded.equals(StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, true)),
+                    "A compatible upgraded cache must survive transient-state clearing and reopen from disk");
+
+            BlockPos targetCenter = new BlockPos(targetChunkX * 16 + 8, y, targetChunkZ * 16 + 8);
+            WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
+                    UUID.randomUUID(), targetCenter, 0, helper.getLevel().dimension(), 0,
+                    MirrorTerrainMode.SNAPSHOT, false, false, snapshotId);
+            int blocksPlaced = WorldCopyService.copyChunk(
+                    null, helper.getLevel(), targetChunkX, targetChunkZ, task);
+            BlockPos targetMarker = new BlockPos(targetChunkX * 16 + 3, y, targetChunkZ * 16 + 5);
+            BlockPos targetGrass = targetMarker.west();
+            BlockPos targetChest = targetMarker.east();
+
+            helper.assertTrue(blocksPlaced > 0
+                            && helper.getLevel().getBlockState(targetMarker).is(Blocks.DIAMOND_BLOCK)
+                            && helper.getLevel().getBlockState(targetGrass).is(Blocks.SHORT_GRASS),
+                    "The upgraded 1.20.1 slice must place its real blocks in the 1.21.1 world");
+            helper.assertTrue(helper.getLevel().getBlockEntity(targetChest) instanceof ChestBlockEntity,
+                    "The upgraded 1.20.1 chest must become a live 1.21.1 block entity");
+            ItemStack restoredSword = ((ChestBlockEntity) helper.getLevel().getBlockEntity(targetChest)).getItem(3);
+            var sharpness = helper.getLevel().registryAccess()
+                    .lookupOrThrow(Registries.ENCHANTMENT)
+                    .getOrThrow(Enchantments.SHARPNESS);
+            helper.assertTrue(restoredSword.is(Items.DIAMOND_SWORD)
+                            && "Legacy blade".equals(restoredSword.getHoverName().getString())
+                            && restoredSword.getEnchantmentLevel(sharpness) == 3,
+                    "The upgraded chest must retain the named and enchanted legacy item");
+        } catch (Exception exception) {
+            throw new AssertionError("Minecraft 1.20.1 to 1.21.1 snapshot upgrade failed", exception);
+        } finally {
+            StrandedSnapshotManager.deleteSnapshotForTesting(snapshotId);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_snapshot_cross_version_rejection", timeoutTicks = 80)
+    public static void strandedSnapshotRejectsMissingCrossVersionContentWithoutPartialUpgrade(GameTestHelper helper) {
+        UUID snapshotId = UUID.randomUUID();
+        try {
+            CompoundTag fixture = load1201SnapshotFixture();
+            helper.assertTrue(replacePaletteState(
+                            fixture, "minecraft:grass", "missing_cross_version_mod:missing_block"),
+                    "The rejection fixture must contain the legacy block selected for replacement");
+            StrandedSnapshotManager.SnapshotSummary summary = new StrandedSnapshotManager.SnapshotSummary(
+                    snapshotId, UUID.randomUUID(), "Missing mod fixture", 0,
+                    BlockPos.ZERO, System.currentTimeMillis(), "1.20.1", 3465);
+            StrandedSnapshotManager.writeSnapshotForTesting(summary, Map.of(0L, fixture));
+            CompoundTag original = StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, false);
+
+            helper.assertFalse(StrandedSnapshotManager.prepareSnapshotForTesting(
+                            snapshotId, helper.getLevel().registryAccess()),
+                    "A cross-version snapshot with missing registry content must be rejected");
+            helper.assertTrue(original.equals(
+                            StrandedSnapshotManager.readSnapshotChunkForTesting(snapshotId, false)),
+                    "A rejected upgrade must leave the old snapshot unchanged");
+            helper.assertFalse(StrandedSnapshotManager.hasUpgradeArtifactsForTesting(snapshotId),
+                    "A rejected upgrade must remove its temporary or partial upgraded cache");
+        } catch (Exception exception) {
+            throw new AssertionError("Cross-version missing-content rejection failed", exception);
+        } finally {
+            StrandedSnapshotManager.deleteSnapshotForTesting(snapshotId);
+        }
+
+        helper.succeed();
+    }
+
+    private static CompoundTag load1201SnapshotFixture() throws Exception {
+        try (InputStream input = MirrorTerrainGameTests.class.getResourceAsStream(
+                "/data/instantworldmirror/gametest/stranded_1_20_1.snbt")) {
+            if (input == null) {
+                throw new IllegalStateException("Missing Minecraft 1.20.1 Stranded Mirror fixture");
+            }
+            return TagParser.parseTag(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    private static boolean replacePaletteState(CompoundTag chunk, String oldId, String newId) {
+        ListTag sections = chunk.getList("sections", Tag.TAG_COMPOUND);
+        for (int sectionIndex = 0; sectionIndex < sections.size(); sectionIndex++) {
+            ListTag palette = sections.getCompound(sectionIndex).getList("palette", Tag.TAG_COMPOUND);
+            for (int paletteIndex = 0; paletteIndex < palette.size(); paletteIndex++) {
+                CompoundTag state = palette.getCompound(paletteIndex);
+                if (oldId.equals(state.getString("Name"))) {
+                    state.putString("Name", newId);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasPaletteState(CompoundTag chunk, String id) {
+        ListTag sections = chunk.getList("sections", Tag.TAG_COMPOUND);
+        for (int sectionIndex = 0; sectionIndex < sections.size(); sectionIndex++) {
+            ListTag palette = sections.getCompound(sectionIndex).getList("palette", Tag.TAG_COMPOUND);
+            for (int paletteIndex = 0; paletteIndex < palette.size(); paletteIndex++) {
+                if (id.equals(palette.getCompound(paletteIndex).getString("Name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsString(ListTag values, String expected) {
+        for (int index = 0; index < values.size(); index++) {
+            if (expected.equals(values.getString(index))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasLegacyItemStack(Tag value) {
+        if (value instanceof CompoundTag compound) {
+            if (compound.contains("id", Tag.TAG_STRING)
+                    && compound.contains("Count", Tag.TAG_ANY_NUMERIC)) {
+                return true;
+            }
+            for (String key : compound.getAllKeys()) {
+                if (hasLegacyItemStack(compound.get(key))) {
+                    return true;
+                }
+            }
+        } else if (value instanceof ListTag list) {
+            for (Tag element : list) {
+                if (hasLegacyItemStack(element)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @GameTest(template = TEMPLATE, timeoutTicks = 120)

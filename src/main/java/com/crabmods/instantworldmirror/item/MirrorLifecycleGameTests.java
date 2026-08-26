@@ -765,6 +765,7 @@ public final class MirrorLifecycleGameTests {
         MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
         UUID incompleteId = UUID.randomUUID();
         UUID incompatibleId = UUID.randomUUID();
+        UUID upgradeableId = UUID.randomUUID();
         BlockPos targetPos = new BlockPos(280, 64, 280);
 
         try {
@@ -779,6 +780,11 @@ public final class MirrorLifecycleGameTests {
                             incompatibleId, player.getUUID(), "Wrong version", 0, targetPos,
                             System.currentTimeMillis(), "incompatible-gametest-version"),
                     emptySnapshotChunks(0));
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            upgradeableId, player.getUUID(), "Minecraft 1.20.1", 0, targetPos,
+                            System.currentTimeMillis(), "1.20.1", 3465),
+                    emptySnapshotChunks(0));
 
             Set<UUID> visible = StrandedSnapshotManager.listSnapshots(player).stream()
                     .map(StrandedSnapshotManager.SnapshotSummary::id)
@@ -787,11 +793,16 @@ public final class MirrorLifecycleGameTests {
                     "Incomplete Stranded Mirror caches must not appear in the selection menu");
             helper.assertFalse(visible.contains(incompatibleId),
                     "Other Minecraft versions must not appear in the Stranded Mirror selection menu");
+            helper.assertTrue(visible.contains(upgradeableId),
+                    "Minecraft 1.20.1 snapshots must be available for one-way upgrade on Minecraft 1.21.1");
             helper.assertTrue(StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
                             .filter(entry -> incompleteId.equals(entry.summary().id())
                                     || incompatibleId.equals(entry.summary().id()))
                             .allMatch(entry -> !entry.available()),
                     "The management menu must show damaged or old snapshots only as unavailable");
+            helper.assertTrue(StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
+                            .anyMatch(entry -> upgradeableId.equals(entry.summary().id()) && entry.available()),
+                    "The management menu must allow supported older snapshots to be selected");
             helper.assertFalse(StrandedSnapshotManager.openSnapshot(player, targetPos, incompleteId, false),
                     "Incomplete Stranded Mirror caches must not create sessions");
             helper.assertFalse(StrandedSnapshotManager.openSnapshot(player, targetPos, incompatibleId, false),
@@ -803,6 +814,7 @@ public final class MirrorLifecycleGameTests {
         } finally {
             StrandedSnapshotManager.deleteSnapshotForTesting(incompleteId);
             StrandedSnapshotManager.deleteSnapshotForTesting(incompatibleId);
+            StrandedSnapshotManager.deleteSnapshotForTesting(upgradeableId);
             MirrorWorldManager.clearAllSessions(player.getServer());
             WorldCopyService.clearAllTasks();
             clearDimensionPoolTestState(player);
@@ -1251,6 +1263,196 @@ public final class MirrorLifecycleGameTests {
 
         helper.succeed();
     }
+
+    @GameTest(template = TEMPLATE, batch = "record_backups", timeoutTicks = 80)
+    public static void strandedSnapshotsCreateIndependentNumberedBackups(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        UUID originalId = UUID.randomUUID();
+        java.util.ArrayList<UUID> createdIds = new java.util.ArrayList<>();
+        createdIds.add(originalId);
+        CompoundTag chunk = new CompoundTag();
+        chunk.putString("backup_marker", "original-data");
+        try {
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            originalId,
+                            player.getUUID(),
+                            "Workshop",
+                            0,
+                            BlockPos.ZERO,
+                            System.currentTimeMillis(),
+                            SharedConstants.getCurrentVersion().getName()),
+                    Map.of(0L, chunk));
+            helper.assertTrue(StrandedSnapshotManager.requestBackup(player, originalId),
+                    "The owner must be able to back up a complete world slice");
+            StrandedSnapshotManager.SnapshotSummary backupOne =
+                    StrandedSnapshotManager.listSnapshots(player).stream()
+                            .filter(summary -> "Workshop - Backup 1".equals(summary.name()))
+                            .findFirst()
+                            .orElseThrow();
+            createdIds.add(backupOne.id());
+
+            helper.assertTrue(StrandedSnapshotManager.requestBackup(player, backupOne.id()),
+                    "Backing up Backup 1 must allocate Backup 2 from the original base name");
+            StrandedSnapshotManager.SnapshotSummary backupTwo =
+                    StrandedSnapshotManager.listSnapshots(player).stream()
+                            .filter(summary -> "Workshop - Backup 2".equals(summary.name()))
+                            .findFirst()
+                            .orElseThrow();
+            createdIds.add(backupTwo.id());
+
+            CompoundTag originalChunk =
+                    StrandedSnapshotManager.readSnapshotChunkForTesting(originalId, false);
+            helper.assertTrue(originalChunk.equals(
+                            StrandedSnapshotManager.readSnapshotChunkForTesting(backupOne.id(), false))
+                            && originalChunk.equals(
+                            StrandedSnapshotManager.readSnapshotChunkForTesting(backupTwo.id(), false)),
+                    "Every world-slice backup must preserve the exact cached chunk NBT");
+            helper.assertTrue(!originalId.equals(backupOne.id())
+                            && !backupOne.id().equals(backupTwo.id())
+                            && backupOne.ownerId().equals(player.getUUID())
+                            && backupTwo.ownerId().equals(player.getUUID()),
+                    "World-slice backups must be independent records with preserved ownership");
+
+            UUID incompatibleId = UUID.randomUUID();
+            createdIds.add(incompatibleId);
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            incompatibleId, player.getUUID(), "Legacy", 0, BlockPos.ZERO,
+                            System.currentTimeMillis(), "unsupported-backup-version", -1),
+                    Map.of(0L, chunk));
+            helper.assertTrue(StrandedSnapshotManager.requestBackup(player, incompatibleId),
+                    "A complete cross-version world slice must remain backupable when it cannot be opened");
+            StrandedSnapshotManager.SnapshotMenuEntry incompatibleBackup =
+                    StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
+                            .filter(entry -> "Legacy - Backup 1".equals(entry.summary().name()))
+                            .findFirst()
+                            .orElseThrow();
+            createdIds.add(incompatibleBackup.summary().id());
+            helper.assertTrue(!incompatibleBackup.available() && incompatibleBackup.backupAvailable()
+                            && chunk.equals(StrandedSnapshotManager.readSnapshotChunkForTesting(
+                            incompatibleBackup.summary().id(), false)),
+                    "An incompatible raw backup must stay protected without becoming openable");
+        } catch (Exception exception) {
+            throw new AssertionError("World-slice backup GameTest failed", exception);
+        } finally {
+            createdIds.forEach(StrandedSnapshotManager::deleteSnapshotForTesting);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "persistent_record_backups", timeoutTicks = 320)
+    public static void persistentMirrorsCreateIndependentNumberedBackups(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        PersistentMirrorData data = PersistentMirrorData.get(player.getServer());
+        java.util.ArrayList<UUID> createdIds = new java.util.ArrayList<>();
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(minimumCopyRadiusState(previousActiveConfig));
+            int sourceIndex = data.allocateDimensionIndex();
+            helper.assertTrue(sourceIndex >= 0, "Persistent backup test requires a free source slot");
+            ServerLevel sourceWorld = ensureGameTestPersistentMirrorLevel(helper, sourceIndex);
+            BlockPos marker = new BlockPos(520, 64, 520);
+            BlockPos chestPos = marker.east();
+            BlockPos farMarker = marker.offset(64, 0, 0);
+            sourceWorld.setBlock(marker, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            sourceWorld.setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
+            sourceWorld.setBlock(farMarker, Blocks.EMERALD_BLOCK.defaultBlockState(), 3);
+            WorldCopyService.trackPersistentModifiedChunk(
+                    sourceIndex, farMarker.getX() >> 4, farMarker.getZ() >> 4);
+            ChestBlockEntity sourceChest = (ChestBlockEntity) sourceWorld.getBlockEntity(chestPos);
+            helper.assertTrue(sourceChest != null, "Persistent backup source chest must exist");
+            sourceChest.setItem(2, new ItemStack(Items.EMERALD, 7));
+            sourceChest.setChanged();
+
+            PersistentMirrorRecord source = new PersistentMirrorRecord(
+                    UUID.randomUUID(),
+                    player.getUUID(),
+                    UUID.randomUUID(),
+                    "Workshop",
+                    MirrorKind.STRANDED,
+                    sourceIndex,
+                    Level.OVERWORLD,
+                    marker,
+                    marker.above(),
+                    false,
+                    System.currentTimeMillis(),
+                    true,
+                    MirrorTerrainMode.SNAPSHOT);
+            data.addRecord(source);
+            createdIds.add(source.id());
+            int backupOneIndex = data.allocateDimensionIndex();
+            helper.assertTrue(backupOneIndex >= 0, "Persistent backup test requires a Backup 1 slot");
+            ensureGameTestPersistentMirrorLevel(helper, backupOneIndex);
+
+            helper.assertTrue(PersistentMirrorManager.backupRecord(player, source.id()),
+                    "A managed ready persistent mirror must queue Backup 1");
+            PersistentMirrorRecord backupOne = data.records().stream()
+                    .filter(record -> "Workshop - Backup 1".equals(record.name()))
+                    .findFirst()
+                    .orElseThrow();
+            createdIds.add(backupOne.id());
+            helper.assertFalse(PersistentMirrorManager.deleteRecord(player, source.id()),
+                    "A persistent source must be protected while its backup is copying");
+            for (int tick = 0; tick < 80
+                    && WorldCopyService.hasPendingPersistentCopy(backupOne.dimensionIndex()); tick++) {
+                WorldCopyService.processCopyQueues(player.getServer());
+            }
+            helper.assertTrue(backupOne.ready(), "Backup 1 must become ready after its world copy completes");
+            int backupTwoIndex = data.allocateDimensionIndex();
+            helper.assertTrue(backupTwoIndex >= 0, "Persistent backup test requires a Backup 2 slot");
+            ensureGameTestPersistentMirrorLevel(helper, backupTwoIndex);
+
+            helper.assertTrue(PersistentMirrorManager.backupRecord(player, backupOne.id()),
+                    "Backing up Backup 1 must queue Backup 2 from the original base name");
+            PersistentMirrorRecord backupTwo = data.records().stream()
+                    .filter(record -> "Workshop - Backup 2".equals(record.name()))
+                    .findFirst()
+                    .orElseThrow();
+            createdIds.add(backupTwo.id());
+            for (int tick = 0; tick < 80
+                    && WorldCopyService.hasPendingPersistentCopy(backupTwo.dimensionIndex()); tick++) {
+                WorldCopyService.processCopyQueues(player.getServer());
+            }
+            helper.assertTrue(backupTwo.ready(), "Backup 2 must become ready after its world copy completes");
+
+            ServerLevel backupOneWorld = player.getServer().getLevel(
+                    ModDimensions.getPersistentMirrorWorld(backupOne.dimensionIndex()));
+            ServerLevel backupTwoWorld = player.getServer().getLevel(
+                    ModDimensions.getPersistentMirrorWorld(backupTwo.dimensionIndex()));
+            helper.assertTrue(backupOneWorld != null && backupTwoWorld != null
+                            && backupOneWorld.getBlockState(marker).is(Blocks.DIAMOND_BLOCK)
+                            && backupTwoWorld.getBlockState(marker).is(Blocks.DIAMOND_BLOCK)
+                            && backupOneWorld.getBlockState(farMarker).is(Blocks.EMERALD_BLOCK)
+                            && backupTwoWorld.getBlockState(farMarker).is(Blocks.EMERALD_BLOCK),
+                    "Persistent backups must include source chunks outside the configured copy radius");
+            ChestBlockEntity backupOneChest = (ChestBlockEntity) backupOneWorld.getBlockEntity(chestPos);
+            ChestBlockEntity backupTwoChest = (ChestBlockEntity) backupTwoWorld.getBlockEntity(chestPos);
+            helper.assertTrue(backupOneChest != null && backupTwoChest != null
+                            && backupOneChest.getItem(2).is(Items.EMERALD)
+                            && backupOneChest.getItem(2).getCount() == 7
+                            && backupTwoChest.getItem(2).is(Items.EMERALD)
+                            && backupTwoChest.getItem(2).getCount() == 7,
+                    "Persistent backups must preserve block entity inventory NBT");
+
+            backupOneWorld.setBlock(marker, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+            helper.assertTrue(sourceWorld.getBlockState(marker).is(Blocks.DIAMOND_BLOCK)
+                            && backupTwoWorld.getBlockState(marker).is(Blocks.DIAMOND_BLOCK),
+                    "Editing one persistent backup must not change the source or another backup");
+        } finally {
+            for (int index = createdIds.size() - 1; index >= 0; index--) {
+                UUID id = createdIds.get(index);
+                if (data.getRecord(id).isPresent()) {
+                    PersistentMirrorManager.deleteRecord(player, id);
+                }
+            }
+            PersistentMirrorManager.clearTransientState();
+            WorldCopyService.clearAllTasks();
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+        helper.succeed();
+    }
+
 
     @GameTest(template = TEMPLATE, batch = "persistent_records", timeoutTicks = 40)
     public static void persistentRecordsTrackSourceSession(GameTestHelper helper) {

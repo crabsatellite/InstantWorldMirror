@@ -121,7 +121,8 @@
             "portal.snapshot_load_message",
             "runtime.snapshot_no_source_world",
             "runtime.stranded_capture_flow",
-            "runtime.stranded_permissions_and_delete"
+            "runtime.stranded_permissions_and_delete",
+            "runtime.stranded_snapshot_backups"
           ]
         },
         {
@@ -374,6 +375,13 @@
             "manager.rename_record_order",
             "manager.menu_uses_selectors",
             "client.persistent_popup_controls"
+          ]
+        },
+        {
+          "id": "backup",
+          "title": "Backing up a persistent mirror allocates a numbered independent record and protects the source while copying",
+          "checks": [
+            "runtime.persistent_record_backups"
           ]
         },
         {
@@ -1396,9 +1404,11 @@
       "method": "deleteRecord",
       "texts": [
         "pendingCopyCreators.remove(record.id())",
+        "boolean backup = pendingBackupSources.remove(record.id()) != null",
         "UUID sourceSessionId = pendingCopySourceSessions.remove(record.id())",
+        "sourceSessionId == null && !backup",
         "sourceSessionId = record.sourceSessionId()",
-        "if (!record.ready())",
+        "if (!record.ready() && sourceSessionId != null)",
         "MirrorWorldManager.releaseTemporarySourceAfterPersistentSave(sourceSessionId, server)",
         "WorldCopyService.cancelPersistentCopyTask(record.dimensionIndex())"
       ]
@@ -2338,6 +2348,32 @@
         "Stranded snapshot must preserve local block positions",
         "Stranded snapshot must preserve chest inventory NBT",
         "Cross-save snapshots must explicitly exclude normal entities"
+      ]
+    },
+    {
+      "id": "runtime.stranded_snapshot_backups",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "strandedSnapshotsCreateIndependentNumberedBackups",
+        "Workshop - Backup 1",
+        "Workshop - Backup 2",
+        "Every world-slice backup must preserve the exact cached chunk NBT",
+        "A complete cross-version world slice must remain backupable when it cannot be opened",
+        "An incompatible raw backup must stay protected without becoming openable"
+      ]
+    },
+    {
+      "id": "runtime.persistent_record_backups",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "persistentMirrorsCreateIndependentNumberedBackups",
+        "WorldCopyService.trackPersistentModifiedChunk",
+        "A persistent source must be protected while its backup is copying",
+        "Persistent backups must include source chunks outside the configured copy radius",
+        "Persistent backups must preserve block entity inventory NBT",
+        "Editing one persistent backup must not change the source or another backup"
       ]
     },
     {

@@ -77,6 +77,7 @@ public class WorldCopyService {
     // Track ALL chunks that have been modified in each dimension for thorough cleanup
     // dimensionIndex -> Set of chunk positions (packed as long: x << 32 | z)
     private static final Map<Integer, Set<Long>> modifiedChunks = new ConcurrentHashMap<>();
+    private static final Map<Integer, Set<Long>> persistentModifiedChunks = new ConcurrentHashMap<>();
     
     // Track the copy center position for each dimension (for cleanup bounds)
     // dimensionIndex -> center BlockPos
@@ -132,6 +133,11 @@ public class WorldCopyService {
         
         // Mark that this dimension has pending save
         pendingSave.add(dimIndex);
+    }
+
+    public static void trackPersistentModifiedChunk(int dimIndex, int chunkX, int chunkZ) {
+        persistentModifiedChunks.computeIfAbsent(dimIndex, ignored -> ConcurrentHashMap.newKeySet())
+                .add(packChunkPos(chunkX, chunkZ));
     }
     
     // Track dimensions that have pending modifications to save
@@ -215,6 +221,8 @@ public class WorldCopyService {
         
         private int currentChunkX;
         private int currentChunkZ;
+        private final java.util.List<Long> chunkSequence;
+        private int chunkSequenceIndex;
         private final int minChunkX, maxChunkX, minChunkZ, maxChunkZ;
         private boolean started = false;
         private boolean completed = false;
@@ -262,6 +270,15 @@ public class WorldCopyService {
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex,
                         MirrorTerrainMode terrainMode, boolean generatedContentRefresh,
                         boolean mobSpawningEnabled, UUID snapshotId) {
+            this(sessionId, centerPos, chunkRadius, sourceDimension, targetDimensionIndex,
+                    terrainMode, generatedContentRefresh, mobSpawningEnabled, snapshotId, null);
+        }
+
+        private CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
+                         ResourceKey<Level> sourceDimension, int targetDimensionIndex,
+                         MirrorTerrainMode terrainMode, boolean generatedContentRefresh,
+                         boolean mobSpawningEnabled, UUID snapshotId,
+                         java.util.Collection<Long> chunkSequence) {
             this.sessionId = sessionId;
             this.centerPos = centerPos;
             this.chunkRadius = chunkRadius;
@@ -271,6 +288,11 @@ public class WorldCopyService {
             this.snapshotId = snapshotId;
             this.generatedContentRefresh = generatedContentRefresh;
             this.mobSpawningEnabled = mobSpawningEnabled;
+            this.chunkSequence = chunkSequence == null ? null : chunkSequence.stream()
+                    .sorted(java.util.Comparator
+                            .comparingInt((Long packed) -> unpackChunkZ(packed))
+                            .thenComparingInt(packed -> unpackChunkX(packed)))
+                    .toList();
             
             int centerChunkX = centerPos.getX() >> 4;
             int centerChunkZ = centerPos.getZ() >> 4;
@@ -290,6 +312,19 @@ public class WorldCopyService {
          */
         public void preloadChunksAsync(ServerLevel sourceWorld, ServerLevel targetWorld) {
             if (completed) return;
+
+            if (chunkSequence != null) {
+                for (int offset = 0; offset < PRELOAD_AHEAD; offset++) {
+                    int index = chunkSequenceIndex + offset;
+                    if (index >= chunkSequence.size()) break;
+                    long packed = chunkSequence.get(index);
+                    ChunkPos chunkPos = new ChunkPos(unpackChunkX(packed), unpackChunkZ(packed));
+                    sourceWorld.getChunkSource().addRegionTicket(MIRROR_PRELOAD_TICKET, chunkPos, 0, chunkPos);
+                    targetWorld.getChunkSource().addRegionTicket(MIRROR_PRELOAD_TICKET, chunkPos, 0, chunkPos);
+                }
+                preloadingStarted = true;
+                return;
+            }
             
             int preloadX = currentChunkX;
             int preloadZ = currentChunkZ;
@@ -322,12 +357,14 @@ public class WorldCopyService {
         }
         
         public int getTotalChunks() {
+            if (chunkSequence != null) return chunkSequence.size();
             int width = maxChunkX - minChunkX + 1;
             int height = maxChunkZ - minChunkZ + 1;
             return width * height;
         }
         
         public int getCopiedChunks() {
+            if (chunkSequence != null) return completed ? chunkSequence.size() : chunkSequenceIndex;
             if (!started) return 0;
             if (completed) return getTotalChunks();
             int width = maxChunkX - minChunkX + 1;
@@ -343,6 +380,11 @@ public class WorldCopyService {
         public int[] getNextChunk() {
             if (completed) return null;
             started = true;
+            if (chunkSequence != null) {
+                long packed = chunkSequence.get(chunkSequenceIndex++);
+                if (chunkSequenceIndex >= chunkSequence.size()) completed = true;
+                return new int[]{unpackChunkX(packed), unpackChunkZ(packed)};
+            }
             int[] result = new int[]{currentChunkX, currentChunkZ};
             
             currentChunkX++;
@@ -972,6 +1014,14 @@ public class WorldCopyService {
      * @return Set of packed chunk positions that exist in region files
      */
     private static Set<Long> scanRegionFilesForChunks(ServerLevel mirrorWorld) {
+        return scanDimensionRegionFilesForChunks(mirrorWorld, "region");
+    }
+
+    private static Set<Long> scanEntityRegionFilesForChunks(ServerLevel mirrorWorld) {
+        return scanDimensionRegionFilesForChunks(mirrorWorld, "entities");
+    }
+
+    private static Set<Long> scanDimensionRegionFilesForChunks(ServerLevel mirrorWorld, String folderName) {
         Set<Long> chunks = new java.util.HashSet<>();
         
         try {
@@ -982,7 +1032,7 @@ public class WorldCopyService {
             
             // Build the path to the dimension's region folder
             String dimensionPath = mirrorWorld.dimension().location().toString().replace(":", "/");
-            java.nio.file.Path regionFolder = worldFolder.resolve("dimensions").resolve(dimensionPath).resolve("region");
+            java.nio.file.Path regionFolder = worldFolder.resolve("dimensions").resolve(dimensionPath).resolve(folderName);
             
             if (!java.nio.file.Files.exists(regionFolder)) {
                 InstantWorldMirror.LOGGER.debug("Region folder does not exist: {}", regionFolder);
@@ -1016,8 +1066,10 @@ public class WorldCopyService {
                 }
             }
             
-            InstantWorldMirror.LOGGER.debug("Found {} chunks in {} region files", chunks.size(), 
-                    java.nio.file.Files.list(regionFolder).count());
+            try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(regionFolder)) {
+                InstantWorldMirror.LOGGER.debug("Found {} chunks in {} {} region files", chunks.size(),
+                        files.count(), folderName);
+            }
             
         } catch (Exception e) {
             InstantWorldMirror.LOGGER.warn("Error scanning region files: {}", e.getMessage());
@@ -1208,6 +1260,41 @@ public class WorldCopyService {
                 record.id(), dimIndex);
 
         return queuePosition;
+    }
+
+    public static int queuePersistentWorldBackup(PersistentMirrorRecord record,
+                                                  ServerLevel sourceWorld, ServerLevel targetWorld) {
+        Set<Long> chunks = scanPersistentBackupChunks(sourceWorld);
+        int radius = MirrorConfig.copyChunkRadius(record.kind());
+        int centerChunkX = record.sourcePosition().getX() >> 4;
+        int centerChunkZ = record.sourcePosition().getZ() >> 4;
+        for (int x = centerChunkX - radius; x <= centerChunkX + radius; x++) {
+            for (int z = centerChunkZ - radius; z <= centerChunkZ + radius; z++) {
+                chunks.add(packChunkPos(x, z));
+            }
+        }
+        int sourceIndex = ModDimensions.getPersistentMirrorWorldIndex(sourceWorld.dimension());
+        if (sourceIndex >= 0) {
+            chunks.addAll(persistentModifiedChunks.getOrDefault(sourceIndex, Set.of()));
+        }
+
+        syncGameRules(sourceWorld, targetWorld);
+        CopyTask task = new CopyTask(
+                record.id(), record.sourcePosition(), radius, sourceWorld.dimension(),
+                record.dimensionIndex(), MirrorTerrainMode.COPIED, false,
+                MirrorConfig.isMobSpawningEnabled(record.kind()), null, chunks);
+        persistentCopyTasks.put(record.dimensionIndex(), task);
+        Set<Long> targetChunks = ConcurrentHashMap.newKeySet();
+        targetChunks.addAll(chunks);
+        persistentModifiedChunks.put(record.dimensionIndex(), targetChunks);
+        synchronized (persistentCopyQueue) {
+            if (!persistentCopyQueue.contains(record.dimensionIndex())) {
+                persistentCopyQueue.addLast(record.dimensionIndex());
+            }
+        }
+        InstantWorldMirror.LOGGER.info("Queued persistent mirror backup {} with {} chunks",
+                record.id(), chunks.size());
+        return getPersistentCopyQueuePosition(record.dimensionIndex());
     }
 
     public static int getPersistentCopyQueuePosition(int dimIndex) {
@@ -1433,6 +1520,52 @@ public class WorldCopyService {
             case SNAPSHOT -> StrandedSnapshotManager.copySnapshotChunk(mirrorWorld, chunkX, chunkZ, task);
             case COPIED -> copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
         };
+    }
+
+    private static Set<Long> scanPersistentBackupChunks(ServerLevel sourceWorld) {
+        Set<Long> result = new java.util.HashSet<>();
+        for (long packed : scanRegionFilesForChunks(sourceWorld)) {
+            try {
+                sourceWorld.getChunkSource().chunkMap
+                        .read(new ChunkPos(unpackChunkX(packed), unpackChunkZ(packed)))
+                        .join()
+                        .filter(WorldCopyService::chunkTagHasPersistentContent)
+                        .ifPresent(tag -> result.add(packed));
+            } catch (Exception e) {
+                InstantWorldMirror.LOGGER.warn("Could not inspect persistent backup chunk ({}, {}): {}",
+                        unpackChunkX(packed), unpackChunkZ(packed), e.getMessage());
+                result.add(packed);
+            }
+        }
+        if (MirrorConfig.COPY_ENTITIES.get() || MirrorConfig.COPY_DECORATION_ENTITIES.get()) {
+            result.addAll(scanEntityRegionFilesForChunks(sourceWorld));
+        }
+        return result;
+    }
+
+    private static boolean chunkTagHasPersistentContent(CompoundTag chunkTag) {
+        CompoundTag data = chunkTag.contains("Level", net.minecraft.nbt.Tag.TAG_COMPOUND)
+                ? chunkTag.getCompound("Level")
+                : chunkTag;
+        String sectionsKey = data.contains("sections", net.minecraft.nbt.Tag.TAG_LIST)
+                ? "sections"
+                : "Sections";
+        net.minecraft.nbt.ListTag sections = data.getList(sectionsKey, net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int sectionIndex = 0; sectionIndex < sections.size(); sectionIndex++) {
+            CompoundTag section = sections.getCompound(sectionIndex);
+            CompoundTag blockStates = section.getCompound("block_states");
+            net.minecraft.nbt.ListTag palette = blockStates.getList("palette", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            if (palette.isEmpty()) {
+                palette = section.getList("Palette", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            }
+            for (int paletteIndex = 0; paletteIndex < palette.size(); paletteIndex++) {
+                if (!"minecraft:air".equals(palette.getCompound(paletteIndex).getString("Name"))) {
+                    return true;
+                }
+            }
+        }
+        return !data.getList("block_entities", net.minecraft.nbt.Tag.TAG_COMPOUND).isEmpty()
+                || !data.getList("TileEntities", net.minecraft.nbt.Tag.TAG_COMPOUND).isEmpty();
     }
 
     static boolean isSnapshotCopyAllowed(BlockState state) {
@@ -2494,17 +2627,24 @@ public class WorldCopyService {
         int copyRadius = kind != null ? MirrorConfig.copyChunkRadius(kind) : MirrorConfig.maxActiveCopyChunkRadius();
         int centerChunkX = centerPos.getX() >> 4;
         int centerChunkZ = centerPos.getZ() >> 4;
-        int clearedChunks = 0;
+        Set<Long> chunksToClear = scanPersistentBackupChunks(mirrorWorld);
 
         for (int x = centerChunkX - copyRadius; x <= centerChunkX + copyRadius; x++) {
             for (int z = centerChunkZ - copyRadius; z <= centerChunkZ + copyRadius; z++) {
-                clearChunk(mirrorWorld, x, z);
-                clearedChunks++;
+                chunksToClear.add(packChunkPos(x, z));
             }
+        }
+        int dimensionIndex = ModDimensions.getPersistentMirrorWorldIndex(mirrorWorld.dimension());
+        if (dimensionIndex >= 0) {
+            chunksToClear.addAll(persistentModifiedChunks.getOrDefault(dimensionIndex, Set.of()));
+            persistentModifiedChunks.remove(dimensionIndex);
+        }
+        for (long packed : chunksToClear) {
+            clearChunk(mirrorWorld, unpackChunkX(packed), unpackChunkZ(packed));
         }
 
         InstantWorldMirror.LOGGER.info("Cleared persistent mirror dimension {} around {} ({} chunks)",
-                mirrorWorld.dimension().location(), centerPos, clearedChunks);
+                mirrorWorld.dimension().location(), centerPos, chunksToClear.size());
     }
     
     /**
@@ -3004,6 +3144,7 @@ public class WorldCopyService {
         copyCenterPositions.clear();
         copyRadii.clear();
         modifiedChunks.clear();
+        persistentModifiedChunks.clear();
         pendingSave.clear();
         saveTickCounter = 0;
         

@@ -378,6 +378,9 @@ def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.class',
         'com/crabmods/instantworldmirror/item/StrandedMirrorItem.class',
         'com/crabmods/instantworldmirror/world/StrandedSnapshotManager.class',
+        'com/crabmods/instantworldmirror/world/BackupNameAllocator.class',
+        'com/crabmods/instantworldmirror/network/BackupStrandedSnapshotPacket.class',
+        'com/crabmods/instantworldmirror/network/BackupPersistentMirrorPacket.class',
         'com/crabmods/instantworldmirror/network/DeleteStrandedSnapshotPacket.class',
         'com/crabmods/instantworldmirror/network/OpenStrandedSnapshotMenuPacket.class',
         'com/crabmods/instantworldmirror/network/OpenPersistentMirrorLibraryPacket.class',
@@ -399,6 +402,8 @@ def mirrorJarRequiredEntries = [
 }
 if (minecraft_version == '1.21.1') {
     mirrorJarRequiredEntries.addAll([
+            'com/crabmods/instantworldmirror/world/StrandedSnapshotUpgrader.class',
+            'data/instantworldmirror/gametest/stranded_1_20_1.snbt',
             'data/instantworldmirror/enchantment/permanence.json',
             'data/instantworldmirror/enchantment/superflat.json',
             'data/instantworldmirror/tags/item/mirror_enchantable.json',

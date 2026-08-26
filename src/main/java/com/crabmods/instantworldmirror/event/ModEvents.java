@@ -250,6 +250,12 @@ public class ModEvents {
                 BlockPos pos = event.getPos();
                 WorldCopyService.trackModifiedChunk(dimIndex, pos.getX() >> 4, pos.getZ() >> 4);
             }
+            int persistentIndex = ModDimensions.getPersistentMirrorWorldIndex(level.dimension());
+            if (persistentIndex >= 0) {
+                BlockPos pos = event.getPos();
+                WorldCopyService.trackPersistentModifiedChunk(
+                        persistentIndex, pos.getX() >> 4, pos.getZ() >> 4);
+            }
         }
     }
     
@@ -266,6 +272,12 @@ public class ModEvents {
             if (dimIndex >= 0) {
                 BlockPos pos = event.getPos();
                 WorldCopyService.trackModifiedChunk(dimIndex, pos.getX() >> 4, pos.getZ() >> 4);
+            }
+            int persistentIndex = ModDimensions.getPersistentMirrorWorldIndex(level.dimension());
+            if (persistentIndex >= 0) {
+                BlockPos pos = event.getPos();
+                WorldCopyService.trackPersistentModifiedChunk(
+                        persistentIndex, pos.getX() >> 4, pos.getZ() >> 4);
             }
         }
     }
