@@ -98,7 +98,6 @@
   "message.instantworldmirror.config.button.save": "Save",
   "message.instantworldmirror.config.button.saving": "Saving...",
   "message.instantworldmirror.config.button.cancel": "Cancel",
-  "message.instantworldmirror.options.button": "World Mirror Settings...",
   "message.instantworldmirror.config.no_permission": "§cYou do not have permission to change mirror settings.",
   "message.instantworldmirror.config.saved_restart_required": "§aMirror settings saved. §eRestart the server for changes to take effect.",
   "message.instantworldmirror.config.save_failed": "§cMirror settings could not be saved. Please try again.",

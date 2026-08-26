@@ -7,7 +7,6 @@ import com.crabmods.instantworldmirror.client.screen.MirrorConfigScreen;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.OptionsScreen;
 
 import java.util.List;
 
@@ -49,15 +48,7 @@ public final class MirrorConfigNetworkGate {
 
             switch (stage) {
                 case WAIT_FOR_WORLD -> {
-                    minecraft.setScreen(new OptionsScreen(null, minecraft.options));
-                    stage = Stage.OPEN_CONFIG;
-                }
-                case OPEN_CONFIG -> {
-                    if (!(minecraft.screen instanceof OptionsScreen optionsScreen)) {
-                        return;
-                    }
-                    MirrorConfigUiGate.findButton(
-                            optionsScreen, "message.instantworldmirror.options.button").onPress();
+                    MirrorConfigUiGate.openFromModList(minecraft, null);
                     stage = Stage.EDIT_AND_SAVE;
                 }
                 case EDIT_AND_SAVE -> {
@@ -135,7 +126,6 @@ public final class MirrorConfigNetworkGate {
 
     private enum Stage {
         WAIT_FOR_WORLD,
-        OPEN_CONFIG,
         EDIT_AND_SAVE,
         WAIT_FOR_ACK
     }
