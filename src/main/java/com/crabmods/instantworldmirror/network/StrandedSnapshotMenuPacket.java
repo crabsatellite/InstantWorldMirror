@@ -15,14 +15,15 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public record StrandedSnapshotMenuPacket(BlockPos targetPos, List<Entry> entries) {
-    public record Entry(UUID id, String name, int radius, long createdAt, boolean available) {
+    public record Entry(UUID id, String name, int radius, long createdAt,
+                        boolean available, boolean backupAvailable) {
     }
 
     public static StrandedSnapshotMenuPacket create(ServerPlayer player, BlockPos targetPos) {
         List<Entry> entries = StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
                 .map(entry -> new Entry(
                         entry.summary().id(), entry.summary().name(), entry.summary().radius(),
-                        entry.summary().createdAt(), entry.available()))
+                        entry.summary().createdAt(), entry.available(), entry.backupAvailable()))
                 .toList();
         return new StrandedSnapshotMenuPacket(targetPos, entries);
     }
@@ -36,6 +37,7 @@ public record StrandedSnapshotMenuPacket(BlockPos targetPos, List<Entry> entries
             buf.writeVarInt(entry.radius);
             buf.writeLong(entry.createdAt);
             buf.writeBoolean(entry.available);
+            buf.writeBoolean(entry.backupAvailable);
         }
     }
 
@@ -45,7 +47,8 @@ public record StrandedSnapshotMenuPacket(BlockPos targetPos, List<Entry> entries
         List<Entry> entries = new ArrayList<>(size);
         for (int index = 0; index < size; index++) {
             entries.add(new Entry(
-                    buf.readUUID(), buf.readUtf(48), buf.readVarInt(), buf.readLong(), buf.readBoolean()));
+                    buf.readUUID(), buf.readUtf(48), buf.readVarInt(), buf.readLong(),
+                    buf.readBoolean(), buf.readBoolean()));
         }
         return new StrandedSnapshotMenuPacket(targetPos, entries);
     }

@@ -2,6 +2,7 @@ package com.crabmods.instantworldmirror.client.screen;
 
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.network.OpenStrandedSnapshotPacket;
+import com.crabmods.instantworldmirror.network.BackupStrandedSnapshotPacket;
 import com.crabmods.instantworldmirror.network.DeleteStrandedSnapshotPacket;
 import com.crabmods.instantworldmirror.network.OpenPersistentMirrorLibraryPacket;
 import com.crabmods.instantworldmirror.network.StrandedSnapshotMenuPacket;
@@ -66,9 +67,17 @@ public class StrandedSnapshotScreen extends Screen {
                         "message.instantworldmirror.stranded.open.unavailable"));
             }
             Button openButton = addRenderableWidget(Button.builder(label, button -> open(entry))
-                    .bounds(left, top + (index - start) * 24, width - 30, 20)
+                    .bounds(left, top + (index - start) * 24, width - 58, 20)
                     .build());
             openButton.active = entry.available();
+            Button backupButton = addRenderableWidget(Button.builder(
+                            Component.translatable("message.instantworldmirror.stranded.backup"),
+                            button -> backup(entry))
+                    .bounds(left + width - 52, top + (index - start) * 24, 24, 20)
+                    .build());
+            backupButton.active = entry.backupAvailable();
+            backupButton.setTooltip(Tooltip.create(Component.translatable(
+                    "message.instantworldmirror.stranded.backup.tooltip")));
             boolean confirmingDelete = entry.id().equals(pendingDeleteId);
             Button deleteButton = addRenderableWidget(Button.builder(
                             Component.translatable(confirmingDelete
@@ -120,6 +129,11 @@ public class StrandedSnapshotScreen extends Screen {
         }
         pendingDeleteId = null;
         ModNetworking.sendToServer(new DeleteStrandedSnapshotPacket(targetPos, entry.id()));
+    }
+
+    private void backup(StrandedSnapshotMenuPacket.Entry entry) {
+        pendingDeleteId = null;
+        ModNetworking.sendToServer(new BackupStrandedSnapshotPacket(targetPos, entry.id()));
     }
 
     @Override

@@ -72,6 +72,8 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.stranded.open.unavailable", " (unavailable)"),
             Map.entry("message.instantworldmirror.stranded.delete.tooltip", "Delete this snapshot"),
             Map.entry("message.instantworldmirror.stranded.delete.confirm.tooltip", "Click again to confirm deletion"),
+            Map.entry("message.instantworldmirror.stranded.backup.tooltip", "Back up this world slice"),
+            Map.entry("message.instantworldmirror.persistent.button.backup", "Backup"),
             Map.entry("message.instantworldmirror.library.persistent", "Persistent mirror worlds"),
             Map.entry("message.instantworldmirror.library.snapshots", "Cross-save world slices"),
             Map.entry("message.instantworldmirror.stranded.tooltip.capture", "Right-click a block: save a named world slice"),
@@ -274,7 +276,7 @@ public final class MirrorConfigUiGate {
         List<StrandedSnapshotMenuPacket.Entry> entries = new ArrayList<>();
         for (int index = 0; index < 7; index++) {
             entries.add(new StrandedSnapshotMenuPacket.Entry(
-                    UUID.randomUUID(), "Snapshot " + index, index + 1, index, index != 6));
+                    UUID.randomUUID(), "Snapshot " + index, index + 1, index, index != 6, true));
         }
         StrandedSnapshotScreen.open(BlockPos.ZERO, entries);
         assertTrue(minecraft.screen instanceof StrandedSnapshotScreen,
@@ -295,7 +297,13 @@ public final class MirrorConfigUiGate {
                         "Stranded Mirror menu did not render an unavailable cross-version entry"));
         assertTrue(!unavailableEntry.active,
                 "Unavailable Stranded Mirror entries must not be openable");
+        Button unavailableBackup = findButton(minecraft.screen, "message.instantworldmirror.stranded.backup");
+        assertTrue(unavailableBackup.active && unavailableBackup.getTooltip() != null,
+                "Complete cross-version world slices must remain backupable when they cannot be opened");
         findButton(minecraft.screen, "message.instantworldmirror.stranded.previous").onPress();
+        Button backupButton = findButton(minecraft.screen, "message.instantworldmirror.stranded.backup");
+        assertTrue(backupButton.active && backupButton.getTooltip() != null,
+                "Available world slices must expose the localized backup control");
         Button deleteButton = findButton(minecraft.screen, "message.instantworldmirror.stranded.delete");
         assertTrue(deleteButton.getTooltip() != null,
                 "Stranded Mirror delete control must explain its action on hover");
@@ -309,12 +317,17 @@ public final class MirrorConfigUiGate {
                 "Stranded Mirror selection cancel button must return to the previous screen");
 
         minecraft.setScreen(new PersistentMirrorMenuScreen(PersistentMirrorMenuPacket.list(
-                MirrorKind.STRANDED.translationKey(), List.of())));
+                MirrorKind.STRANDED.translationKey(), List.of(
+                        new PersistentMirrorMenuPacket.Entry("Persistent", "slot_1", true, true)))));
         assertTrue(minecraft.screen instanceof PersistentMirrorMenuScreen,
                 "Stranded Mirror long-term menu did not open the persistent section");
         findButton(minecraft.screen, "message.instantworldmirror.library.snapshots");
+        findButton(minecraft.screen, "message.instantworldmirror.persistent.button.backup");
+        minecraft.setScreen(new PersistentMirrorMenuScreen(PersistentMirrorMenuPacket.inside(
+                "Persistent", "slot_1", true, true)));
+        findButton(minecraft.screen, "message.instantworldmirror.persistent.button.backup");
         minecraft.setScreen(parent);
-        return 16;
+        return 19;
     }
 
     private static MirrorConfigState strictGateBaseState() {

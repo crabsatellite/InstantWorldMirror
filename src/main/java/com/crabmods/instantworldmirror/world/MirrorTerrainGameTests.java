@@ -10,6 +10,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -162,11 +164,16 @@ public final class MirrorTerrainGameTests {
 
         BlockPos sourceMarker = new BlockPos(sourceChunkX * 16 + 3, y, sourceChunkZ * 16 + 5);
         BlockPos sourceChest = sourceMarker.east();
+        BlockPos sourceGrass = sourceMarker.west();
         helper.getLevel().setBlock(sourceMarker, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
         helper.getLevel().setBlock(sourceChest, Blocks.CHEST.defaultBlockState(), 3);
+        helper.getLevel().setBlock(sourceGrass, Blocks.GRASS.defaultBlockState(), 3);
         ChestBlockEntity chest = (ChestBlockEntity) helper.getLevel().getBlockEntity(sourceChest);
         helper.assertTrue(chest != null, "Source snapshot chest must have a block entity");
-        chest.setItem(3, new ItemStack(Items.EMERALD, 7));
+        ItemStack legacySword = new ItemStack(Items.DIAMOND_SWORD);
+        legacySword.setHoverName(Component.literal("Legacy blade"));
+        legacySword.enchant(Enchantments.SHARPNESS, 3);
+        chest.setItem(3, legacySword);
         chest.setChanged();
         Entity sourceEntity = EntityType.ARMOR_STAND.create(helper.getLevel());
         helper.assertTrue(sourceEntity != null, "Entity exclusion marker must be creatable");
@@ -188,6 +195,13 @@ public final class MirrorTerrainGameTests {
             helper.assertFalse(captured.contains("entities"),
                     "Cross-save snapshots must explicitly exclude normal entities");
             StrandedSnapshotManager.writeSnapshotForTesting(summary, Map.of(0L, captured));
+            StrandedSnapshotManager.removeSnapshotDataVersionForTesting(snapshotId);
+            StrandedSnapshotManager.SnapshotSummary storedSummary =
+                    StrandedSnapshotManager.readSnapshotSummaryForTesting(snapshotId).orElseThrow();
+            helper.assertTrue(storedSummary.dataVersion()
+                            == SharedConstants.getCurrentVersion().getDataVersion().getVersion()
+                            && storedSummary.dataVersion() == 3465,
+                    "Legacy Minecraft 1.20.1 metadata must infer DataVersion 3465 for one-way upgrades");
 
             BlockPos targetCenter = new BlockPos(targetChunkX * 16 + 8, y, targetChunkZ * 16 + 8);
             WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
@@ -198,16 +212,20 @@ public final class MirrorTerrainGameTests {
 
             BlockPos targetMarker = new BlockPos(targetChunkX * 16 + 3, y, targetChunkZ * 16 + 5);
             BlockPos targetChest = targetMarker.east();
+            BlockPos targetGrass = targetMarker.west();
             helper.assertTrue(blocksPlaced > 0,
                     "Stranded snapshot must load cached blocks without reading any current source world");
             helper.assertTrue(helper.getLevel().getBlockState(targetMarker).is(Blocks.DIAMOND_BLOCK),
                     "Stranded snapshot must preserve local block positions at a new world location");
+            helper.assertTrue(helper.getLevel().getBlockState(targetGrass).is(Blocks.GRASS),
+                    "Stranded snapshot must preserve version-sensitive block states");
             helper.assertTrue(helper.getLevel().getBlockEntity(targetChest) instanceof ChestBlockEntity,
                     "Stranded snapshot must recreate captured block entities");
             ChestBlockEntity restoredChest = (ChestBlockEntity) helper.getLevel().getBlockEntity(targetChest);
-            helper.assertTrue(restoredChest.getItem(3).is(Items.EMERALD)
-                            && restoredChest.getItem(3).getCount() == 7,
-                    "Stranded snapshot must preserve chest inventory NBT");
+            helper.assertTrue(restoredChest.getItem(3).is(Items.DIAMOND_SWORD)
+                            && Component.literal("Legacy blade").equals(restoredChest.getItem(3).getHoverName())
+                            && restoredChest.getItem(3).getEnchantmentLevel(Enchantments.SHARPNESS) == 3,
+                    "Stranded snapshot must preserve named and enchanted chest inventory NBT");
             helper.assertTrue(helper.getLevel().getEntities(
                             sourceEntity, new net.minecraft.world.phys.AABB(targetMarker).inflate(4.0)).isEmpty(),
                     "Stranded snapshot loading must not duplicate normal entities across saves");

@@ -114,6 +114,7 @@
 - [x] `runtime.gametest_pristine_terrain_coverage` - all text found
 - [x] `runtime.gametest_smoke_script` - all text found
 - [x] `runtime.gametest_source_registered` - all text found
+- [x] `runtime.persistent_record_backups` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found
 - [x] `runtime.shared_item_transfer_behavior` - all text found
 - [x] `runtime.snapshot_no_source_world` - all text found
@@ -123,6 +124,7 @@
 - [x] `runtime.stranded_packet_roundtrip` - all text found
 - [x] `runtime.stranded_permissions_and_delete` - all text found
 - [x] `runtime.stranded_persistent_lifecycle` - all text found
+- [x] `runtime.stranded_snapshot_backups` - all text found
 - [x] `runtime.stranded_snapshot_round_trip` - all text found
 - [x] `runtime.superflat_enchantment_scope` - all text found
 - [x] `runtime.superflat_persistent_round_trip` - all text found

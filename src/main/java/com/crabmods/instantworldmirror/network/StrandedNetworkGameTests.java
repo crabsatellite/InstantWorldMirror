@@ -51,6 +51,19 @@ public final class StrandedNetworkGameTests {
         helper.assertTrue(delete.targetPos().equals(target) && delete.snapshotId().equals(snapshotId),
                 "Delete packet must preserve the confirmed snapshot identity");
 
+        BackupStrandedSnapshotPacket backupSnapshot = roundTrip(
+                BackupStrandedSnapshotPacket::encode, BackupStrandedSnapshotPacket::decode,
+                new BackupStrandedSnapshotPacket(target, snapshotId));
+        helper.assertTrue(backupSnapshot.targetPos().equals(target)
+                        && backupSnapshot.snapshotId().equals(snapshotId),
+                "World-slice backup packet must preserve the selected record identity");
+
+        BackupPersistentMirrorPacket backupPersistent = roundTrip(
+                BackupPersistentMirrorPacket::encode, BackupPersistentMirrorPacket::decode,
+                new BackupPersistentMirrorPacket("slot_3"));
+        helper.assertTrue("slot_3".equals(backupPersistent.selector()),
+                "Persistent backup packet must preserve the selected record selector");
+
         helper.assertTrue(roundTrip(
                         OpenStrandedSnapshotMenuPacket::encode,
                         OpenStrandedSnapshotMenuPacket::decode,
@@ -63,16 +76,17 @@ public final class StrandedNetworkGameTests {
                 "Long-term menu must preserve the persistent-world tab request");
 
         List<StrandedSnapshotMenuPacket.Entry> entries = List.of(
-                new StrandedSnapshotMenuPacket.Entry(snapshotId, "Available", 10, 123L, true),
-                new StrandedSnapshotMenuPacket.Entry(UUID.randomUUID(), "Old version", 2, 456L, false));
+                new StrandedSnapshotMenuPacket.Entry(snapshotId, "Available", 10, 123L, true, true),
+                new StrandedSnapshotMenuPacket.Entry(UUID.randomUUID(), "Old version", 2, 456L, false, true));
         StrandedSnapshotMenuPacket menu = roundTrip(
                 StrandedSnapshotMenuPacket::encode, StrandedSnapshotMenuPacket::decode,
                 new StrandedSnapshotMenuPacket(target, entries));
         helper.assertTrue(menu.targetPos().equals(target)
                         && menu.entries().equals(entries)
                         && menu.entries().get(0).available()
-                        && !menu.entries().get(1).available(),
-                "Snapshot menu packet must preserve pagination data and availability states");
+                        && !menu.entries().get(1).available()
+                        && menu.entries().stream().allMatch(StrandedSnapshotMenuPacket.Entry::backupAvailable),
+                "Snapshot menu packet must preserve separate open and backup availability states");
 
         helper.succeed();
     }

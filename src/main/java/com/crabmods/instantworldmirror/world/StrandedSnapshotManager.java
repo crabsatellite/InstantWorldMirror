@@ -62,10 +62,16 @@ public final class StrandedSnapshotManager {
     }
 
     public record SnapshotSummary(UUID id, UUID ownerId, String name, int radius,
-                                  BlockPos sourceCenter, long createdAt, String minecraftVersion) {
+                                  BlockPos sourceCenter, long createdAt, String minecraftVersion,
+                                  int dataVersion) {
+        public SnapshotSummary(UUID id, UUID ownerId, String name, int radius,
+                               BlockPos sourceCenter, long createdAt, String minecraftVersion) {
+            this(id, ownerId, name, radius, sourceCenter, createdAt, minecraftVersion,
+                    inferDataVersion(minecraftVersion));
+        }
     }
 
-    public record SnapshotMenuEntry(SnapshotSummary summary, boolean available) {
+    public record SnapshotMenuEntry(SnapshotSummary summary, boolean available, boolean backupAvailable) {
     }
 
     public static boolean requestCapture(ServerPlayer player, BlockPos targetPos, String name) {
@@ -157,8 +163,10 @@ public final class StrandedSnapshotManager {
 
     public static List<SnapshotMenuEntry> listSnapshotMenuEntries(ServerPlayer player) {
         return listAccessibleSnapshots(player).stream()
-                .map(summary -> new SnapshotMenuEntry(
-                        summary, isCompatible(summary) && isComplete(summary)))
+                .map(summary -> {
+                    boolean complete = isComplete(summary);
+                    return new SnapshotMenuEntry(summary, isCompatible(summary) && complete, complete);
+                })
                 .toList();
     }
 
@@ -202,6 +210,58 @@ public final class StrandedSnapshotManager {
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                 "message.instantworldmirror.stranded.deleted", summary.name()), false);
         return true;
+    }
+
+    public static synchronized boolean requestBackup(ServerPlayer player, UUID snapshotId) {
+        SnapshotSummary source = readSummary(snapshotDir(snapshotId)).orElse(null);
+        if (source == null || !canUse(player, source) || !isComplete(source)) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.instantworldmirror.stranded.backup_failed"), false);
+            return false;
+        }
+
+        String name = BackupNameAllocator.next(
+                source.name(),
+                listAccessibleSnapshots(player).stream().map(SnapshotSummary::name).toList(),
+                48);
+        UUID backupId = UUID.randomUUID();
+        Path temporary = cacheRoot().resolve(backupId + ".tmp");
+        Path destination = snapshotDir(backupId);
+        deleteTree(temporary);
+        try {
+            Files.createDirectories(temporary);
+            for (int dx = -source.radius(); dx <= source.radius(); dx++) {
+                for (int dz = -source.radius(); dz <= source.radius(); dz++) {
+                    Files.copy(
+                            snapshotDir(snapshotId).resolve(chunkFileName(dx, dz)),
+                            temporary.resolve(chunkFileName(dx, dz)));
+                }
+            }
+            SnapshotSummary backup = new SnapshotSummary(
+                    backupId,
+                    source.ownerId(),
+                    name,
+                    source.radius(),
+                    source.sourceCenter(),
+                    System.currentTimeMillis(),
+                    source.minecraftVersion(),
+                    source.dataVersion());
+            NbtIo.writeCompressed(writeSummary(backup), temporary.resolve(META_FILE).toFile());
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporary, destination);
+            }
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.instantworldmirror.stranded.backup_created", name), false);
+            return true;
+        } catch (Exception e) {
+            deleteTree(temporary);
+            InstantWorldMirror.LOGGER.warn("Failed to back up stranded snapshot {}: {}", snapshotId, e.getMessage());
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.instantworldmirror.stranded.backup_failed"), false);
+            return false;
+        }
     }
 
     public static boolean openSnapshot(ServerPlayer player, BlockPos targetCenter, UUID snapshotId,
@@ -355,6 +415,21 @@ public final class StrandedSnapshotManager {
 
     static Path cacheRootForTesting() {
         return cacheRoot();
+    }
+
+    static Optional<SnapshotSummary> readSnapshotSummaryForTesting(UUID id) {
+        return readSummary(snapshotDir(id));
+    }
+
+    public static CompoundTag readSnapshotChunkForTesting(UUID id, boolean prepared) throws IOException {
+        return NbtIo.readCompressed(snapshotDir(id).resolve(chunkFileName(0, 0)).toFile());
+    }
+
+    static void removeSnapshotDataVersionForTesting(UUID id) throws IOException {
+        Path meta = snapshotDir(id).resolve(META_FILE);
+        CompoundTag tag = NbtIo.readCompressed(meta.toFile());
+        tag.remove("data_version");
+        NbtIo.writeCompressed(tag, meta.toFile());
     }
 
     private static CompoundTag captureChunk(ServerLevel level, int chunkX, int chunkZ) {
@@ -573,7 +648,10 @@ public final class StrandedSnapshotManager {
                     radius,
                     center,
                     tag.getLong("created_at"),
-                    tag.getString("minecraft_version")
+                    tag.getString("minecraft_version"),
+                    tag.contains("data_version", CompoundTag.TAG_INT)
+                            ? tag.getInt("data_version")
+                            : inferDataVersion(tag.getString("minecraft_version"))
             ));
         } catch (Exception e) {
             InstantWorldMirror.LOGGER.warn("Failed to read stranded snapshot metadata {}: {}", meta, e.getMessage());
@@ -593,6 +671,7 @@ public final class StrandedSnapshotManager {
         tag.putInt("center_z", summary.sourceCenter().getZ());
         tag.putLong("created_at", summary.createdAt());
         tag.putString("minecraft_version", summary.minecraftVersion());
+        tag.putInt("data_version", summary.dataVersion());
         return tag;
     }
 
@@ -601,7 +680,8 @@ public final class StrandedSnapshotManager {
     }
 
     private static boolean isCompatible(SnapshotSummary summary) {
-        return currentMinecraftVersion().equals(summary.minecraftVersion());
+        return currentMinecraftVersion().equals(summary.minecraftVersion())
+                && summary.dataVersion() == currentDataVersion();
     }
 
     private static boolean isComplete(SnapshotSummary summary) {
@@ -618,6 +698,14 @@ public final class StrandedSnapshotManager {
 
     private static String currentMinecraftVersion() {
         return SharedConstants.getCurrentVersion().getName();
+    }
+
+    private static int currentDataVersion() {
+        return SharedConstants.getCurrentVersion().getDataVersion().getVersion();
+    }
+
+    private static int inferDataVersion(String minecraftVersion) {
+        return currentMinecraftVersion().equals(minecraftVersion) ? currentDataVersion() : -1;
     }
 
     private static String sanitizeName(String requestedName) {

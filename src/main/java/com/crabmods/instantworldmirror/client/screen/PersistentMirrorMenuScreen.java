@@ -1,6 +1,7 @@
 package com.crabmods.instantworldmirror.client.screen;
 
 import com.crabmods.instantworldmirror.network.PersistentMirrorMenuPacket;
+import com.crabmods.instantworldmirror.network.BackupPersistentMirrorPacket;
 import com.crabmods.instantworldmirror.network.OpenStrandedSnapshotMenuPacket;
 import com.crabmods.instantworldmirror.network.ModNetworking;
 import com.crabmods.instantworldmirror.world.MirrorKind;
@@ -96,7 +97,7 @@ public class PersistentMirrorMenuScreen extends Screen {
 
     private void addEntryRow(int y, PersistentMirrorMenuPacket.Entry entry) {
         int left = panelLeft + 24;
-        int manageWidth = entry.canManage() ? 94 : 0;
+        int manageWidth = entry.canManage() ? 142 : 0;
         int enterWidth = panelWidth - 48 - manageWidth;
         Component label = entry.ready()
                 ? Component.literal(entry.name())
@@ -108,19 +109,32 @@ public class PersistentMirrorMenuScreen extends Screen {
         addRenderableWidget(enter);
         if (entry.canManage()) {
             int x = left + enterWidth + 4;
+            Button backup = addRenderableWidget(Button.builder(
+                            Component.translatable("message.instantworldmirror.persistent.button.backup"),
+                            button -> ModNetworking.sendToServer(
+                                    new BackupPersistentMirrorPacket(entry.selector())))
+                    .bounds(x, y, 44, BUTTON_HEIGHT)
+                    .build());
+            backup.active = entry.ready();
             addRenderableWidget(Button.builder(Component.translatable("message.instantworldmirror.persistent.button.rename"),
                     button -> suggestCommand("iwm persistent rename " + entry.selector() + " "))
-                    .bounds(x, y, 44, BUTTON_HEIGHT)
+                    .bounds(x + 48, y, 44, BUTTON_HEIGHT)
                     .build());
             addRenderableWidget(Button.builder(Component.translatable("message.instantworldmirror.persistent.button.delete"),
                     button -> runCommand("iwm persistent delete " + entry.selector()))
-                    .bounds(x + 48, y, 42, BUTTON_HEIGHT)
+                    .bounds(x + 96, y, 42, BUTTON_HEIGHT)
                     .build());
         }
     }
 
     private void addManageButtons(int y, String selector, boolean showRename, boolean showDelete) {
         List<Button> buttons = new ArrayList<>();
+        if (showRename) {
+            buttons.add(Button.builder(Component.translatable("message.instantworldmirror.persistent.button.backup"),
+                    button -> ModNetworking.sendToServer(new BackupPersistentMirrorPacket(selector)))
+                    .bounds(0, y, 0, BUTTON_HEIGHT)
+                    .build());
+        }
         if (showRename) {
             buttons.add(Button.builder(Component.translatable("message.instantworldmirror.persistent.button.rename"),
                     button -> suggestCommand("iwm persistent rename " + selector + " "))

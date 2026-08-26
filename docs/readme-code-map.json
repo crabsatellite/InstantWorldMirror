@@ -509,7 +509,7 @@
           "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
           "texts": [
             "strandedSnapshotRestoresBlocksAndBlockEntityNbtAtAnotherLocation",
-            "Stranded snapshot must preserve chest inventory NBT"
+            "Stranded snapshot must preserve named and enchanted chest inventory NBT"
           ]
         }
       ]
