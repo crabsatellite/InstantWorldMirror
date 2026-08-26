@@ -119,6 +119,7 @@
 - [x] `runtime.snapshot_no_source_world` - all text found
 - [x] `runtime.stranded_capture_flow` - all text found
 - [x] `runtime.stranded_interaction_routes` - all text found
+- [x] `runtime.stranded_item_registration` - all text found
 - [x] `runtime.stranded_packet_roundtrip` - all text found
 - [x] `runtime.stranded_permissions_and_delete` - all text found
 - [x] `runtime.stranded_persistent_lifecycle` - all text found

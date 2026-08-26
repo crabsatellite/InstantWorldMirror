@@ -891,6 +891,12 @@
       "message": "all text found",
       "passed": true
     },
+    "runtime.stranded_item_registration": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_item_registration",
+      "message": "all text found",
+      "passed": true
+    },
     "runtime.stranded_packet_roundtrip": {
       "adapter": "file_contains_all",
       "id": "runtime.stranded_packet_roundtrip",
@@ -1017,11 +1023,11 @@
     }
   },
   "completion": {
-    "checkCount": 138,
+    "checkCount": 139,
     "complete": true,
     "coveredRouteCount": 16,
     "failedChecks": [],
-    "passedCheckCount": 138,
+    "passedCheckCount": 139,
     "routeCount": 16
   },
   "minecraftVersion": "1.20.1",
@@ -1138,6 +1144,7 @@
             "item.stranded_capture_ui",
             "network.stranded_packets",
             "client.stranded_ui_gate",
+            "runtime.stranded_item_registration",
             "runtime.stranded_interaction_routes",
             "runtime.stranded_packet_roundtrip"
           ],

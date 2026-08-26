@@ -9,6 +9,7 @@ import com.crabmods.instantworldmirror.MirrorKindSettings;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.registry.ModItems;
+import com.crabmods.instantworldmirror.registry.ModCreativeTabs;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorSession;
@@ -45,6 +46,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.player.Player;
@@ -100,6 +102,14 @@ public final class MirrorLifecycleGameTests {
                 "First dream mirror stack must resolve to the first dream mirror kind");
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(strandedMirror) == MirrorKind.STRANDED,
                 "Stranded mirror stack must resolve to the stranded mirror kind");
+        helper.assertTrue("instantworldmirror:stranded_mirror".equals(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(strandedMirror.getItem()).toString()),
+                "The runtime item registry must expose the Stranded Mirror under its public item id");
+        CreativeModeTab mirrorTab = ModCreativeTabs.MIRROR_TAB.get();
+        mirrorTab.buildContents(new CreativeModeTab.ItemDisplayParameters(
+                helper.getLevel().enabledFeatures(), true, helper.getLevel().registryAccess()));
+        helper.assertTrue(mirrorTab.contains(strandedMirror),
+                "The actual World Mirrors creative tab must display the Stranded Mirror item");
         helper.assertFalse(MirrorKind.FIRST_DREAM.isSandbox(),
                 "First dream mirror must use default player state");
         helper.assertTrue(MirrorKind.FIRST_DREAM.usesPristineTerrain(),
