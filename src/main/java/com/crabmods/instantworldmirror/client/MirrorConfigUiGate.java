@@ -5,7 +5,13 @@ import com.crabmods.instantworldmirror.MirrorAccess;
 import com.crabmods.instantworldmirror.MirrorConfig;
 import com.crabmods.instantworldmirror.MirrorConfigState;
 import com.crabmods.instantworldmirror.client.screen.MirrorConfigScreen;
+import com.crabmods.instantworldmirror.client.screen.StrandedCaptureScreen;
+import com.crabmods.instantworldmirror.client.screen.StrandedSnapshotScreen;
+import com.crabmods.instantworldmirror.client.renderer.MirrorItemRenderer;
+import com.crabmods.instantworldmirror.network.StrandedSnapshotMenuPacket;
+import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.MirrorKind;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -13,12 +19,14 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.OptionsScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.gui.ModListScreen;
 import net.minecraftforge.client.gui.widget.ModListWidget;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Strict client UI gate used only by the automated runClient smoke script.
@@ -53,9 +61,22 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.config.button.save", "Save"),
             Map.entry("message.instantworldmirror.config.button.saving", "Saving..."),
             Map.entry("message.instantworldmirror.config.button.cancel", "Cancel"),
+            Map.entry("message.instantworldmirror.stranded.capture.title", "Capture world slice"),
+            Map.entry("message.instantworldmirror.stranded.capture.name", "Snapshot name"),
+            Map.entry("message.instantworldmirror.stranded.capture.help",
+                    "Captures the configured chunk radius around this mirror."),
+            Map.entry("message.instantworldmirror.stranded.capture.save", "Capture"),
+            Map.entry("message.instantworldmirror.stranded.open.title", "Open world slice"),
+            Map.entry("message.instantworldmirror.stranded.open.unavailable", " (unavailable)"),
+            Map.entry("message.instantworldmirror.stranded.delete.tooltip", "Delete this snapshot"),
+            Map.entry("message.instantworldmirror.stranded.delete.confirm.tooltip", "Click again to confirm deletion"),
+            Map.entry("message.instantworldmirror.stranded.previous", "Previous"),
+            Map.entry("message.instantworldmirror.stranded.next", "Next"),
+            Map.entry("message.instantworldmirror.stranded.cancel", "Cancel"),
             Map.entry("item.instantworldmirror.dimension_mirror", "World Reflection Mirror"),
             Map.entry("item.instantworldmirror.heaven_mirror", "Heaven Mirror"),
-            Map.entry("item.instantworldmirror.first_dream_mirror", "First Dream Mirror")
+            Map.entry("item.instantworldmirror.first_dream_mirror", "First Dream Mirror"),
+            Map.entry("item.instantworldmirror.stranded_mirror", "Stranded Mirror")
     );
     private static boolean running;
     private static MirrorConfigState previousConfigured;
@@ -126,6 +147,7 @@ public final class MirrorConfigUiGate {
 
         assertTrue(minecraft.screen instanceof MirrorConfigScreen, "Mod config button did not open MirrorConfigScreen");
         Screen configScreen = minecraft.screen;
+        configScreen.resize(minecraft, 480, 240);
         MirrorConfigScreen mirrorConfigScreen = (MirrorConfigScreen) configScreen;
         assertTrue(localized("message.instantworldmirror.config.gui.title", activeLanguage).equals(configScreen.getTitle().getString()),
                 "Mirror config screen title did not use the active language");
@@ -191,14 +213,16 @@ public final class MirrorConfigUiGate {
 
         MirrorConfig.refreshServerConfigSnapshot();
         assertClientBehaviorMatchesState(expectedState, "after restart snapshot");
+        int strandedUiChecks = assertStrandedMirrorScreens(minecraft);
 
         InstantWorldMirror.LOGGER.info(
-                "IWM_CLIENT_UI_GATE_METRICS language={} mirrors={} settings={} uiActions={} restartChecks={}",
+                "IWM_CLIENT_UI_GATE_METRICS language={} mirrors={} settings={} uiActions={} restartChecks={} strandedUiChecks={}",
                 activeLanguage,
                 MirrorKind.values().length,
                 MirrorKind.values().length * SETTINGS_PER_MIRROR + 1,
                 uiActions,
-                (MirrorKind.values().length * SETTINGS_PER_MIRROR + 1) * 2
+                (MirrorKind.values().length * SETTINGS_PER_MIRROR + 1) * 2,
+                strandedUiChecks
         );
         InstantWorldMirror.LOGGER.info(
                 "IWM_CLIENT_UI_GATE_BEHAVIOR language={} before={} after={}",
@@ -213,6 +237,70 @@ public final class MirrorConfigUiGate {
                 localized("message.instantworldmirror.config.button.save", activeLanguage)
         );
         return activeLanguage;
+    }
+
+    private static int assertStrandedMirrorScreens(Minecraft minecraft) {
+        ResourceLocation modelResource = ResourceLocation.tryParse(
+                InstantWorldMirror.MODID + ":models/item/stranded_mirror.json");
+        ResourceLocation textureResource = ResourceLocation.tryParse(
+                InstantWorldMirror.MODID + ":textures/item/stranded_mirror.png");
+        assertTrue(modelResource != null && minecraft.getResourceManager().getResource(modelResource).isPresent(),
+                "Stranded Mirror item model resource was not loaded by the actual client");
+        assertTrue(textureResource != null && minecraft.getResourceManager().getResource(textureResource).isPresent(),
+                "Stranded Mirror texture resource was not loaded by the actual client");
+        assertTrue(!new net.minecraft.world.item.ItemStack(ModItems.STRANDED_MIRROR.get()).isEmpty()
+                        && MirrorItemRenderer.getInstance() != null,
+                "Stranded Mirror item and custom renderer must initialize on the actual client");
+        Screen parent = minecraft.screen;
+        StrandedCaptureScreen.open(BlockPos.ZERO);
+        assertTrue(minecraft.screen instanceof StrandedCaptureScreen,
+                "Stranded Mirror capture screen did not open");
+        assertTrue(localized("message.instantworldmirror.stranded.capture.title", minecraft.options.languageCode)
+                        .equals(minecraft.screen.getTitle().getString()),
+                "Stranded Mirror capture title was not localized");
+        assertTrue(findEditBoxes(minecraft.screen).size() == 1,
+                "Stranded Mirror capture screen must expose one snapshot-name input");
+        findButton(minecraft.screen, "message.instantworldmirror.stranded.capture.save");
+        findButton(minecraft.screen, "message.instantworldmirror.stranded.cancel").onPress();
+        assertTrue(minecraft.screen == parent,
+                "Stranded Mirror capture cancel button must return to the previous screen");
+
+        List<StrandedSnapshotMenuPacket.Entry> entries = new ArrayList<>();
+        for (int index = 0; index < 7; index++) {
+            entries.add(new StrandedSnapshotMenuPacket.Entry(
+                    UUID.randomUUID(), "Snapshot " + index, index + 1, index, index != 6));
+        }
+        StrandedSnapshotScreen.open(BlockPos.ZERO, entries);
+        assertTrue(minecraft.screen instanceof StrandedSnapshotScreen,
+                "Stranded Mirror snapshot selection screen did not open");
+        assertTrue(localized("message.instantworldmirror.stranded.open.title", minecraft.options.languageCode)
+                        .equals(minecraft.screen.getTitle().getString()),
+                "Stranded Mirror snapshot selection title was not localized");
+        findButton(minecraft.screen, "message.instantworldmirror.stranded.next").onPress();
+        String unavailableLabel = localized(
+                "message.instantworldmirror.stranded.open.unavailable", minecraft.options.languageCode);
+        Button unavailableEntry = minecraft.screen.children().stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> button.getMessage().getString().contains(unavailableLabel))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Stranded Mirror menu did not render an unavailable cross-version entry"));
+        assertTrue(!unavailableEntry.active,
+                "Unavailable Stranded Mirror entries must not be openable");
+        findButton(minecraft.screen, "message.instantworldmirror.stranded.previous").onPress();
+        Button deleteButton = findButton(minecraft.screen, "message.instantworldmirror.stranded.delete");
+        assertTrue(deleteButton.getTooltip() != null,
+                "Stranded Mirror delete control must explain its action on hover");
+        deleteButton.onPress();
+        Button confirmDeleteButton = findButton(
+                minecraft.screen, "message.instantworldmirror.stranded.delete.confirm");
+        assertTrue(confirmDeleteButton.getTooltip() != null,
+                "Stranded Mirror delete confirmation must explain the second click");
+        findButton(minecraft.screen, "message.instantworldmirror.stranded.cancel").onPress();
+        assertTrue(minecraft.screen == parent,
+                "Stranded Mirror selection cancel button must return to the previous screen");
+        return 13;
     }
 
     private static MirrorConfigState strictGateBaseState() {
@@ -232,6 +320,7 @@ public final class MirrorConfigUiGate {
             case DIMENSION -> MirrorAccess.NONE;
             case HEAVEN -> MirrorAccess.ADMIN;
             case FIRST_DREAM -> MirrorAccess.ALL;
+            case STRANDED -> MirrorAccess.NONE;
         };
     }
 

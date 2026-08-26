@@ -2,6 +2,7 @@
 
 - [x] `build.verify_mirror_jar_contents` - all text found
 - [x] `client.persistent_popup_controls` - all text found
+- [x] `client.stranded_ui_gate` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
 - [x] `command.mob_updates_persistent_worlds` - method contains all text
 - [x] `command.persistent_name_suggestions_all_kinds` - all text found
@@ -12,6 +13,7 @@
 - [x] `command.repair_scans_dead_data_only` - method contains all text
 - [x] `command.status_includes_persistent_pool` - method contains all text
 - [x] `config.mirror_kind_toggles` - all text found
+- [x] `config.stranded_settings` - all text found
 - [x] `copy.generated_content_refresh_task_flag` - all text found
 - [x] `copy.generated_content_refresh_uses_scratch_snapshot` - all text found
 - [x] `copy.no_portal_entity_copy` - found text
@@ -25,6 +27,7 @@
 - [x] `copy.pristine_loot_preserved_independently` - all text found
 - [x] `copy.pristine_scratch_world_skips_poi_updates` - all text found
 - [x] `copy.pristine_task_flag` - all text found
+- [x] `copy.superflat_generator` - method contains all text
 - [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text
 - [x] `data.source_session_lookup` - method contains all text
@@ -38,6 +41,8 @@
 - [x] `enchantment.mirror_item_support` - composite passed
 - [x] `enchantment.renewal_first_dream_only` - all text found
 - [x] `enchantment.renewal_hard_to_get_registration` - composite passed
+- [x] `enchantment.superflat_heaven_only` - composite passed
+- [x] `enchantment.superflat_version_registration` - composite passed
 - [x] `enchantment.version_registration` - composite passed
 - [x] `events.dimension_change_exit_order` - method contains ordered text
 - [x] `events.generated_content_refresh_allows_mob_spawn` - all text found
@@ -61,9 +66,11 @@
 - [x] `item.renewal_creative_bypasses_cooldown` - method contains ordered text
 - [x] `item.renewal_item_cooldown` - all text found
 - [x] `item.shift_menu_uses_stack` - found text
+- [x] `item.stranded_capture_ui` - all text found
 - [x] `kind.first_dream_not_sandbox` - method contains ordered text
 - [x] `kind.first_dream_present` - all text found
 - [x] `kind.first_dream_pristine` - all text found
+- [x] `kind.stranded_present` - all text found
 - [x] `lang.mirror_kind_disabled_message` - composite passed
 - [x] `lang.persistent_messages` - composite passed
 - [x] `lang.repair_messages` - composite passed
@@ -95,9 +102,11 @@
 - [x] `manager.shared_item_transfer_pipeline` - method contains ordered text
 - [x] `manager.shared_item_transfer_snapshot` - all text found
 - [x] `manager.teleport_session_order` - method contains ordered text
+- [x] `network.stranded_packets` - all text found
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text
 - [x] `record.source_session_persisted` - all text found
+- [x] `record.terrain_mode_persisted` - all text found
 - [x] `runtime.disabled_mirror_kind_blocks_temporary_session` - method contains all text
 - [x] `runtime.gametest_behavior_coverage` - all text found
 - [x] `runtime.gametest_empty_template` - all text found
@@ -106,11 +115,24 @@
 - [x] `runtime.gametest_source_registered` - all text found
 - [x] `runtime.runclient_smoke_script` - all text found
 - [x] `runtime.shared_item_transfer_behavior` - all text found
+- [x] `runtime.stranded_capture_flow` - all text found
+- [x] `runtime.stranded_interaction_routes` - all text found
+- [x] `runtime.stranded_packet_roundtrip` - all text found
+- [x] `runtime.stranded_permissions_and_delete` - all text found
+- [x] `runtime.stranded_persistent_lifecycle` - all text found
+- [x] `runtime.stranded_snapshot_round_trip` - all text found
+- [x] `runtime.superflat_enchantment_scope` - all text found
+- [x] `runtime.superflat_persistent_round_trip` - all text found
+- [x] `runtime.superflat_terrain_layers` - all text found
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
+- [x] `sandbox.applies_superflat_to_hotbar_mirror` - all text found
 - [x] `sandbox.prep_receives_persistent_access` - found text
 - [x] `session.generated_content_refresh_field` - all text found
 - [x] `session.kind_field` - all text found
 - [x] `session.persistent_access_field` - found text
+- [x] `session.superflat_terrain_mode` - composite passed
+- [x] `snapshot.global_cache` - all text found
+- [x] `snapshot.same_version_owner_gate` - all text found
 - [x] `startup.recover_unready_records` - found text
 - [x] `worldcopy.persistent_copy_query` - method contains all text
 - [x] `worldgen.structures_disabled` - found text

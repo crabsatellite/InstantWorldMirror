@@ -46,6 +46,8 @@ public class MirrorConfigScreen extends Screen {
     private int mobX;
     private int itemX;
     private int radiusX;
+    private int rowStep = ROW_HEIGHT;
+    private int firstRowOffset = 76;
     private Component restartHint = Component.empty();
     private List<FormattedCharSequence> helpLines = List.of();
     @Nullable
@@ -84,9 +86,15 @@ public class MirrorConfigScreen extends Screen {
         this.restartHint = Component.translatable("message.instantworldmirror.config.gui.restart_hint");
         this.helpLines = this.font.split(restartHint, panelWidth - 40);
         int rowCount = MirrorKind.values().length;
-        this.panelHeight = Math.min(this.height - 24, 116 + helpLines.size() * 12 + (rowCount + 1) * ROW_HEIGHT + 32);
+        int desiredPanelHeight = 116 + helpLines.size() * 12 + (rowCount + 1) * ROW_HEIGHT + 32;
+        this.panelHeight = Math.min(this.height - 24, desiredPanelHeight);
         this.panelLeft = (this.width - panelWidth) / 2;
         this.panelTop = (this.height - panelHeight) / 2;
+        this.firstRowOffset = panelHeight < desiredPanelHeight ? 60 : 76;
+        int footerY = panelTop + panelHeight - 30;
+        int availableRowHeight = footerY - (panelTop + firstRowOffset + helpLines.size() * 12) - BUTTON_HEIGHT - 4;
+        this.rowStep = Math.max(BUTTON_HEIGHT + 1,
+                Math.min(ROW_HEIGHT, availableRowHeight / Math.max(1, rowCount)));
 
         this.radiusX = panelLeft + panelWidth - 22 - RADIUS_WIDTH;
         this.itemX = radiusX - GAP - TOGGLE_WIDTH;
@@ -98,12 +106,12 @@ public class MirrorConfigScreen extends Screen {
                 .build());
 
         int y = firstRowY();
-        addSettingsRow(MirrorKind.DIMENSION, y);
-        addSettingsRow(MirrorKind.HEAVEN, y + ROW_HEIGHT);
-        addSettingsRow(MirrorKind.FIRST_DREAM, y + ROW_HEIGHT * 2);
-        addCooldownRow(y + ROW_HEIGHT * 3);
+        MirrorKind[] kinds = MirrorKind.values();
+        for (int index = 0; index < kinds.length; index++) {
+            addSettingsRow(kinds[index], y + rowStep * index);
+        }
+        addCooldownRow(y + rowStep * kinds.length);
 
-        int footerY = panelTop + panelHeight - 30;
         int buttonWidth = (panelWidth - 56) / 2;
         this.saveButton = addRenderableWidget(
                 Button.builder(Component.translatable("message.instantworldmirror.config.button.save"), button -> save())
@@ -115,7 +123,7 @@ public class MirrorConfigScreen extends Screen {
     }
 
     private int firstRowY() {
-        return panelTop + 76 + helpLines.size() * 12;
+        return panelTop + firstRowOffset + helpLines.size() * 12;
     }
 
     private void addSettingsRow(MirrorKind kind, int y) {
@@ -322,14 +330,15 @@ public class MirrorConfigScreen extends Screen {
                 radiusX, headerY, MUTED_TEXT_COLOR, false);
 
         int rowY = firstRowY();
-        drawRowLabel(guiGraphics, MirrorKind.DIMENSION, rowY);
-        drawRowLabel(guiGraphics, MirrorKind.HEAVEN, rowY + ROW_HEIGHT);
-        drawRowLabel(guiGraphics, MirrorKind.FIRST_DREAM, rowY + ROW_HEIGHT * 2);
+        MirrorKind[] kinds = MirrorKind.values();
+        for (int index = 0; index < kinds.length; index++) {
+            drawRowLabel(guiGraphics, kinds[index], rowY + rowStep * index);
+        }
         guiGraphics.drawString(
                 this.font,
                 Component.translatable("message.instantworldmirror.config.global.mirror_cooldown"),
                 panelLeft + 24,
-                rowY + ROW_HEIGHT * 3 + 6,
+                rowY + rowStep * kinds.length + 6,
                 TEXT_COLOR,
                 false
         );

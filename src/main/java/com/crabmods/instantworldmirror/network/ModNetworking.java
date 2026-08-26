@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "2";
+    public static final String PROTOCOL_VERSION = "3";
     
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(InstantWorldMirror.MODID, "main"),
@@ -85,6 +85,24 @@ public class ModNetworking {
                 MirrorConfigSaveResultPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                StrandedCapturePromptPacket.class,
+                StrandedCapturePromptPacket::encode,
+                StrandedCapturePromptPacket::decode,
+                StrandedCapturePromptPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                StrandedSnapshotMenuPacket.class,
+                StrandedSnapshotMenuPacket::encode,
+                StrandedSnapshotMenuPacket::decode,
+                StrandedSnapshotMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
         
         // Register server-bound packets
         CHANNEL.registerMessage(
@@ -111,6 +129,33 @@ public class ModNetworking {
                 OpenMirrorConfigPacket::encode,
                 OpenMirrorConfigPacket::decode,
                 OpenMirrorConfigPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                CreateStrandedSnapshotPacket.class,
+                CreateStrandedSnapshotPacket::encode,
+                CreateStrandedSnapshotPacket::decode,
+                CreateStrandedSnapshotPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                OpenStrandedSnapshotPacket.class,
+                OpenStrandedSnapshotPacket::encode,
+                OpenStrandedSnapshotPacket::decode,
+                OpenStrandedSnapshotPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                DeleteStrandedSnapshotPacket.class,
+                DeleteStrandedSnapshotPacket::encode,
+                DeleteStrandedSnapshotPacket::decode,
+                DeleteStrandedSnapshotPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER)
         );
         

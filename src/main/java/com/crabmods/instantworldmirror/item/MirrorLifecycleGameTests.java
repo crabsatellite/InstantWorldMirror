@@ -12,26 +12,36 @@ import com.crabmods.instantworldmirror.registry.ModItems;
 import com.crabmods.instantworldmirror.world.DimensionPool;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.crabmods.instantworldmirror.world.MirrorSession;
+import com.crabmods.instantworldmirror.world.MirrorTerrainMode;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorData;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import com.crabmods.instantworldmirror.world.PersistentMirrorRecord;
+import com.crabmods.instantworldmirror.world.StrandedSnapshotManager;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
+import com.crabmods.instantworldmirror.world.gen.MirrorChunkGenerator;
 import com.mojang.authlib.GameProfile;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import io.netty.channel.embedded.EmbeddedChannel;
+import net.minecraft.SharedConstants;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.progress.LoggerChunkProgressListener;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -41,8 +51,17 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeManager;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.border.BorderChangeListener;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.storage.DerivedLevelData;
+import net.minecraft.world.level.storage.LevelStorageSource;
+import net.minecraft.world.level.storage.ServerLevelData;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
@@ -52,7 +71,9 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @GameTestHolder(InstantWorldMirror.MODID)
@@ -68,6 +89,7 @@ public final class MirrorLifecycleGameTests {
         ItemStack dimensionMirror = new ItemStack(ModItems.DIMENSION_MIRROR.get());
         ItemStack heavenMirror = new ItemStack(ModItems.HEAVEN_MIRROR.get());
         ItemStack firstDreamMirror = new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+        ItemStack strandedMirror = new ItemStack(ModItems.STRANDED_MIRROR.get());
         ItemStack nonMirror = new ItemStack(Items.DIAMOND);
 
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(dimensionMirror) == MirrorKind.DIMENSION,
@@ -76,6 +98,8 @@ public final class MirrorLifecycleGameTests {
                 "Heaven mirror stack must resolve to the heaven mirror kind");
         helper.assertTrue(DimensionMirrorItem.getMirrorKind(firstDreamMirror) == MirrorKind.FIRST_DREAM,
                 "First dream mirror stack must resolve to the first dream mirror kind");
+        helper.assertTrue(DimensionMirrorItem.getMirrorKind(strandedMirror) == MirrorKind.STRANDED,
+                "Stranded mirror stack must resolve to the stranded mirror kind");
         helper.assertFalse(MirrorKind.FIRST_DREAM.isSandbox(),
                 "First dream mirror must use default player state");
         helper.assertTrue(MirrorKind.FIRST_DREAM.usesPristineTerrain(),
@@ -88,6 +112,8 @@ public final class MirrorLifecycleGameTests {
                 "Heaven Mirror must be enabled by default");
         helper.assertTrue(MirrorConfig.isMirrorKindEnabled(MirrorKind.FIRST_DREAM),
                 "First Dream Mirror must be enabled by default");
+        helper.assertTrue(MirrorConfig.isMirrorKindEnabled(MirrorKind.STRANDED),
+                "Stranded Mirror must be enabled by default");
         helper.assertFalse(DimensionMirrorItem.hasPermanence(helper.getLevel(), heavenMirror),
                 "Fresh heaven mirror must not start permanent");
 
@@ -101,12 +127,17 @@ public final class MirrorLifecycleGameTests {
         DimensionMirrorItem dimensionMirrorItem = (DimensionMirrorItem) dimensionMirror.getItem();
         DimensionMirrorItem heavenMirrorItem = (DimensionMirrorItem) heavenMirror.getItem();
         DimensionMirrorItem firstDreamMirrorItem = (DimensionMirrorItem) firstDreamMirror.getItem();
+        DimensionMirrorItem strandedMirrorItem = (DimensionMirrorItem) strandedMirror.getItem();
         helper.assertTrue(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.PERMANENCE.get()),
                 "Permanence enchantment must be valid for the default mirror");
         helper.assertTrue(heavenMirrorItem.canApplyAtEnchantingTable(heavenMirror, ModEnchantments.PERMANENCE.get()),
                 "Permanence enchantment must be valid for the heaven mirror");
         helper.assertTrue(firstDreamMirrorItem.canApplyAtEnchantingTable(firstDreamMirror, ModEnchantments.PERMANENCE.get()),
                 "Permanence enchantment must be valid for the first dream mirror");
+        helper.assertTrue(strandedMirrorItem.canApplyAtEnchantingTable(strandedMirror, ModEnchantments.PERMANENCE.get()),
+                "Permanence enchantment must be valid for the stranded mirror");
+        helper.assertTrue(strandedMirrorItem.canApplyAtEnchantingTable(strandedMirror, Enchantments.BLOCK_EFFICIENCY),
+                "Efficiency must remain valid for stranded mirror cooldown reduction");
         helper.assertTrue(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, Enchantments.BLOCK_EFFICIENCY),
                 "Efficiency must remain valid for mirror cooldown reduction");
         helper.assertFalse(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.RENEWAL.get()),
@@ -115,6 +146,15 @@ public final class MirrorLifecycleGameTests {
                 "Renewal must not be valid for the heaven mirror");
         helper.assertTrue(firstDreamMirrorItem.canApplyAtEnchantingTable(firstDreamMirror, ModEnchantments.RENEWAL.get()),
                 "Renewal must be valid for first dream mirrors");
+        helper.assertFalse(dimensionMirrorItem.canApplyAtEnchantingTable(dimensionMirror, ModEnchantments.SUPERFLAT.get()),
+                "Superflat must not be valid for the default mirror");
+        helper.assertTrue(heavenMirrorItem.canApplyAtEnchantingTable(heavenMirror, ModEnchantments.SUPERFLAT.get()),
+                "Superflat must be valid for the heaven mirror");
+        helper.assertFalse(firstDreamMirrorItem.canApplyAtEnchantingTable(firstDreamMirror, ModEnchantments.SUPERFLAT.get()),
+                "Superflat must not be valid for the first dream mirror");
+        helper.assertFalse(strandedMirrorItem.canApplyAtEnchantingTable(strandedMirror, ModEnchantments.RENEWAL.get())
+                        || strandedMirrorItem.canApplyAtEnchantingTable(strandedMirror, ModEnchantments.SUPERFLAT.get()),
+                "Stranded mirrors must not accept terrain-specific enchantments");
 
         ModEnchantments.applyPermanence(helper.getLevel(), nonMirror);
         helper.assertFalse(ModEnchantments.hasPermanence(helper.getLevel(), nonMirror),
@@ -143,6 +183,78 @@ public final class MirrorLifecycleGameTests {
                 "Renewal must be applied exactly once");
         helper.assertTrue(firstDreamMirror.hasFoil(),
                 "Renewal enchanted first dream mirrors must show enchantment glint");
+
+        ModEnchantments.applySuperflat(helper.getLevel(), dimensionMirror);
+        ModEnchantments.applySuperflat(helper.getLevel(), firstDreamMirror);
+        helper.assertFalse(DimensionMirrorItem.hasSuperflat(helper.getLevel(), dimensionMirror),
+                "Superflat helper must ignore the default mirror");
+        helper.assertFalse(DimensionMirrorItem.hasSuperflat(helper.getLevel(), firstDreamMirror),
+                "Superflat helper must ignore the first dream mirror");
+        helper.assertTrue(dimensionMirror.getEnchantmentLevel(ModEnchantments.SUPERFLAT.get()) == 0
+                        && firstDreamMirror.getEnchantmentLevel(ModEnchantments.SUPERFLAT.get()) == 0,
+                "Superflat must not be applied to non-heaven mirrors");
+
+        ModEnchantments.applySuperflat(helper.getLevel(), heavenMirror);
+        helper.assertTrue(DimensionMirrorItem.hasSuperflat(helper.getLevel(), heavenMirror),
+                "Superflat helper must mark heaven mirrors for flat terrain");
+        helper.assertTrue(heavenMirror.getEnchantmentLevel(ModEnchantments.SUPERFLAT.get()) == 1,
+                "Superflat must be applied exactly once to a heaven mirror");
+        helper.assertTrue(MirrorTerrainMode.forMirror(MirrorKind.HEAVEN, true) == MirrorTerrainMode.SUPERFLAT,
+                "Superflat heaven mirrors must select the superflat terrain mode");
+        helper.assertTrue(MirrorTerrainMode.forMirror(MirrorKind.DIMENSION, true) == MirrorTerrainMode.COPIED
+                        && MirrorTerrainMode.forMirror(MirrorKind.FIRST_DREAM, true) == MirrorTerrainMode.PRISTINE,
+                "Superflat selection must not change other mirror kinds");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "superflat_heaven_session", timeoutTicks = 80)
+    public static void superflatEnchantedHeavenMirrorCreatesSuperflatSession(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        ServerLevel sourceLevel = helper.getLevel();
+        BlockPos sourcePos = helper.absolutePos(new BlockPos(1, 2, 1));
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withAccess(MirrorKind.HEAVEN, MirrorAccess.ALL)
+                    .withCopyChunkRadius(MirrorKind.HEAVEN, 1));
+            clearDimensionPoolTestState(player);
+            sourceLevel.setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+            sourceLevel.removeBlock(sourcePos.above(), false);
+            sourceLevel.removeBlock(sourcePos.above(2), false);
+            player.teleportTo(sourceLevel, sourcePos.getX() + 0.5, sourcePos.getY() + 1.0,
+                    sourcePos.getZ() + 2.5, 180.0F, 0.0F);
+
+            ItemStack mirrorStack = new ItemStack(ModItems.HEAVEN_MIRROR.get());
+            ModEnchantments.applySuperflat(sourceLevel, mirrorStack);
+            player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+            InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+            helper.assertTrue(result.consumesAction(),
+                    "Using a superflat heaven mirror must create an entry portal");
+
+            MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID()).orElseThrow();
+            helper.assertTrue(session.getKind() == MirrorKind.HEAVEN,
+                    "Superflat enchantment must keep heaven sandbox behavior");
+            helper.assertTrue(session.getTerrainMode() == MirrorTerrainMode.SUPERFLAT,
+                    "Superflat heaven mirror use must select superflat terrain");
+
+            WorldCopyService.queueWorldCopy(session, sourceLevel);
+            helper.assertTrue(pendingCopyTask(session.getDimensionIndex()).terrainMode == MirrorTerrainMode.SUPERFLAT,
+                    "The queued copy task must preserve the session terrain mode");
+        } finally {
+            sourceLevel.getEntitiesOfClass(MirrorPortalEntity.class,
+                            new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
+                    .forEach(Entity::discard);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
 
         helper.succeed();
     }
@@ -269,6 +381,10 @@ public final class MirrorLifecycleGameTests {
                 .withMobSpawning(MirrorKind.FIRST_DREAM, false)
                 .withItemTransfer(MirrorKind.FIRST_DREAM, false)
                 .withCopyChunkRadius(MirrorKind.FIRST_DREAM, 5)
+                .withAccess(MirrorKind.STRANDED, MirrorAccess.ADMIN)
+                .withMobSpawning(MirrorKind.STRANDED, true)
+                .withItemTransfer(MirrorKind.STRANDED, true)
+                .withCopyChunkRadius(MirrorKind.STRANDED, 6)
                 .withMirrorCooldownSeconds(420);
         Path configPath = Path.of("config", InstantWorldMirror.MODID + "-common.toml");
 
@@ -284,6 +400,8 @@ public final class MirrorLifecycleGameTests {
                         target.get(MirrorKind.HEAVEN));
                 assertPersistedMirrorSettings(helper, config, "firstDreamMirror",
                         target.get(MirrorKind.FIRST_DREAM));
+                assertPersistedMirrorSettings(helper, config, "strandedMirror",
+                        target.get(MirrorKind.STRANDED));
                 helper.assertTrue(((Number) config.get("mirrorCooldown")).intValue()
                                 == target.mirrorCooldownSeconds(),
                         "Saving from the UI service must persist the global mirror cooldown");
@@ -339,18 +457,24 @@ public final class MirrorLifecycleGameTests {
                         "Legacy mob spawning must initialize Heaven Mirror mob spawning");
                 helper.assertFalse(Boolean.TRUE.equals(config.get("firstDreamMirrorMobSpawning")),
                         "Existing legacy mob spawning must preserve First Dream behavior on upgrade");
+                helper.assertFalse(Boolean.TRUE.equals(config.get("strandedMirrorMobSpawning")),
+                        "Legacy config migration must add the safe Stranded Mirror mob-spawning default");
                 helper.assertTrue(Boolean.TRUE.equals(config.get("worldReflectionMirrorItemTransfer")),
                         "Legacy item transfer must initialize World Reflection Mirror item transfer");
                 helper.assertFalse(Boolean.TRUE.equals(config.get("heavenMirrorItemTransfer")),
                         "Existing Heaven Mirror item transfer must not be overwritten");
                 helper.assertTrue(Boolean.TRUE.equals(config.get("firstDreamMirrorItemTransfer")),
                         "Legacy item transfer must initialize First Dream item transfer");
+                helper.assertTrue(Boolean.TRUE.equals(config.get("strandedMirrorItemTransfer")),
+                        "Legacy item transfer must initialize Stranded Mirror item transfer");
                 helper.assertTrue(((Number) config.get("worldReflectionMirrorCopyChunkRadius")).intValue() == 12,
                         "Legacy copy radius must initialize World Reflection Mirror copy radius");
                 helper.assertTrue(((Number) config.get("heavenMirrorCopyChunkRadius")).intValue() == 12,
                         "Legacy copy radius must initialize Heaven Mirror copy radius");
                 helper.assertTrue(((Number) config.get("firstDreamMirrorCopyChunkRadius")).intValue() == 5,
                         "Existing First Dream Mirror copy radius must not be overwritten");
+                helper.assertTrue(((Number) config.get("strandedMirrorCopyChunkRadius")).intValue() == 12,
+                        "Legacy copy radius must initialize Stranded Mirror copy radius");
                 helper.assertTrue(((Number) config.get("mirrorCooldown")).intValue()
                                 == MirrorConfigState.DEFAULT_MIRROR_COOLDOWN_SECONDS,
                         "Legacy invalid cooldown values must migrate to the 300-second default");
@@ -478,12 +602,18 @@ public final class MirrorLifecycleGameTests {
                 player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
                 DimensionMirrorItem.clearCooldown(player.getUUID());
 
-                BlockHitResult hit = new BlockHitResult(
-                        Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
-                InteractionResult result = mirrorStack.useOn(
-                        new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
-                helper.assertTrue(result.consumesAction(),
-                        kind.id() + " mirror must create a portal through the normal item-use path");
+                boolean used;
+                if (kind == MirrorKind.STRANDED) {
+                    used = openStrandedSnapshotForTesting(player, sourcePos);
+                } else {
+                    BlockHitResult hit = new BlockHitResult(
+                            Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+                    InteractionResult result = mirrorStack.useOn(
+                            new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+                    used = result.consumesAction();
+                }
+                helper.assertTrue(used,
+                        kind.id() + " mirror must create a portal through its server use flow");
 
                 long remainingMillis = DimensionMirrorItem.getRemainingCooldownMillis(player.getUUID());
                 helper.assertTrue(remainingMillis > 295_000L && remainingMillis <= 300_000L,
@@ -508,6 +638,282 @@ public final class MirrorLifecycleGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = TEMPLATE, batch = "stranded_capture_flow", timeoutTicks = 120)
+    public static void strandedMirrorCapturesNamedSnapshotAndOpensTemporaryPortal(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        BlockPos targetPos = new BlockPos(240, 64, 240);
+        Set<UUID> existingSnapshots = StrandedSnapshotManager.listSnapshots(player).stream()
+                .map(StrandedSnapshotManager.SnapshotSummary::id)
+                .collect(java.util.stream.Collectors.toSet());
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(
+                    strictGateBaseConfigState(1).withMirrorCooldownSeconds(300));
+            clearDimensionPoolTestState(player);
+            helper.getLevel().setBlock(targetPos, Blocks.STONE.defaultBlockState(), 3);
+            helper.getLevel().removeBlock(targetPos.above(), false);
+            helper.getLevel().removeBlock(targetPos.above(2), false);
+            player.teleportTo(helper.getLevel(), targetPos.getX() + 0.5, targetPos.getY() + 1.0,
+                    targetPos.getZ() + 2.5, 180.0F, 0.0F);
+            player.setGameMode(GameType.SURVIVAL);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.STRANDED_MIRROR.get()));
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+
+            helper.assertTrue(StrandedSnapshotManager.requestCapture(player, targetPos, "GameTest house"),
+                    "Stranded Mirror server flow must accept a valid named capture request");
+            for (int chunk = 0; chunk < 9; chunk++) {
+                StrandedSnapshotManager.processCaptureTasks(player.getServer());
+            }
+
+            StrandedSnapshotManager.SnapshotSummary captured = StrandedSnapshotManager.listSnapshots(player).stream()
+                    .filter(summary -> !existingSnapshots.contains(summary.id()))
+                    .filter(summary -> "GameTest house".equals(summary.name()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Named Stranded Mirror snapshot was not cached"));
+            helper.assertTrue(captured.radius() == 1,
+                    "Stranded Mirror capture must use its active configured chunk radius");
+            helper.assertTrue(MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
+                            .filter(session -> session.getKind() == MirrorKind.STRANDED)
+                            .filter(session -> captured.id().equals(session.getSnapshotId()))
+                            .isPresent(),
+                    "Completed capture must open a temporary portal backed by the new snapshot");
+            helper.assertTrue(DimensionMirrorItem.getRemainingCooldownMillis(player.getUUID()) > 295_000L,
+                    "Successful Stranded Mirror capture must apply the configured cooldown");
+            helper.assertFalse(StrandedSnapshotManager.requestDelete(player, captured.id()),
+                    "A Stranded Mirror snapshot must not be deletable while a session still uses it");
+
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            StrandedSnapshotManager.clearTransientState();
+            helper.assertTrue(StrandedSnapshotManager.listSnapshots(player).stream()
+                            .anyMatch(summary -> captured.id().equals(summary.id())),
+                    "A completed snapshot must survive transient-state clearing like a save restart");
+
+            BlockPos reopenPos = new BlockPos(272, 64, 272);
+            helper.getLevel().setBlock(reopenPos, Blocks.STONE.defaultBlockState(), 3);
+            helper.getLevel().removeBlock(reopenPos.above(), false);
+            helper.getLevel().removeBlock(reopenPos.above(2), false);
+            player.teleportTo(helper.getLevel(), reopenPos.getX() + 0.5, reopenPos.getY() + 1.0,
+                    reopenPos.getZ() + 2.5, 180.0F, 0.0F);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.STRANDED_MIRROR.get()));
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            helper.assertTrue(StrandedSnapshotManager.requestOpen(player, reopenPos, captured.id()),
+                    "A new save context must reopen the named snapshot from disk");
+            MirrorSession reopened = MirrorWorldManager.getPlayerOwnedSession(player.getUUID()).orElseThrow();
+            helper.assertTrue(reopened.getKind() == MirrorKind.STRANDED
+                            && captured.id().equals(reopened.getSnapshotId())
+                            && reopened.getSourcePosition().equals(reopenPos),
+                    "Reopened snapshots must bind the cached slice to the new entry location");
+
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            helper.assertTrue(StrandedSnapshotManager.requestDelete(player, captured.id()),
+                    "The owner must be able to delete a snapshot after leaving its session");
+            helper.assertFalse(StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
+                            .anyMatch(entry -> captured.id().equals(entry.summary().id())),
+                    "Deleted snapshots must disappear from the in-game selection menu");
+        } finally {
+            StrandedSnapshotManager.listSnapshots(player).stream()
+                    .filter(summary -> !existingSnapshots.contains(summary.id()))
+                    .forEach(summary -> StrandedSnapshotManager.deleteSnapshotForTesting(summary.id()));
+            StrandedSnapshotManager.clearTransientState();
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_snapshot_validation", timeoutTicks = 80)
+    public static void strandedMirrorHidesIncompleteAndIncompatibleSnapshots(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        UUID incompleteId = UUID.randomUUID();
+        UUID incompatibleId = UUID.randomUUID();
+        BlockPos targetPos = new BlockPos(280, 64, 280);
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(strictGateBaseConfigState(1));
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            incompleteId, player.getUUID(), "Incomplete", 1, targetPos,
+                            System.currentTimeMillis(), SharedConstants.getCurrentVersion().getName()),
+                    Map.of(0L, new CompoundTag()));
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            incompatibleId, player.getUUID(), "Wrong version", 0, targetPos,
+                            System.currentTimeMillis(), "incompatible-gametest-version"),
+                    emptySnapshotChunks(0));
+
+            Set<UUID> visible = StrandedSnapshotManager.listSnapshots(player).stream()
+                    .map(StrandedSnapshotManager.SnapshotSummary::id)
+                    .collect(java.util.stream.Collectors.toSet());
+            helper.assertFalse(visible.contains(incompleteId),
+                    "Incomplete Stranded Mirror caches must not appear in the selection menu");
+            helper.assertFalse(visible.contains(incompatibleId),
+                    "Other Minecraft versions must not appear in the Stranded Mirror selection menu");
+            helper.assertTrue(StrandedSnapshotManager.listSnapshotMenuEntries(player).stream()
+                            .filter(entry -> incompleteId.equals(entry.summary().id())
+                                    || incompatibleId.equals(entry.summary().id()))
+                            .allMatch(entry -> !entry.available()),
+                    "The management menu must show damaged or old snapshots only as unavailable");
+            helper.assertFalse(StrandedSnapshotManager.openSnapshot(player, targetPos, incompleteId, false),
+                    "Incomplete Stranded Mirror caches must not create sessions");
+            helper.assertFalse(StrandedSnapshotManager.openSnapshot(player, targetPos, incompatibleId, false),
+                    "Incompatible Stranded Mirror caches must not create sessions");
+            helper.assertFalse(MirrorWorldManager.hasActiveSession(player.getUUID()),
+                    "Rejected Stranded Mirror caches must not consume a temporary dimension");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Stranded Mirror validation GameTest failed", exception);
+        } finally {
+            StrandedSnapshotManager.deleteSnapshotForTesting(incompleteId);
+            StrandedSnapshotManager.deleteSnapshotForTesting(incompatibleId);
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_interaction_routes", timeoutTicks = 120)
+    public static void strandedMirrorUsesSharedPersistentAndReturnInteractions(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        BlockPos sourcePos = new BlockPos(320, 64, 320);
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(strictGateBaseConfigState(1));
+            clearDimensionPoolTestState(player);
+            helper.getLevel().setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+            helper.getLevel().removeBlock(sourcePos.above(), false);
+            helper.getLevel().removeBlock(sourcePos.above(2), false);
+            player.teleportTo(helper.getLevel(), sourcePos.getX() + 0.5, sourcePos.getY() + 1.0,
+                    sourcePos.getZ() + 2.5, 180.0F, 0.0F);
+            player.setGameMode(GameType.SURVIVAL);
+            ItemStack mirror = new ItemStack(ModItems.STRANDED_MIRROR.get());
+            player.setItemInHand(InteractionHand.MAIN_HAND, mirror);
+            BlockPos airUseBase = player.blockPosition().below();
+            helper.getLevel().setBlock(airUseBase, Blocks.STONE.defaultBlockState(), 3);
+            helper.getLevel().removeBlock(airUseBase.above(), false);
+            helper.getLevel().removeBlock(airUseBase.above(2), false);
+
+            player.setShiftKeyDown(false);
+            helper.assertTrue(StrandedMirrorItem.resolveUseMode(helper.getLevel(), player, true)
+                            == StrandedMirrorItem.UseMode.CAPTURE,
+                    "Normal block use outside mirror worlds must route to named capture");
+            helper.assertTrue(StrandedMirrorItem.resolveUseMode(helper.getLevel(), player, false)
+                            == StrandedMirrorItem.UseMode.SELECT,
+                    "Normal air use outside mirror worlds must route to snapshot selection");
+            BlockHitResult sourceHit = new BlockHitResult(
+                    Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+            helper.assertTrue(mirror.useOn(new UseOnContext(
+                            player, InteractionHand.MAIN_HAND, sourceHit)).consumesAction(),
+                    "Actual normal block use must consume the capture interaction");
+            helper.assertTrue(mirror.use(helper.getLevel(), player, InteractionHand.MAIN_HAND).getResult().consumesAction(),
+                    "Actual normal air use must consume the snapshot-selection interaction");
+            helper.assertFalse(MirrorWorldManager.hasActiveSession(player.getUUID()),
+                    "Opening either Stranded Mirror UI must not create a session before confirmation");
+
+            player.setShiftKeyDown(true);
+            helper.assertTrue(StrandedMirrorItem.resolveUseMode(helper.getLevel(), player, true)
+                            == StrandedMirrorItem.UseMode.PERSISTENT_MENU,
+                    "Shift block use must remain reserved for the shared persistent mirror menu");
+            helper.assertTrue(mirror.useOn(new UseOnContext(
+                            player, InteractionHand.MAIN_HAND, sourceHit)).consumesAction(),
+                    "Shift block use must be handled by the shared persistent mirror interaction");
+            helper.assertFalse(MirrorWorldManager.hasActiveSession(player.getUUID()),
+                    "Opening the persistent menu must not start a Stranded snapshot session");
+            player.setShiftKeyDown(false);
+
+            MirrorSession session = MirrorWorldManager.createSession(
+                    player, sourcePos, MirrorKind.STRANDED, false, false, MirrorTerrainMode.SNAPSHOT,
+                    UUID.randomUUID(), 1, sourcePos.getY()).orElseThrow();
+            session.markCopyComplete();
+            ServerLevel mirrorLevel = DimensionPool.getDimensionLevel(
+                    player.getServer(), session.getDimensionIndex());
+            helper.assertTrue(mirrorLevel != null,
+                    "GameTest server must load the Stranded Mirror dimension");
+            helper.assertTrue(MirrorWorldManager.teleportToMirrorWorld(player, session),
+                    "The Stranded interaction test must enter its real temporary mirror dimension");
+            helper.assertTrue(StrandedMirrorItem.resolveUseMode(mirrorLevel, player, true)
+                            == StrandedMirrorItem.UseMode.MIRROR_WORLD,
+                    "All interactions inside mirror worlds must route to the shared mirror behavior");
+
+            BlockPos returnBase = player.blockPosition().east(8).below();
+            mirrorLevel.setBlock(returnBase, Blocks.STONE.defaultBlockState(), 3);
+            mirrorLevel.removeBlock(returnBase.above(), false);
+            mirrorLevel.removeBlock(returnBase.above(2), false);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            BlockHitResult returnHit = new BlockHitResult(
+                    Vec3.atCenterOf(returnBase), Direction.UP, returnBase, false);
+            InteractionResult returnResult = mirror.useOn(new UseOnContext(
+                    player, InteractionHand.MAIN_HAND, returnHit));
+            helper.assertTrue(returnResult == InteractionResult.SUCCESS,
+                    "Using Stranded Mirror on a block inside its mirror world must succeed, got " + returnResult);
+            player.releaseUsingItem();
+            helper.assertTrue(mirror.use(mirrorLevel, player, InteractionHand.MAIN_HAND)
+                            .getResult().consumesAction() && player.isUsingItem(),
+                    "Air use inside a Stranded mirror must preserve the shared hold-to-entry behavior");
+            player.releaseUsingItem();
+            helper.assertTrue(MirrorWorldManager.returnToOverworld(player),
+                    "The shared return pipeline must return a Stranded Mirror player to the source world");
+        } finally {
+            player.setShiftKeyDown(false);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_snapshot_permissions", timeoutTicks = 80)
+    public static void strandedMirrorSnapshotOwnershipAndAdminDeletionAreEnforced(GameTestHelper helper) {
+        ServerPlayer owner = makeConnectedServerPlayer(helper);
+        ServerPlayer other = makeConnectedServerPlayer(helper);
+        UUID snapshotId = UUID.randomUUID();
+        BlockPos center = new BlockPos(352, 64, 352);
+        try {
+            StrandedSnapshotManager.writeSnapshotForTesting(
+                    new StrandedSnapshotManager.SnapshotSummary(
+                            snapshotId, owner.getUUID(), "Owner cache", 0, center,
+                            System.currentTimeMillis(), SharedConstants.getCurrentVersion().getName()),
+                    emptySnapshotChunks(0));
+            helper.assertTrue(StrandedSnapshotManager.listSnapshotMenuEntries(owner).stream()
+                            .anyMatch(entry -> snapshotId.equals(entry.summary().id()) && entry.available()),
+                    "Snapshot owners must see their available caches");
+            helper.assertFalse(StrandedSnapshotManager.listSnapshotMenuEntries(other).stream()
+                            .anyMatch(entry -> snapshotId.equals(entry.summary().id())),
+                    "Other players must not see private Stranded Mirror caches");
+            helper.assertFalse(StrandedSnapshotManager.requestDelete(other, snapshotId),
+                    "Non-owners must not delete private Stranded Mirror caches");
+
+            other.getServer().getPlayerList().op(other.getGameProfile());
+            helper.assertTrue(StrandedSnapshotManager.listSnapshotMenuEntries(other).stream()
+                            .anyMatch(entry -> snapshotId.equals(entry.summary().id())),
+                    "Operators must be able to manage Stranded Mirror caches");
+            helper.assertTrue(StrandedSnapshotManager.requestDelete(other, snapshotId),
+                    "Operators must be able to delete an abandoned Stranded Mirror cache");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Stranded Mirror permission GameTest failed", exception);
+        } finally {
+            other.getServer().getPlayerList().deop(other.getGameProfile());
+            StrandedSnapshotManager.deleteSnapshotForTesting(snapshotId);
+        }
+
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE, batch = "heaven_sandbox_permanence", timeoutTicks = 40)
     public static void heavenSandboxKeepsPermanenceMirror(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
@@ -516,13 +922,16 @@ public final class MirrorLifecycleGameTests {
         player.getInventory().items.set(3, new ItemStack(Items.DIAMOND));
         player.getEnderChestInventory().setItem(0, new ItemStack(Items.EMERALD));
 
-        MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true);
+        MirrorWorldManager.preparePlayerForMirrorEntry(
+                player, MirrorKind.HEAVEN, true, MirrorTerrainMode.SUPERFLAT);
 
         ItemStack hotbarMirror = player.getInventory().items.get(0);
         helper.assertTrue(hotbarMirror.getItem() == ModItems.HEAVEN_MIRROR.get(),
                 "Heaven sandbox entry must leave a heaven mirror in hotbar slot 0");
         helper.assertTrue(DimensionMirrorItem.hasPermanence(helper.getLevel(), hotbarMirror),
                 "Persistent heaven sandbox entry must preserve Permanence on the hotbar mirror");
+        helper.assertTrue(DimensionMirrorItem.hasSuperflat(helper.getLevel(), hotbarMirror),
+                "Superflat heaven sandbox entry must preserve Superflat on the hotbar mirror");
         helper.assertTrue(player.getInventory().items.get(3).isEmpty(),
                 "Sandbox entry must clear normal inventory items");
         helper.assertTrue(player.getEnderChestInventory().getItem(0).isEmpty(),
@@ -834,16 +1243,26 @@ public final class MirrorLifecycleGameTests {
                 BlockPos.ZERO.above(),
                 false,
                 123L,
-                false
+                false,
+                MirrorTerrainMode.SUPERFLAT
         );
 
         CompoundTag saved = record.save();
         helper.assertTrue(saved.getUUID("source_session").equals(sourceSessionId),
                 "Persistent records must write the source session id");
+        helper.assertTrue("SUPERFLAT".equals(saved.getString("terrain_mode")),
+                "Persistent records must write the terrain mode");
 
         PersistentMirrorRecord loaded = PersistentMirrorRecord.load(saved);
         helper.assertTrue(loaded.sourceSessionId().equals(sourceSessionId),
                 "Persistent records must reload the source session id");
+        helper.assertTrue(loaded.terrainMode() == MirrorTerrainMode.SUPERFLAT,
+                "Persistent records must reload the superflat terrain mode");
+
+        CompoundTag legacySaved = saved.copy();
+        legacySaved.remove("terrain_mode");
+        helper.assertTrue(PersistentMirrorRecord.load(legacySaved).terrainMode() == MirrorTerrainMode.COPIED,
+                "Older persistent heaven mirrors must default to copied terrain");
 
         PersistentMirrorData data = new PersistentMirrorData();
         data.addRecord(loaded);
@@ -862,6 +1281,108 @@ public final class MirrorLifecycleGameTests {
                 "Persistent data must resolve a unique renamed mirror by name");
         helper.assertFalse(data.getRecordBySelector("slot_2", candidate -> true).isPresent(),
                 "Persistent data must not resolve empty slots");
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_persistent_lifecycle", timeoutTicks = 320)
+    public static void strandedPermanenceSavesAndReentersTheCopiedSnapshot(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+        PersistentMirrorRecord createdRecord = null;
+        BlockPos center = new BlockPos(400, 64, 400);
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(strictGateBaseConfigState(1));
+            player.getServer().getPlayerList().op(player.getGameProfile());
+            PersistentMirrorManager.setCreationGrant(player.getServer(), player.getUUID(), true);
+            clearDimensionPoolTestState(player);
+
+            MirrorSession sourceSession = MirrorWorldManager.createSession(
+                    player, center, MirrorKind.STRANDED, true, false, MirrorTerrainMode.SNAPSHOT,
+                    UUID.randomUUID(), 1, center.getY()).orElseThrow();
+            ServerLevel temporaryLevel = DimensionPool.getDimensionLevel(
+                    player.getServer(), sourceSession.getDimensionIndex());
+            helper.assertTrue(temporaryLevel != null,
+                    "GameTest server must load the temporary Stranded dimension");
+            temporaryLevel.setBlock(center, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            sourceSession.markCopyComplete();
+
+            ItemStack permanentMirror = new ItemStack(ModItems.STRANDED_MIRROR.get());
+            ModEnchantments.applyPermanence(helper.getLevel(), permanentMirror);
+            player.setItemInHand(InteractionHand.MAIN_HAND, permanentMirror);
+            helper.assertTrue(MirrorWorldManager.teleportToMirrorWorld(player, sourceSession),
+                    "Permanence validation must enter the completed Stranded temporary mirror");
+            int expectedPersistentIndex = PersistentMirrorData.get(player.getServer()).allocateDimensionIndex();
+            helper.assertTrue(expectedPersistentIndex >= 0,
+                    "Permanence validation requires a free persistent mirror slot");
+            ServerLevel expectedPersistentLevel = ensureGameTestPersistentMirrorLevel(
+                    helper, expectedPersistentIndex);
+            helper.assertTrue(PersistentMirrorManager.canCreatePersistentMirror(player),
+                    "The operator test player must have persistent mirror creation permission");
+            helper.assertTrue(MirrorWorldManager.getPlayerCurrentSession(player.getUUID())
+                            .filter(current -> current == sourceSession).isPresent(),
+                    "Persistent save must resolve the player's current Stranded session");
+            helper.assertTrue(sourceSession.hasPersistentAccess() && sourceSession.isCopyComplete(),
+                    "The Stranded source session must retain Permanence and completed-copy state");
+            helper.assertTrue(player.getServer().getLevel(sourceSession.getMirrorDimension()) == temporaryLevel
+                            && player.getServer().getLevel(
+                            ModDimensions.getPersistentMirrorWorld(expectedPersistentIndex)) == expectedPersistentLevel,
+                    "Both source and target dimensions must be loaded before persistent save");
+            helper.assertTrue(PersistentMirrorManager.saveCurrentTemporaryMirror(player, "Saved snapshot"),
+                    "A Permanence Stranded Mirror must queue a persistent save");
+
+            createdRecord = PersistentMirrorData.get(player.getServer())
+                    .getRecordBySourceSession(sourceSession.getSessionId()).orElseThrow();
+            helper.assertTrue(createdRecord.kind() == MirrorKind.STRANDED
+                            && createdRecord.terrainMode() == MirrorTerrainMode.SNAPSHOT,
+                    "Persistent records must retain Stranded kind and snapshot terrain metadata");
+            for (int tick = 0; tick < 40
+                    && WorldCopyService.hasPendingPersistentCopy(createdRecord.dimensionIndex()); tick++) {
+                WorldCopyService.processCopyQueues(player.getServer());
+            }
+            helper.assertTrue(createdRecord.ready()
+                            && !WorldCopyService.hasPendingPersistentCopy(createdRecord.dimensionIndex()),
+                    "The persistent Stranded copy must complete before it can be entered");
+
+            ServerLevel persistentLevel = player.getServer().getLevel(
+                    ModDimensions.getPersistentMirrorWorld(createdRecord.dimensionIndex()));
+            helper.assertTrue(persistentLevel != null
+                            && persistentLevel.getBlockState(center).is(Blocks.DIAMOND_BLOCK),
+                    "Persistent save must copy the snapshot's actual blocks into its permanent dimension");
+            helper.assertTrue(MirrorWorldManager.returnToOverworld(player),
+                    "The player must leave the temporary snapshot before opening its persistent copy");
+
+            player.setItemInHand(InteractionHand.MAIN_HAND, permanentMirror);
+            helper.assertTrue(PersistentMirrorManager.enterPersistentMirror(player, createdRecord.id()),
+                    "A matching Permanence Stranded Mirror must enter the saved persistent snapshot");
+            helper.assertTrue(player.level().dimension().equals(
+                            ModDimensions.getPersistentMirrorWorld(createdRecord.dimensionIndex()))
+                            && player.level().getBlockState(center).is(Blocks.DIAMOND_BLOCK),
+                    "Persistent Stranded entry must land in the saved snapshot dimension with copied blocks");
+            helper.assertTrue(PersistentMirrorManager.leavePersistentMirror(player),
+                    "The shared persistent exit pipeline must return a Stranded Mirror player");
+            helper.assertTrue(PersistentMirrorManager.deleteRecord(player, createdRecord.id()),
+                    "The owner must be able to delete the saved Stranded persistent mirror");
+            createdRecord = null;
+        } finally {
+            if (PersistentMirrorManager.isInPersistentMirror(player)) {
+                PersistentMirrorManager.leavePersistentMirror(player);
+            }
+            if (MirrorWorldManager.getPlayerCurrentSession(player.getUUID()).isPresent()) {
+                MirrorWorldManager.returnToOverworld(player);
+            }
+            if (createdRecord != null) {
+                PersistentMirrorData.get(player.getServer()).removeRecord(createdRecord.id());
+            }
+            player.getServer().getPlayerList().deop(player.getGameProfile());
+            PersistentMirrorManager.setCreationGrant(player.getServer(), player.getUUID(), false);
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            PersistentMirrorManager.clearTransientState();
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
 
         helper.succeed();
     }
@@ -1126,10 +1647,18 @@ public final class MirrorLifecycleGameTests {
 
             ItemStack mirrorStack = mirrorStackForKind(kind);
             player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
-            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
-            InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+            boolean used;
+            if (kind == MirrorKind.STRANDED) {
+                used = MirrorWorldManager.createSession(
+                        player, sourcePos, kind, false, false, MirrorTerrainMode.SNAPSHOT,
+                        UUID.randomUUID(), MirrorConfig.copyChunkRadius(kind), sourcePos.getY()).isPresent();
+            } else {
+                BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+                InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+                used = result.consumesAction();
+            }
 
-            return result.consumesAction()
+            return used
                     && MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
                     .filter(session -> session.getKind() == kind)
                     .isPresent();
@@ -1199,9 +1728,16 @@ public final class MirrorLifecycleGameTests {
 
             ItemStack mirrorStack = mirrorStackForKind(kind);
             player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
-            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
-            InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
-            helper.assertTrue(result.consumesAction(), kind.id() + " mirror use must create an entry portal");
+            boolean used;
+            if (kind == MirrorKind.STRANDED) {
+                used = openStrandedSnapshotForTesting(
+                        player, sourcePos, MirrorConfig.copyChunkRadius(MirrorKind.STRANDED));
+            } else {
+                BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+                InteractionResult result = mirrorStack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+                used = result.consumesAction();
+            }
+            helper.assertTrue(used, kind.id() + " mirror server use flow must create an entry portal");
 
             MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID())
                     .orElseThrow(() -> new IllegalStateException("Mirror use did not create a player-owned session"));
@@ -1257,7 +1793,42 @@ public final class MirrorLifecycleGameTests {
             case DIMENSION -> new ItemStack(ModItems.DIMENSION_MIRROR.get());
             case HEAVEN -> new ItemStack(ModItems.HEAVEN_MIRROR.get());
             case FIRST_DREAM -> new ItemStack(ModItems.FIRST_DREAM_MIRROR.get());
+            case STRANDED -> new ItemStack(ModItems.STRANDED_MIRROR.get());
         };
+    }
+
+    private static boolean openStrandedSnapshotForTesting(ServerPlayer player, BlockPos targetPos) {
+        return openStrandedSnapshotForTesting(player, targetPos, 0);
+    }
+
+    private static boolean openStrandedSnapshotForTesting(ServerPlayer player, BlockPos targetPos, int radius) {
+        UUID snapshotId = UUID.randomUUID();
+        StrandedSnapshotManager.SnapshotSummary summary = new StrandedSnapshotManager.SnapshotSummary(
+                snapshotId,
+                player.getUUID(),
+                "Lifecycle GameTest",
+                radius,
+                targetPos,
+                System.currentTimeMillis(),
+                SharedConstants.getCurrentVersion().getName());
+        try {
+            StrandedSnapshotManager.writeSnapshotForTesting(summary, emptySnapshotChunks(radius));
+            return StrandedSnapshotManager.requestOpen(player, targetPos, snapshotId);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not create Stranded Mirror GameTest snapshot", exception);
+        } finally {
+            StrandedSnapshotManager.deleteSnapshotForTesting(snapshotId);
+        }
+    }
+
+    private static Map<Long, CompoundTag> emptySnapshotChunks(int radius) {
+        Map<Long, CompoundTag> chunks = new HashMap<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                chunks.put(((long) dx << 32) | (dz & 0xFFFFFFFFL), new CompoundTag());
+            }
+        }
+        return chunks;
     }
 
     private static MirrorConfigState minimumCopyRadiusState(MirrorConfigState state) {
@@ -1485,6 +2056,53 @@ public final class MirrorLifecycleGameTests {
                 .filter(portal -> !portal.isReturnPortal())
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Mirror use did not spawn an entry portal"));
+    }
+
+    private static ServerLevel ensureGameTestPersistentMirrorLevel(GameTestHelper helper, int dimensionIndex) {
+        MinecraftServer server = helper.getLevel().getServer();
+        var mirrorKey = ModDimensions.getPersistentMirrorWorld(dimensionIndex);
+        ServerLevel existing = server.getLevel(mirrorKey);
+        if (existing != null) {
+            return existing;
+        }
+
+        Holder<DimensionType> mirrorType = server.registryAccess()
+                .registryOrThrow(Registries.DIMENSION_TYPE)
+                .getHolderOrThrow(ModDimensions.MIRROR_WORLD_TYPE);
+        Holder<Biome> plains = server.registryAccess()
+                .registryOrThrow(Registries.BIOME)
+                .getHolderOrThrow(Biomes.PLAINS);
+        LevelStem stem = new LevelStem(mirrorType, new MirrorChunkGenerator(plains));
+        ServerLevelData levelData = new DerivedLevelData(server.getWorldData(), server.getWorldData().overworldData());
+        ServerLevel mirrorLevel = new ServerLevel(
+                server,
+                Util.backgroundExecutor(),
+                gameTestStorageAccess(server),
+                levelData,
+                mirrorKey,
+                stem,
+                new LoggerChunkProgressListener(0),
+                server.getWorldData().isDebugWorld(),
+                BiomeManager.obfuscateSeed(server.getWorldData().worldGenOptions().seed()),
+                List.of(),
+                false,
+                helper.getLevel().getRandomSequences()
+        );
+        helper.getLevel().getWorldBorder().addListener(
+                new BorderChangeListener.DelegateBorderChangeListener(mirrorLevel.getWorldBorder()));
+        server.forgeGetWorldMap().put(mirrorKey, mirrorLevel);
+        server.markWorldsDirty();
+        return mirrorLevel;
+    }
+
+    private static LevelStorageSource.LevelStorageAccess gameTestStorageAccess(MinecraftServer server) {
+        try {
+            Field field = MinecraftServer.class.getDeclaredField("storageSource");
+            field.setAccessible(true);
+            return (LevelStorageSource.LevelStorageAccess) field.get(server);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not access GameTest level storage", e);
+        }
     }
 
     private static boolean inventoryContains(ServerPlayer player, Item item) {

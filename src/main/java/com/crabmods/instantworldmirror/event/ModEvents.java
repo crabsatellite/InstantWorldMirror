@@ -10,6 +10,7 @@ import com.crabmods.instantworldmirror.world.MirrorEndDragonRewardManager;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
+import com.crabmods.instantworldmirror.world.StrandedSnapshotManager;
 import com.crabmods.instantworldmirror.world.WorldCopyService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -410,6 +411,7 @@ public class ModEvents {
             // The methods have early exit checks internally
             WorldCopyService.processCopyQueues(serverLevel.getServer());
             WorldCopyService.processCleanupQueues(serverLevel.getServer());
+            StrandedSnapshotManager.processCaptureTasks(serverLevel.getServer());
             
             // Fallback: Check for stale sessions at configurable interval
             int staleCleanupTicks = MirrorConfig.getStaleSessionCleanupTicks();
@@ -644,6 +646,7 @@ public class ModEvents {
         
         MirrorWorldManager.clearAllSessions(event.getServer());
         PersistentMirrorManager.clearTransientState();
+        StrandedSnapshotManager.clearTransientState();
         WorldCopyService.clearAllTasks();
         MirrorBossBarManager.clear();
         InstantWorldMirror.LOGGER.info("Server stopping, mirror sessions and tasks cleared.");

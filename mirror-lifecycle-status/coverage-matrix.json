@@ -53,6 +53,73 @@
     },
     {
       "checks": [
+        "enchantment.superflat_heaven_only",
+        "enchantment.superflat_version_registration",
+        "runtime.superflat_enchantment_scope"
+      ],
+      "route": "temporary.heaven_superflat",
+      "stage": "enchantment",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "session.superflat_terrain_mode",
+        "copy.superflat_generator",
+        "runtime.superflat_terrain_layers"
+      ],
+      "route": "temporary.heaven_superflat",
+      "stage": "terrain",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "record.terrain_mode_persisted",
+        "sandbox.applies_superflat_to_hotbar_mirror",
+        "runtime.superflat_persistent_round_trip"
+      ],
+      "route": "temporary.heaven_superflat",
+      "stage": "persistence",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "kind.stranded_present",
+        "item.stranded_capture_ui",
+        "network.stranded_packets",
+        "client.stranded_ui_gate",
+        "runtime.stranded_interaction_routes",
+        "runtime.stranded_packet_roundtrip"
+      ],
+      "route": "temporary.stranded_mirror",
+      "stage": "interaction",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "snapshot.global_cache",
+        "snapshot.same_version_owner_gate",
+        "runtime.stranded_snapshot_round_trip",
+        "runtime.stranded_capture_flow",
+        "runtime.stranded_permissions_and_delete"
+      ],
+      "route": "temporary.stranded_mirror",
+      "stage": "snapshot",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "config.stranded_settings",
+        "manager.shared_item_transfer_snapshot",
+        "manager.shared_item_transfer_pipeline",
+        "runtime.shared_item_transfer_behavior",
+        "runtime.stranded_persistent_lifecycle"
+      ],
+      "route": "temporary.stranded_mirror",
+      "stage": "rules",
+      "status": "covered"
+    },
+    {
+      "checks": [
         "item.kind_from_stack",
         "kind.first_dream_present",
         "kind.first_dream_not_sandbox",

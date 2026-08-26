@@ -6,6 +6,7 @@ import com.crabmods.instantworldmirror.MirrorConfigState;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.SharedConstants;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
@@ -22,6 +23,8 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -31,6 +34,7 @@ import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.util.UUID;
+import java.util.Map;
 
 @GameTestHolder(InstantWorldMirror.MODID)
 @PrefixGameTestTemplate(false)
@@ -97,6 +101,120 @@ public final class MirrorTerrainGameTests {
         } finally {
             MirrorConfig.setRuntimeMobSpawning(null);
             MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "superflat_terrain", timeoutTicks = 40)
+    public static void superflatTerrainUsesVanillaLayersAndIgnoresSourceBlocks(GameTestHelper helper) {
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        int chunkX = (origin.getX() >> 4) + 2;
+        int chunkZ = origin.getZ() >> 4;
+        int surfaceY = Math.max(64, helper.getLevel().getMinBuildHeight() + 8);
+        BlockPos center = new BlockPos(chunkX * 16 + 8, surfaceY, chunkZ * 16 + 8);
+        BlockPos sourceMarker = center.above(6);
+        helper.getLevel().setBlock(sourceMarker, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+
+        WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
+                UUID.randomUUID(), center, 0, helper.getLevel().dimension(), 0,
+                MirrorTerrainMode.SUPERFLAT, false, false);
+        int blocksPlaced = WorldCopyService.copyChunk(
+                helper.getLevel(), helper.getLevel(), chunkX, chunkZ, task);
+
+        helper.assertTrue(blocksPlaced == 16 * 16 * 4,
+                "One superflat chunk must contain exactly four complete layers");
+        assertSuperflatColumn(helper, center);
+        assertSuperflatColumn(helper, new BlockPos(chunkX * 16, surfaceY, chunkZ * 16));
+        assertSuperflatColumn(helper, new BlockPos(chunkX * 16 + 15, surfaceY, chunkZ * 16 + 15));
+        helper.assertTrue(helper.getLevel().getBlockState(sourceMarker).isAir(),
+                "Superflat generation must not copy source-world blocks above the platform");
+        helper.assertTrue(helper.getLevel().getBlockState(center.below(4)).isAir(),
+                "Superflat generation must keep the world below the bedrock layer empty");
+
+        helper.succeed();
+    }
+
+    private static void assertSuperflatColumn(GameTestHelper helper, BlockPos surfacePos) {
+        helper.assertTrue(helper.getLevel().getBlockState(surfacePos).is(Blocks.GRASS_BLOCK),
+                "Superflat surface must be grass");
+        helper.assertTrue(helper.getLevel().getBlockState(surfacePos.below()).is(Blocks.DIRT)
+                        && helper.getLevel().getBlockState(surfacePos.below(2)).is(Blocks.DIRT),
+                "Superflat surface must have two dirt layers");
+        helper.assertTrue(helper.getLevel().getBlockState(surfacePos.below(3)).is(Blocks.BEDROCK),
+                "Superflat base must be bedrock");
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_snapshot", timeoutTicks = 80)
+    public static void strandedSnapshotRestoresBlocksAndBlockEntityNbtAtAnotherLocation(GameTestHelper helper) {
+        var cacheRoot = StrandedSnapshotManager.cacheRootForTesting().toAbsolutePath().normalize();
+        helper.assertTrue(cacheRoot.startsWith(
+                        net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get().toAbsolutePath().normalize())
+                        && !cacheRoot.startsWith(
+                        net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get().toAbsolutePath().normalize()),
+                "Stranded snapshot binaries must use a dedicated game-instance cache outside config and saves");
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        int sourceChunkX = (origin.getX() >> 4) + 2;
+        int sourceChunkZ = origin.getZ() >> 4;
+        int targetChunkX = sourceChunkX + 2;
+        int targetChunkZ = sourceChunkZ + 2;
+        int y = Math.max(64, helper.getLevel().getMinBuildHeight() + 8);
+
+        BlockPos sourceMarker = new BlockPos(sourceChunkX * 16 + 3, y, sourceChunkZ * 16 + 5);
+        BlockPos sourceChest = sourceMarker.east();
+        helper.getLevel().setBlock(sourceMarker, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        helper.getLevel().setBlock(sourceChest, Blocks.CHEST.defaultBlockState(), 3);
+        ChestBlockEntity chest = (ChestBlockEntity) helper.getLevel().getBlockEntity(sourceChest);
+        helper.assertTrue(chest != null, "Source snapshot chest must have a block entity");
+        chest.setItem(3, new ItemStack(Items.EMERALD, 7));
+        chest.setChanged();
+        Entity sourceEntity = EntityType.ARMOR_STAND.create(helper.getLevel());
+        helper.assertTrue(sourceEntity != null, "Entity exclusion marker must be creatable");
+        sourceEntity.moveTo(sourceMarker.getX() + 0.5, y + 1.0, sourceMarker.getZ() + 0.5);
+        helper.getLevel().addFreshEntity(sourceEntity);
+
+        UUID snapshotId = UUID.randomUUID();
+        StrandedSnapshotManager.SnapshotSummary summary = new StrandedSnapshotManager.SnapshotSummary(
+                snapshotId,
+                UUID.randomUUID(),
+                "GameTest snapshot",
+                0,
+                new BlockPos(sourceChunkX * 16 + 8, y, sourceChunkZ * 16 + 8),
+                System.currentTimeMillis(),
+                SharedConstants.getCurrentVersion().getName());
+        try {
+            CompoundTag captured = StrandedSnapshotManager.captureChunkForTesting(
+                    helper.getLevel(), sourceChunkX, sourceChunkZ);
+            helper.assertFalse(captured.contains("entities"),
+                    "Cross-save snapshots must explicitly exclude normal entities");
+            StrandedSnapshotManager.writeSnapshotForTesting(summary, Map.of(0L, captured));
+
+            BlockPos targetCenter = new BlockPos(targetChunkX * 16 + 8, y, targetChunkZ * 16 + 8);
+            WorldCopyService.CopyTask task = new WorldCopyService.CopyTask(
+                    UUID.randomUUID(), targetCenter, 0, helper.getLevel().dimension(), 0,
+                    MirrorTerrainMode.SNAPSHOT, false, false, snapshotId);
+            int blocksPlaced = WorldCopyService.copyChunk(
+                    helper.getLevel(), helper.getLevel(), targetChunkX, targetChunkZ, task);
+
+            BlockPos targetMarker = new BlockPos(targetChunkX * 16 + 3, y, targetChunkZ * 16 + 5);
+            BlockPos targetChest = targetMarker.east();
+            helper.assertTrue(blocksPlaced > 0,
+                    "Stranded snapshot must place captured blocks in the destination chunk");
+            helper.assertTrue(helper.getLevel().getBlockState(targetMarker).is(Blocks.DIAMOND_BLOCK),
+                    "Stranded snapshot must preserve local block positions at a new world location");
+            helper.assertTrue(helper.getLevel().getBlockEntity(targetChest) instanceof ChestBlockEntity,
+                    "Stranded snapshot must recreate captured block entities");
+            ChestBlockEntity restoredChest = (ChestBlockEntity) helper.getLevel().getBlockEntity(targetChest);
+            helper.assertTrue(restoredChest.getItem(3).is(Items.EMERALD)
+                            && restoredChest.getItem(3).getCount() == 7,
+                    "Stranded snapshot must preserve chest inventory NBT");
+            helper.assertTrue(helper.getLevel().getEntities(
+                            sourceEntity, new net.minecraft.world.phys.AABB(targetMarker).inflate(4.0)).isEmpty(),
+                    "Stranded snapshot loading must not duplicate normal entities across saves");
+        } catch (Exception exception) {
+            throw new AssertionError("Stranded snapshot round trip failed", exception);
+        } finally {
+            StrandedSnapshotManager.deleteSnapshotForTesting(snapshotId);
         }
 
         helper.succeed();
@@ -213,7 +331,7 @@ public final class MirrorTerrainGameTests {
         );
 
         try {
-            helper.assertTrue(firstDreamRefreshTask.pristineTerrain,
+            helper.assertTrue(firstDreamRefreshTask.terrainMode == MirrorTerrainMode.PRISTINE,
                     "First dream refresh must use pristine terrain generation");
             helper.assertTrue(firstDreamRefreshTask.generatedContentRefresh,
                     "First dream refresh must request generated content from the scratch world");

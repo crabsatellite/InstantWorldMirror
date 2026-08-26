@@ -17,6 +17,7 @@ public record MirrorConfigMenuPacket(MirrorConfigState state) {
         encodeKindSettings(buf, state.worldReflectionMirror());
         encodeKindSettings(buf, state.heavenMirror());
         encodeKindSettings(buf, state.firstDreamMirror());
+        encodeKindSettings(buf, state.strandedMirror());
         buf.writeVarInt(state.mirrorCooldownSeconds());
     }
 
@@ -25,6 +26,7 @@ public record MirrorConfigMenuPacket(MirrorConfigState state) {
                 decodeKindSettings(buf, MirrorKind.DIMENSION),
                 decodeKindSettings(buf, MirrorKind.HEAVEN),
                 decodeKindSettings(buf, MirrorKind.FIRST_DREAM),
+                decodeKindSettings(buf, MirrorKind.STRANDED),
                 MirrorConfigState.clampMirrorCooldownSeconds(buf.readVarInt())
         );
     }

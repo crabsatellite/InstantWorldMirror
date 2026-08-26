@@ -33,18 +33,26 @@ public final class MirrorConfigMigration {
                     "enableHeavenMirror", "heavenMirrorAccess");
             changed |= migrateAccess(config,
                     "enableFirstDreamMirror", "firstDreamMirrorAccess");
+            changed |= ensureAccess(config, "strandedMirrorAccess", MirrorAccess.ALL);
             changed |= migrateBoolean(config, "enableMobSpawning",
                     "worldReflectionMirrorMobSpawning",
                     "heavenMirrorMobSpawning",
-                    "firstDreamMirrorMobSpawning");
+                    "firstDreamMirrorMobSpawning",
+                    "strandedMirrorMobSpawning");
+            changed |= ensureBoolean(config, "strandedMirrorMobSpawning", false);
             changed |= migrateBoolean(config, "allowItemTransfer",
                     "worldReflectionMirrorItemTransfer",
                     "heavenMirrorItemTransfer",
-                    "firstDreamMirrorItemTransfer");
+                    "firstDreamMirrorItemTransfer",
+                    "strandedMirrorItemTransfer");
+            changed |= ensureBoolean(config, "strandedMirrorItemTransfer", false);
             changed |= migrateInt(config, "copyChunkRadius",
                     "worldReflectionMirrorCopyChunkRadius",
                     "heavenMirrorCopyChunkRadius",
-                    "firstDreamMirrorCopyChunkRadius");
+                    "firstDreamMirrorCopyChunkRadius",
+                    "strandedMirrorCopyChunkRadius");
+            changed |= ensureInt(config, "strandedMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
             changed |= migrateMirrorCooldown(config);
             if (changed) {
                 config.save();
@@ -108,6 +116,22 @@ public final class MirrorConfigMigration {
         return true;
     }
 
+    private static boolean ensureBoolean(CommentedFileConfig config, String key, boolean defaultValue) {
+        if (config.contains(key)) {
+            return false;
+        }
+        config.set(key, defaultValue);
+        return true;
+    }
+
+    private static boolean ensureInt(CommentedFileConfig config, String key, int defaultValue) {
+        if (config.contains(key)) {
+            return false;
+        }
+        config.set(key, MirrorKindSettings.clampCopyChunkRadius(defaultValue));
+        return true;
+    }
+
     private static boolean normalizeExistingAccess(CommentedFileConfig config, String key) {
         if (!config.contains(key)) {
             return false;
@@ -118,6 +142,14 @@ public final class MirrorConfigMigration {
             return false;
         }
         config.set(key, access.name());
+        return true;
+    }
+
+    private static boolean ensureAccess(CommentedFileConfig config, String key, MirrorAccess defaultValue) {
+        if (config.contains(key)) {
+            return normalizeExistingAccess(config, key);
+        }
+        config.set(key, defaultValue.name());
         return true;
     }
 

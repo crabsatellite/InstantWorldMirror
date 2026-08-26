@@ -10,19 +10,21 @@
 
 InstantWorldMirror lets you create temporary or saved mirror worlds at your current location. You can explore, test builds, test combat, or inspect freshly generated terrain without changing the original world.
 
-The mod has three mirror items. Each one opens a separate mirror world with its own copy rules, game mode, save options, and terrain refresh rules.
+The mod has four mirror items. Each one opens a separate mirror world with its own copy rules, game mode, save options, and terrain refresh rules.
 
 ## Choose a Mirror
 
 - **World Reflection Mirror** creates the standard temporary copy around you.
 - **Heaven Mirror** sends you to a temporary Creative-mode sandbox.
 - **First Dream Mirror** recreates the area's original terrain from the current world seed, ignoring player-made changes in the original world.
+- **Stranded Mirror** captures a named world slice into a global local cache, then reopens it from another save running the same Minecraft version.
 
-Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testing, and First Dream Mirror when you want to see what the area looked like before players changed it.
+Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testing, First Dream Mirror for original terrain, and Stranded Mirror to move builds or terrain between saves.
 
 ## Session Flow
 
-- Right-click a solid block with any mirror to create an entry portal.
+- Right-click a solid block with World Reflection, Heaven, or First Dream Mirror to create an entry portal.
+- Right-click a solid block with Stranded Mirror, enter a name, and wait for the configured area to be cached. Use it in the air without Shift to choose a cached slice and open it at the current location. Shift-right-click remains the shared Permanence menu interaction.
 - When the portal finishes copying or generating the area, step in to enter the mirror world.
 - Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal. If that portal is far from the entrance, it returns you to the matching position in the original world.
 - Hold right-click in the air inside a mirror world to return to that mirror world's entrance point without leaving the mirror world.
@@ -37,17 +39,19 @@ Use World Reflection Mirror for normal testing, Heaven Mirror for Creative testi
 
 A copied mirror world includes blocks, block entities, biomes, structures, heightmaps, and optional entities inside the configured chunk radius.
 
+Stranded Mirror stores compressed block, biome, and block-entity data in `instantworldmirror-cache/stranded_snapshots` under the game instance directory. It intentionally excludes normal entities for safe cross-save compatibility. Unavailable versions remain visible for deletion but cannot be opened.
+
 First Dream Mirror uses the current seed and chunk generator from the original world to regenerate terrain, structures, biomes, caves, surfaces, and features. It keeps your current game mode on entry and uses the same inventory rules as World Reflection Mirror.
 
 Mob spawning is restricted by default: natural spawns, structure spawns, and spawner-block spawns are blocked, while player-triggered spawns such as spawn eggs, breeding, buckets, and commands still work. Admins can use per-mirror config or `/iwm mob` to control that rule. First Dream keeps unopened generated loot containers regardless of the mob-spawning setting. Weather, time, and dimension visual effects follow the original world. Survival and Adventure players cannot use dimension portals from mirror worlds, and Nether portals cannot be created there.
 
-Items follow one shared transfer rule for all three mirrors. With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data so mirror-world items cannot leave through accessory or backpack slots. With item transfer on, all three mirrors allow items to leave, including Heaven Mirror's Creative-mode items.
+Items follow one shared transfer rule for all four mirrors. With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data so mirror-world items cannot leave through accessory or backpack slots. With item transfer on, all four mirrors allow items to leave, including Heaven Mirror's Creative-mode items.
 
 ## Heaven Sandbox
 
 When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative. When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.
 
-Heaven Mirror also gives you a matching mirror inside the sandbox. If your original mirror had Permanence, the sandbox copy keeps it, so the menu and return flow still work.
+Heaven Mirror also gives you a matching mirror inside the sandbox. If your original mirror had Permanence or Superflat, the sandbox copy keeps those enchantments. A Superflat Heaven Mirror generates a bounded four-layer grass, dirt, and bedrock building platform instead of copying source terrain.
 
 ## Enchantments and Cooldowns
 
@@ -56,15 +60,16 @@ Heaven Mirror also gives you a matching mirror inside the sandbox. If your origi
 - With Permanence, a mirror can save a completed temporary mirror as a persistent mirror if the player is an operator or has been granted permission.
 - To save a persistent mirror, the temporary session must have been created with a mirror that has Permanence. To enter that saved mirror later, hold a mirror of the same type with Permanence.
 - Renewal only works on First Dream Mirror. If First Dream natural mob spawning is off in config or through `/iwm mob off`, a Renewal First Dream Mirror can refresh generated mobs after its cooldown.
+- Superflat only works on Heaven Mirror and replaces copied terrain with a clean Creative building platform at the entry height.
 - The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item. The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.
-- The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.
-- In Survival, Permanence works as a normal mirror enchantment; Renewal appears only as treasure loot.
+- The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books.
+- In Survival, Permanence and Superflat work as normal mirror enchantments; Renewal appears only as treasure loot.
 
 ## Persistent Mirrors
 
 Persistent mirrors do not use the temporary session slots. They use a separate pool with eight server-wide slots.
 
-A completed temporary mirror can be saved only if it was created with a mirror that has Permanence. The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.
+A completed temporary mirror can be saved only if it was created with a mirror that has Permanence. The saved mirror remembers its mirror type and terrain mode, and entering it later requires a mirror of that same type with Permanence.
 
 Shift-right-click while holding a Permanence-enchanted mirror to open the centered menu for saving, entering, leaving, renaming, or deleting persistent mirrors. Esc or the X button closes it. Commands suggest selectors such as `slot_1`, so players do not need to copy UUIDs.
 
@@ -110,6 +115,14 @@ First Dream Mirror: oak saplings, glass, oak logs, and an ender pearl.
 [Oak Sapling] [Glass]       [Oak Sapling]
 [Oak Log]     [Ender Pearl] [Oak Log]
 [Oak Sapling] [Glass]       [Oak Sapling]
+```
+
+Stranded Mirror: glass, black concrete, coal, and an ender pearl.
+
+```
+[Glass] [Black Concrete] [Glass]
+[Coal]  [Ender Pearl]    [Coal]
+[Glass] [Black Concrete] [Glass]
 ```
 
 ## Commands
@@ -170,15 +183,19 @@ Config file: `config/instantworldmirror-common.toml`
 | `worldReflectionMirrorAccess` | ALL | World Reflection Mirror permission: NONE, ADMIN, or ALL |
 | `heavenMirrorAccess` | ALL | Heaven Mirror permission: NONE, ADMIN, or ALL |
 | `firstDreamMirrorAccess` | ALL | First Dream Mirror permission: NONE, ADMIN, or ALL |
+| `strandedMirrorAccess` | ALL | Stranded Mirror permission: NONE, ADMIN, or ALL |
 | `worldReflectionMirrorMobSpawning` | false | Whether natural mob spawning is allowed in World Reflection Mirror worlds |
 | `heavenMirrorMobSpawning` | false | Whether natural mob spawning is allowed in Heaven Mirror worlds |
 | `firstDreamMirrorMobSpawning` | true | Whether natural mob spawning is allowed in First Dream Mirror worlds |
+| `strandedMirrorMobSpawning` | false | Whether natural mob spawning is allowed in Stranded Mirror worlds |
 | `worldReflectionMirrorItemTransfer` | false | Whether items gained in World Reflection Mirror worlds can leave |
 | `heavenMirrorItemTransfer` | false | Whether items gained in Heaven Mirror worlds can leave |
 | `firstDreamMirrorItemTransfer` | false | Whether items gained in First Dream Mirror worlds can leave |
+| `strandedMirrorItemTransfer` | false | Whether items gained in Stranded Mirror worlds can leave |
 | `worldReflectionMirrorCopyChunkRadius` | 10 | World Reflection Mirror copy radius in chunks |
 | `heavenMirrorCopyChunkRadius` | 10 | Heaven Mirror copy radius in chunks |
 | `firstDreamMirrorCopyChunkRadius` | 10 | First Dream Mirror copy radius in chunks |
+| `strandedMirrorCopyChunkRadius` | 10 | Stranded Mirror capture radius in chunks |
 | `copyEntities` | false | Whether to copy mob entities |
 | `copyDecorationEntities` | true | Whether to copy decoration entities |
 

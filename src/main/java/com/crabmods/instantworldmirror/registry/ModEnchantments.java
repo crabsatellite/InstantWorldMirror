@@ -3,6 +3,7 @@ package com.crabmods.instantworldmirror.registry;
 import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.item.FirstDreamMirrorItem;
+import com.crabmods.instantworldmirror.item.HeavenMirrorItem;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -26,6 +27,10 @@ public final class ModEnchantments {
             InstantWorldMirror.MODID + "_first_dream_mirror",
             item -> item instanceof FirstDreamMirrorItem
     );
+    private static final EnchantmentCategory HEAVEN_MIRROR_CATEGORY = EnchantmentCategory.create(
+            InstantWorldMirror.MODID + "_heaven_mirror",
+            item -> item instanceof HeavenMirrorItem
+    );
 
     public static final RegistryObject<Enchantment> PERMANENCE = ENCHANTMENTS.register(
             "permanence",
@@ -34,6 +39,10 @@ public final class ModEnchantments {
     public static final RegistryObject<Enchantment> RENEWAL = ENCHANTMENTS.register(
             "renewal",
             RenewalMirrorEnchantment::new
+    );
+    public static final RegistryObject<Enchantment> SUPERFLAT = ENCHANTMENTS.register(
+            "superflat",
+            SuperflatMirrorEnchantment::new
     );
 
     private ModEnchantments() {
@@ -67,12 +76,30 @@ public final class ModEnchantments {
         return enchantment == RENEWAL.get();
     }
 
+    public static boolean hasSuperflat(Level level, ItemStack stack) {
+        return canApplySuperflatTo(stack) && stack.getEnchantmentLevel(SUPERFLAT.get()) > 0;
+    }
+
+    public static void applySuperflat(Level level, ItemStack stack) {
+        if (canApplySuperflatTo(stack) && !hasSuperflat(level, stack)) {
+            stack.enchant(SUPERFLAT.get(), 1);
+        }
+    }
+
+    public static boolean isSuperflat(Enchantment enchantment) {
+        return enchantment == SUPERFLAT.get();
+    }
+
     private static boolean canApplyPermanenceTo(ItemStack stack) {
         return !stack.isEmpty() && stack.getItem() instanceof DimensionMirrorItem;
     }
 
     private static boolean canApplyRenewalTo(ItemStack stack) {
         return !stack.isEmpty() && stack.getItem() instanceof FirstDreamMirrorItem;
+    }
+
+    private static boolean canApplySuperflatTo(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof HeavenMirrorItem;
     }
 
     private static class PermanentMirrorEnchantment extends Enchantment {
@@ -130,6 +157,33 @@ public final class ModEnchantments {
         @Override
         public boolean canEnchant(ItemStack stack) {
             return stack.getItem() instanceof FirstDreamMirrorItem;
+        }
+    }
+
+    private static class SuperflatMirrorEnchantment extends Enchantment {
+        private SuperflatMirrorEnchantment() {
+            super(Rarity.RARE, HEAVEN_MIRROR_CATEGORY,
+                    new EquipmentSlot[]{EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND});
+        }
+
+        @Override
+        public int getMaxLevel() {
+            return 1;
+        }
+
+        @Override
+        public int getMinCost(int level) {
+            return 30;
+        }
+
+        @Override
+        public int getMaxCost(int level) {
+            return 60;
+        }
+
+        @Override
+        public boolean canEnchant(ItemStack stack) {
+            return stack.getItem() instanceof HeavenMirrorItem;
         }
     }
 }

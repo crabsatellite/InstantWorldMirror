@@ -57,6 +57,7 @@ public class ClientEvents {
         event.register(ModItems.DIMENSION_MIRROR.get(), new CooldownItemDecorator());
         event.register(ModItems.HEAVEN_MIRROR.get(), new CooldownItemDecorator());
         event.register(ModItems.FIRST_DREAM_MIRROR.get(), new CooldownItemDecorator());
+        event.register(ModItems.STRANDED_MIRROR.get(), new CooldownItemDecorator());
         InstantWorldMirror.LOGGER.info("Cooldown item decorator registered");
     }
 }

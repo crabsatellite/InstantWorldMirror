@@ -4,6 +4,7 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.FirstDreamMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
+import com.crabmods.instantworldmirror.client.model.StrandedMirrorItemModel;
 import com.crabmods.instantworldmirror.entity.MirrorPortalEntity;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -33,16 +34,20 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
             InstantWorldMirror.MODID, "textures/item/heaven_mirror.png");
     private static final ResourceLocation FIRST_DREAM_MIRROR_TEXTURE = new ResourceLocation(
             InstantWorldMirror.MODID, "textures/item/first_dream_mirror.png");
+    private static final ResourceLocation STRANDED_MIRROR_TEXTURE = new ResourceLocation(
+            InstantWorldMirror.MODID, "textures/item/stranded_mirror.png");
     
     private final DimensionMirrorItemModel dimensionMirrorModel;
     private final HeavenMirrorItemModel heavenMirrorModel;
     private final FirstDreamMirrorItemModel firstDreamMirrorModel;
+    private final StrandedMirrorItemModel strandedMirrorModel;
 
     public MirrorPortalRenderer(EntityRendererProvider.Context context) {
         super(context);
         this.dimensionMirrorModel = new DimensionMirrorItemModel(DimensionMirrorItemModel.createBodyLayer().bakeRoot());
         this.heavenMirrorModel = new HeavenMirrorItemModel(HeavenMirrorItemModel.createBodyLayer().bakeRoot());
         this.firstDreamMirrorModel = new FirstDreamMirrorItemModel(FirstDreamMirrorItemModel.createBodyLayer().bakeRoot());
+        this.strandedMirrorModel = new StrandedMirrorItemModel(StrandedMirrorItemModel.createBodyLayer().bakeRoot());
     }
 
     @Override
@@ -115,6 +120,7 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         return switch (kind) {
             case HEAVEN -> heavenMirrorModel;
             case FIRST_DREAM -> firstDreamMirrorModel;
+            case STRANDED -> strandedMirrorModel;
             case DIMENSION -> dimensionMirrorModel;
         };
     }
@@ -123,6 +129,7 @@ public class MirrorPortalRenderer extends EntityRenderer<MirrorPortalEntity> {
         return switch (kind) {
             case HEAVEN -> HEAVEN_MIRROR_TEXTURE;
             case FIRST_DREAM -> FIRST_DREAM_MIRROR_TEXTURE;
+            case STRANDED -> STRANDED_MIRROR_TEXTURE;
             case DIMENSION -> DIMENSION_MIRROR_TEXTURE;
         };
     }

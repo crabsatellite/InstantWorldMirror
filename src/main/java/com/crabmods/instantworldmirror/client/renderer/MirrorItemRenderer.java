@@ -4,6 +4,7 @@ import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.client.model.DimensionMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.FirstDreamMirrorItemModel;
 import com.crabmods.instantworldmirror.client.model.HeavenMirrorItemModel;
+import com.crabmods.instantworldmirror.client.model.StrandedMirrorItemModel;
 import com.crabmods.instantworldmirror.item.DimensionMirrorItem;
 import com.crabmods.instantworldmirror.world.MirrorKind;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -28,18 +29,22 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
             InstantWorldMirror.MODID, "textures/item/heaven_mirror.png");
     private static final ResourceLocation FIRST_DREAM_MIRROR_TEXTURE = new ResourceLocation(
             InstantWorldMirror.MODID, "textures/item/first_dream_mirror.png");
+    private static final ResourceLocation STRANDED_MIRROR_TEXTURE = new ResourceLocation(
+            InstantWorldMirror.MODID, "textures/item/stranded_mirror.png");
 
     private static MirrorItemRenderer instance;
 
     private final DimensionMirrorItemModel dimensionMirrorModel;
     private final HeavenMirrorItemModel heavenMirrorModel;
     private final FirstDreamMirrorItemModel firstDreamMirrorModel;
+    private final StrandedMirrorItemModel strandedMirrorModel;
 
     private MirrorItemRenderer() {
         super(Minecraft.getInstance().getBlockEntityRenderDispatcher(), Minecraft.getInstance().getEntityModels());
         this.dimensionMirrorModel = new DimensionMirrorItemModel(DimensionMirrorItemModel.createBodyLayer().bakeRoot());
         this.heavenMirrorModel = new HeavenMirrorItemModel(HeavenMirrorItemModel.createBodyLayer().bakeRoot());
         this.firstDreamMirrorModel = new FirstDreamMirrorItemModel(FirstDreamMirrorItemModel.createBodyLayer().bakeRoot());
+        this.strandedMirrorModel = new StrandedMirrorItemModel(StrandedMirrorItemModel.createBodyLayer().bakeRoot());
     }
 
     public static MirrorItemRenderer getInstance() {
@@ -71,6 +76,7 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
         return switch (kind) {
             case HEAVEN -> heavenMirrorModel;
             case FIRST_DREAM -> firstDreamMirrorModel;
+            case STRANDED -> strandedMirrorModel;
             case DIMENSION -> dimensionMirrorModel;
         };
     }
@@ -79,6 +85,7 @@ public class MirrorItemRenderer extends BlockEntityWithoutLevelRenderer {
         return switch (kind) {
             case HEAVEN -> HEAVEN_MIRROR_TEXTURE;
             case FIRST_DREAM -> FIRST_DREAM_MIRROR_TEXTURE;
+            case STRANDED -> STRANDED_MIRROR_TEXTURE;
             case DIMENSION -> DIMENSION_MIRROR_TEXTURE;
         };
     }
