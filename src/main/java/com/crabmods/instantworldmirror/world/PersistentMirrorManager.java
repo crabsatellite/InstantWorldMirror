@@ -290,7 +290,8 @@ public class PersistentMirrorManager {
                 session.getSourcePosition().above(),
                 session.isSourceInWater(),
                 System.currentTimeMillis(),
-                false
+                false,
+                session.getTerrainMode()
         );
 
         if (!MirrorWorldManager.retainTemporarySourceForPersistentSave(session)) {
@@ -422,7 +423,7 @@ public class PersistentMirrorManager {
             return false;
         }
 
-        MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true);
+        MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true, record.terrainMode());
         playerToPersistentMirror.put(player.getUUID(), record.id());
 
         BlockPos safePos = MirrorWorldManager.findMirrorLandingPosition(targetLevel, record.entryPosition(), record.sourceInWater());

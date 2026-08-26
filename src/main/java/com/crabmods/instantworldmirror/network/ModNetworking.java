@@ -12,7 +12,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 @EventBusSubscriber(modid = InstantWorldMirror.MODID, bus = EventBusSubscriber.Bus.MOD)
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "2";
+    public static final String PROTOCOL_VERSION = "3";
     
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -55,6 +55,18 @@ public class ModNetworking {
                 MirrorConfigSaveResultPacket.STREAM_CODEC,
                 MirrorConfigSaveResultPacket::handle
         );
+
+        registrar.playToClient(
+                StrandedCapturePromptPacket.TYPE,
+                StrandedCapturePromptPacket.STREAM_CODEC,
+                StrandedCapturePromptPacket::handle
+        );
+
+        registrar.playToClient(
+                StrandedSnapshotMenuPacket.TYPE,
+                StrandedSnapshotMenuPacket.STREAM_CODEC,
+                StrandedSnapshotMenuPacket::handle
+        );
         
         // Register server-bound packets
         registrar.playToServer(
@@ -73,6 +85,24 @@ public class ModNetworking {
                 OpenMirrorConfigPacket.TYPE,
                 OpenMirrorConfigPacket.STREAM_CODEC,
                 OpenMirrorConfigPacket::handle
+        );
+
+        registrar.playToServer(
+                CreateStrandedSnapshotPacket.TYPE,
+                CreateStrandedSnapshotPacket.STREAM_CODEC,
+                CreateStrandedSnapshotPacket::handle
+        );
+
+        registrar.playToServer(
+                OpenStrandedSnapshotPacket.TYPE,
+                OpenStrandedSnapshotPacket.STREAM_CODEC,
+                OpenStrandedSnapshotPacket::handle
+        );
+
+        registrar.playToServer(
+                DeleteStrandedSnapshotPacket.TYPE,
+                DeleteStrandedSnapshotPacket.STREAM_CODEC,
+                DeleteStrandedSnapshotPacket::handle
         );
         
         InstantWorldMirror.LOGGER.info("Registered network packets");

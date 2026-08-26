@@ -53,6 +53,14 @@ public class MirrorSession {
     // Mirror behavior kind controls sandbox entry rules and copy mode.
     private final MirrorKind kind;
 
+    // Terrain mode is independent from player sandbox rules so permanent mirrors can preserve it.
+    private final MirrorTerrainMode terrainMode;
+
+    // Cross-save snapshot metadata is present only for Stranded Mirror sessions.
+    private final UUID snapshotId;
+    private final int snapshotChunkRadius;
+    private final int snapshotCenterY;
+
     // Whether this session was opened with a mirror carrying the permanence enchantment.
     private final boolean persistentAccess;
 
@@ -85,12 +93,33 @@ public class MirrorSession {
     public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
                          boolean sourceInWater, MirrorKind kind, boolean persistentAccess,
                          boolean generatedContentRefresh) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater, kind, persistentAccess,
+                generatedContentRefresh, MirrorTerrainMode.defaultFor(kind));
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, MirrorKind kind, boolean persistentAccess,
+                         boolean generatedContentRefresh, MirrorTerrainMode terrainMode) {
+        this(creatorId, sourcePosition, sourceDimension, sourceInWater, kind, persistentAccess,
+                generatedContentRefresh, terrainMode, null, -1, sourcePosition.getY());
+    }
+
+    public MirrorSession(UUID creatorId, BlockPos sourcePosition, ResourceKey<Level> sourceDimension,
+                         boolean sourceInWater, MirrorKind kind, boolean persistentAccess,
+                         boolean generatedContentRefresh, MirrorTerrainMode terrainMode,
+                         UUID snapshotId, int snapshotChunkRadius, int snapshotCenterY) {
         this.sessionId = UUID.randomUUID();
         this.creatorId = creatorId;
         this.sourcePosition = sourcePosition;
         this.sourceDimension = sourceDimension;
         this.sourceInWater = sourceInWater;
         this.kind = kind;
+        this.terrainMode = terrainMode != null && terrainMode.supports(kind)
+                ? terrainMode
+                : MirrorTerrainMode.defaultFor(kind);
+        this.snapshotId = this.terrainMode == MirrorTerrainMode.SNAPSHOT ? snapshotId : null;
+        this.snapshotChunkRadius = this.terrainMode == MirrorTerrainMode.SNAPSHOT ? snapshotChunkRadius : -1;
+        this.snapshotCenterY = this.terrainMode == MirrorTerrainMode.SNAPSHOT ? snapshotCenterY : sourcePosition.getY();
         this.persistentAccess = persistentAccess;
         this.generatedContentRefresh = generatedContentRefresh && kind == MirrorKind.FIRST_DREAM;
         this.createdAt = System.currentTimeMillis();
@@ -156,7 +185,33 @@ public class MirrorSession {
     }
 
     public boolean usesPristineTerrain() {
-        return kind.usesPristineTerrain();
+        return terrainMode == MirrorTerrainMode.PRISTINE;
+    }
+
+    public boolean usesSuperflatTerrain() {
+        return terrainMode == MirrorTerrainMode.SUPERFLAT;
+    }
+
+    public MirrorTerrainMode getTerrainMode() {
+        return terrainMode;
+    }
+
+    public UUID getSnapshotId() {
+        return snapshotId;
+    }
+
+    public int getSnapshotChunkRadius() {
+        return snapshotChunkRadius;
+    }
+
+    public BlockPos getTerrainCenterPosition() {
+        return terrainMode == MirrorTerrainMode.SNAPSHOT
+                ? new BlockPos(sourcePosition.getX(), snapshotCenterY, sourcePosition.getZ())
+                : sourcePosition;
+    }
+
+    public BlockPos getMirrorEntryPosition() {
+        return getTerrainCenterPosition().above();
     }
 
     public boolean hasPersistentAccess() {
@@ -276,6 +331,8 @@ public class MirrorSession {
                 ", creatorId=" + creatorId +
                 ", sourcePosition=" + sourcePosition +
                 ", kind=" + kind +
+                ", terrainMode=" + terrainMode +
+                ", snapshotId=" + snapshotId +
                 ", persistentAccess=" + persistentAccess +
                 ", playerCount=" + playersInSession.size() +
                 ", destroyed=" + destroyed +

@@ -339,7 +339,7 @@ tasks.register('persistentMirrorStaticTest') {
         assert mirrorItem.contains('player.isShiftKeyDown()')
         assert mirrorItem.contains('MirrorKind.fromSandboxMode(sandboxMode)')
         assert mirrorItem.contains('shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown)')
-        assert mirrorItem.contains('player, pos, kind, persistentAccess, generatedContentRefresh)')
+        assert mirrorItem.contains('player, pos, kind, persistentAccess, generatedContentRefresh, terrainMode)')
 
         def events = persistentMirrorSourceFiles[4].asFile.text
         assert events.contains('PersistentMirrorManager.handleExternalExit')
@@ -374,6 +374,9 @@ tasks.register('modListConfigScreenRegistrationTest') {
 def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/registry/ModEnchantments.class',
         'com/crabmods/instantworldmirror/item/FirstDreamMirrorItem.class',
+        'com/crabmods/instantworldmirror/item/StrandedMirrorItem.class',
+        'com/crabmods/instantworldmirror/world/StrandedSnapshotManager.class',
+        'com/crabmods/instantworldmirror/network/DeleteStrandedSnapshotPacket.class',
         'com/crabmods/instantworldmirror/world/MirrorKind.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorData.class',
         'com/crabmods/instantworldmirror/world/PersistentMirrorManager.class',
@@ -382,7 +385,10 @@ def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/client/MirrorConfigNetworkGate.class',
         'assets/instantworldmirror/models/item/first_dream_mirror.json',
         'assets/instantworldmirror/textures/item/first_dream_mirror.png',
-        'data/instantworldmirror/recipe/first_dream_mirror.json'
+        'assets/instantworldmirror/models/item/stranded_mirror.json',
+        'assets/instantworldmirror/textures/item/stranded_mirror.png',
+        'data/instantworldmirror/recipe/first_dream_mirror.json',
+        'data/instantworldmirror/recipe/stranded_mirror.json'
 ]
 (0..<8).each { index ->
     mirrorJarRequiredEntries.add("data/instantworldmirror/dimension/persistent_mirror_world_${index}.json")
@@ -390,7 +396,9 @@ def mirrorJarRequiredEntries = [
 if (minecraft_version == '1.21.1') {
     mirrorJarRequiredEntries.addAll([
             'data/instantworldmirror/enchantment/permanence.json',
+            'data/instantworldmirror/enchantment/superflat.json',
             'data/instantworldmirror/tags/item/mirror_enchantable.json',
+            'data/instantworldmirror/tags/item/heaven_superflat_enchantable.json',
             'data/minecraft/tags/enchantment/in_enchanting_table.json',
             'data/minecraft/tags/enchantment/non_treasure.json',
             'data/minecraft/tags/enchantment/tooltip_order.json',

@@ -62,6 +62,79 @@
       ]
     },
     {
+      "id": "temporary.heaven_superflat",
+      "title": "Superflat enchanted Heaven Mirror creates a bounded Creative building platform",
+      "stages": [
+        {
+          "id": "enchantment",
+          "title": "Superflat is restricted to Heaven Mirror",
+          "checks": [
+            "enchantment.superflat_heaven_only",
+            "enchantment.superflat_version_registration",
+            "runtime.superflat_enchantment_scope"
+          ]
+        },
+        {
+          "id": "terrain",
+          "title": "The session and copy queue preserve the superflat terrain mode",
+          "checks": [
+            "session.superflat_terrain_mode",
+            "copy.superflat_generator",
+            "runtime.superflat_terrain_layers"
+          ]
+        },
+        {
+          "id": "persistence",
+          "title": "Persistent mirrors retain superflat origin metadata",
+          "checks": [
+            "record.terrain_mode_persisted",
+            "sandbox.applies_superflat_to_hotbar_mirror",
+            "runtime.superflat_persistent_round_trip"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "temporary.stranded_mirror",
+      "title": "Stranded Mirror captures and reopens same-version world slices across saves",
+      "stages": [
+        {
+          "id": "interaction",
+          "title": "The dedicated item opens localized capture and selection screens",
+          "checks": [
+            "kind.stranded_present",
+            "item.stranded_capture_ui",
+            "network.stranded_packets",
+            "client.stranded_ui_gate",
+            "runtime.stranded_interaction_routes",
+            "runtime.stranded_packet_roundtrip"
+          ]
+        },
+        {
+          "id": "snapshot",
+          "title": "Global snapshots retain blocks, biomes, and block entity NBT",
+          "checks": [
+            "snapshot.global_cache",
+            "snapshot.same_version_owner_gate",
+            "runtime.stranded_snapshot_round_trip",
+            "runtime.stranded_capture_flow",
+            "runtime.stranded_permissions_and_delete"
+          ]
+        },
+        {
+          "id": "rules",
+          "title": "Stranded Mirror uses the shared per-mirror configuration and lifecycle rules",
+          "checks": [
+            "config.stranded_settings",
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior",
+            "runtime.stranded_persistent_lifecycle"
+          ]
+        }
+      ]
+    },
+    {
       "id": "temporary.first_dream_mirror",
       "title": "Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary",
       "stages": [
@@ -650,6 +723,7 @@
         "defineEnum(\"worldReflectionMirrorAccess\", MirrorAccess.ALL)",
         "defineEnum(\"heavenMirrorAccess\", MirrorAccess.ALL)",
         "defineEnum(\"firstDreamMirrorAccess\", MirrorAccess.ALL)",
+        "defineEnum(\"strandedMirrorAccess\", MirrorAccess.ALL)",
         "isMirrorKindEnabled",
         "activeMirrorConfig.get(kind).access() != MirrorAccess.NONE",
         "canAccessMirrorKind",
@@ -664,7 +738,9 @@
       "signatureContains": [
         "MirrorKind kind",
         "boolean persistentAccess",
-        "boolean generatedContentRefresh"
+        "boolean generatedContentRefresh",
+        "MirrorTerrainMode terrainMode",
+        "UUID snapshotId"
       ],
       "texts": [
         "if (purgeMode)",
@@ -682,7 +758,9 @@
       "signatureContains": [
         "MirrorKind kind",
         "boolean persistentAccess",
-        "boolean generatedContentRefresh"
+        "boolean generatedContentRefresh",
+        "MirrorTerrainMode terrainMode",
+        "UUID snapshotId"
       ],
       "texts": [
         "if (purgeMode)",
@@ -692,6 +770,7 @@
         "kind",
         "persistentAccess",
         "generatedContentRefresh",
+        "terrainMode",
         "DimensionPool.allocateDimension(session.getSessionId(), session.getSourceDimension())",
         "session.setDimensionIndex(dimIndex)",
         "activeSessions.put(session.getSessionId(), session)",
@@ -728,7 +807,7 @@
         "persistentData.putUUID(SESSION_ID_KEY, session.getSessionId())",
         "if (session.isSandboxMode())",
         "savePlayerSnapshot(player, true)",
-        "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess())",
+        "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess(), session.getTerrainMode())",
         "savePlayerInventory(player)",
         "findSafeLandingPosition(mirrorWorld, baseTargetPos, allowWater)",
         "player.teleportTo(",
@@ -944,7 +1023,7 @@
       "id": "sandbox.prep_receives_persistent_access",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
-      "text": "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess())"
+      "text": "prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess(), session.getTerrainMode())"
     },
     {
       "id": "sandbox.applies_permanence_to_hotbar_mirror",
@@ -956,7 +1035,153 @@
       "id": "manager.persistent_enter_passes_access",
       "adapter": "file_contains",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
-      "text": "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true)"
+      "text": "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true, record.terrainMode())"
+    },
+    {
+      "id": "enchantment.superflat_heaven_only",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "kind == MirrorKind.HEAVEN",
+            "ModEnchantments.isSuperflat",
+            "hasSuperflat(level, stack)"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "SUPERFLAT",
+            "canApplySuperflatTo",
+            "instanceof HeavenMirrorItem"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "enchantment.superflat_version_registration",
+      "adapter": "any",
+      "checks": [
+        {
+          "adapter": "file_contains_all",
+          "versions": [
+            "1.21.1"
+          ],
+          "file": "src/main/resources/data/instantworldmirror/enchantment/superflat.json",
+          "texts": [
+            "#instantworldmirror:heaven_superflat_enchantable",
+            "\"weight\": 2",
+            "\"base\": 30",
+            "\"base\": 60"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "versions": [
+            "1.20.1"
+          ],
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "HEAVEN_MIRROR_CATEGORY",
+            "SuperflatMirrorEnchantment",
+            "item instanceof HeavenMirrorItem"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime.superflat_enchantment_scope",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "Superflat must not be valid for the default mirror",
+        "Superflat must be valid for the heaven mirror",
+        "Superflat must not be valid for the first dream mirror",
+        "Superflat must not be applied to non-heaven mirrors"
+      ]
+    },
+    {
+      "id": "session.superflat_terrain_mode",
+      "adapter": "all",
+      "checks": [
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainMode.java",
+          "texts": [
+            "COPIED",
+            "PRISTINE",
+            "SUPERFLAT",
+            "kind == MirrorKind.HEAVEN"
+          ]
+        },
+        {
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorSession.java",
+          "texts": [
+            "private final MirrorTerrainMode terrainMode",
+            "public MirrorTerrainMode getTerrainMode()",
+            "usesSuperflatTerrain()"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "copy.superflat_generator",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "copySuperflatTerrainChunk",
+      "texts": [
+        "clearChunkForGeneratedCopy",
+        "Blocks.BEDROCK",
+        "Blocks.DIRT",
+        "Blocks.GRASS_BLOCK",
+        "regenerateHeightmaps(targetChunk)",
+        "relightChunk(mirrorWorld, targetChunk)"
+      ]
+    },
+    {
+      "id": "runtime.superflat_terrain_layers",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
+      "texts": [
+        "superflatTerrainUsesVanillaLayersAndIgnoresSourceBlocks",
+        "One superflat chunk must contain exactly four complete layers",
+        "Superflat base must be bedrock"
+      ]
+    },
+    {
+      "id": "record.terrain_mode_persisted",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorRecord.java",
+      "texts": [
+        "private final MirrorTerrainMode terrainMode",
+        "tag.putString(\"terrain_mode\"",
+        "MirrorTerrainMode.byId",
+        "public MirrorTerrainMode terrainMode()"
+      ]
+    },
+    {
+      "id": "sandbox.applies_superflat_to_hotbar_mirror",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorWorldManager.java",
+      "texts": [
+        "terrainMode == MirrorTerrainMode.SUPERFLAT",
+        "ModEnchantments.applySuperflat(player.level(), mirror)"
+      ]
+    },
+    {
+      "id": "runtime.superflat_persistent_round_trip",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "Persistent records must write the terrain mode",
+        "Persistent records must reload the superflat terrain mode",
+        "Older persistent heaven mirrors must default to copied terrain",
+        "Superflat heaven sandbox entry must preserve Superflat on the hotbar mirror"
+      ]
     },
     {
       "id": "kind.first_dream_present",
@@ -1118,7 +1343,7 @@
         "if (!canEnterRecord(player, record))",
         "if (MirrorWorldManager.hasActiveSession(player.getUUID()) || isInPersistentMirror(player))",
         "server.getLevel(ModDimensions.getPersistentMirrorWorld(record.dimensionIndex()))",
-        "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true)",
+        "MirrorWorldManager.preparePlayerForMirrorEntry(player, record.kind(), true, record.terrainMode())",
         "playerToPersistentMirror.put(player.getUUID(), record.id())",
         "MirrorWorldManager.markPlayerBeingTeleported(player.getUUID())",
         "player.teleportTo(",
@@ -1771,8 +1996,8 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
-        "public final boolean pristineTerrain",
-        "session.usesPristineTerrain()",
+        "public final MirrorTerrainMode terrainMode",
+        "session.getTerrainMode()",
         "private PristineTerrainGenerator.Region pristineRegion",
         "PristineTerrainGenerator.openRegion(sourceWorld, centerPos, chunkRadius)",
         "copyChunk(sourceWorld, targetWorld, chunkCoords[0], chunkCoords[1], task)"
@@ -1784,7 +2009,7 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
       "texts": [
         "task.generatePristineChunk(sourceWorld, chunkX, chunkZ)",
-        "clearChunkForPristineCopy(mirrorWorld, targetChunk)",
+        "clearChunkForGeneratedCopy(mirrorWorld, targetChunk)",
         "targetSection.setBlockState",
         "copyChunkBiomes(generatedChunk, targetChunk)",
         "copyChunkStructures(generatedChunk, targetChunk, sourceWorld, mirrorWorld)",
@@ -1954,7 +2179,7 @@
         "Renewal cooldown must use the same Efficiency reduction as mirror use cooldown",
         "Renewal cooldown duration must be stored for the item cooldown bar",
         "unenchanted mirror must start the configured 300-second cooldown",
-        "MirrorWorldManager.preparePlayerForMirrorEntry(player, true, true)",
+        "MirrorTerrainMode.SUPERFLAT",
         "MirrorWorldManager.preparePlayerForMirrorEntry(player, MirrorKind.FIRST_DREAM, true)",
         "MirrorWorldManager.setItemTransferPermission(player.getUUID(), true)",
         "MirrorKind.FIRST_DREAM.usesPristineTerrain()",
@@ -2008,6 +2233,156 @@
         "runGameTestServer failed",
         "run\\gameteststructures",
         "Copy-Item"
+      ]
+    },
+    {
+      "id": "kind.stranded_present",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorKind.java",
+      "texts": [
+        "STRANDED(\"stranded\"",
+        "item.instantworldmirror.stranded_mirror"
+      ]
+    },
+    {
+      "id": "item.stranded_capture_ui",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/StrandedMirrorItem.java",
+      "texts": [
+        "StrandedCapturePromptPacket",
+        "StrandedSnapshotMenuPacket.create",
+        "resolveUseMode",
+        "UseMode.PERSISTENT_MENU",
+        "return super.useOn(context)"
+      ]
+    },
+    {
+      "id": "network.stranded_packets",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/network/ModNetworking.java",
+      "texts": [
+        "StrandedCapturePromptPacket",
+        "StrandedSnapshotMenuPacket",
+        "CreateStrandedSnapshotPacket",
+        "OpenStrandedSnapshotPacket",
+        "DeleteStrandedSnapshotPacket"
+      ]
+    },
+    {
+      "id": "client.stranded_ui_gate",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/client/MirrorConfigUiGate.java",
+      "texts": [
+        "assertStrandedMirrorScreens",
+        "StrandedCaptureScreen.open",
+        "StrandedSnapshotScreen.open",
+        "strandedUiChecks",
+        "message.instantworldmirror.stranded.delete.confirm"
+      ]
+    },
+    {
+      "id": "snapshot.global_cache",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/StrandedSnapshotManager.java",
+      "texts": [
+        "instantworldmirror-cache",
+        "stranded_snapshots",
+        "processCaptureTasks",
+        "copySnapshotChunk",
+        "result.put(\"biomes\"",
+        "result.put(\"block_entities\""
+      ]
+    },
+    {
+      "id": "snapshot.same_version_owner_gate",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/StrandedSnapshotManager.java",
+      "texts": [
+        "summary.ownerId()",
+        "MirrorConfig.canManageConfig(player)",
+        "currentMinecraftVersion().equals(summary.minecraftVersion())",
+        "tag.putString(\"minecraft_version\""
+      ]
+    },
+    {
+      "id": "runtime.stranded_snapshot_round_trip",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
+      "texts": [
+        "strandedSnapshotRestoresBlocksAndBlockEntityNbtAtAnotherLocation",
+        "Stranded snapshot must preserve local block positions",
+        "Stranded snapshot must preserve chest inventory NBT",
+        "Cross-save snapshots must explicitly exclude normal entities"
+      ]
+    },
+    {
+      "id": "runtime.stranded_capture_flow",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "strandedMirrorCapturesNamedSnapshotAndOpensTemporaryPortal",
+        "strandedMirrorHidesIncompleteAndIncompatibleSnapshots",
+        "StrandedSnapshotManager.requestCapture",
+        "Completed capture must open a temporary portal",
+        "Incomplete Stranded Mirror caches must not create sessions"
+      ]
+    },
+    {
+      "id": "runtime.stranded_packet_roundtrip",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/network/StrandedNetworkGameTests.java",
+      "texts": [
+        "strandedMirrorPacketsPreserveEveryClientServerAction",
+        "CreateStrandedSnapshotPacket",
+        "OpenStrandedSnapshotPacket",
+        "DeleteStrandedSnapshotPacket",
+        "availability states"
+      ]
+    },
+    {
+      "id": "runtime.stranded_interaction_routes",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "strandedMirrorUsesSharedPersistentAndReturnInteractions",
+        "UseMode.CAPTURE",
+        "UseMode.SELECT",
+        "UseMode.PERSISTENT_MENU",
+        "Using Stranded Mirror on a block inside its mirror world must succeed"
+      ]
+    },
+    {
+      "id": "runtime.stranded_permissions_and_delete",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "strandedMirrorSnapshotOwnershipAndAdminDeletionAreEnforced",
+        "Non-owners must not delete",
+        "Operators must be able to delete",
+        "requestDelete(player, captured.id())"
+      ]
+    },
+    {
+      "id": "runtime.stranded_persistent_lifecycle",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "strandedPermanenceSavesAndReentersTheCopiedSnapshot",
+        "saveCurrentTemporaryMirror",
+        "PersistentMirrorManager.enterPersistentMirror",
+        "PersistentMirrorManager.leavePersistentMirror",
+        "Persistent save must copy the snapshot's actual blocks"
+      ]
+    },
+    {
+      "id": "config.stranded_settings",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/MirrorConfig.java",
+      "texts": [
+        "strandedMirrorAccess",
+        "strandedMirrorMobSpawning",
+        "strandedMirrorItemTransfer",
+        "strandedMirrorCopyChunkRadius"
       ]
     },
     {

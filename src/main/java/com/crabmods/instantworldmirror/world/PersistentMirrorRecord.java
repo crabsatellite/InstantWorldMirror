@@ -18,6 +18,7 @@ public class PersistentMirrorRecord {
     private final UUID sourceSessionId;
     private String name;
     private final MirrorKind kind;
+    private final MirrorTerrainMode terrainMode;
     private final int dimensionIndex;
     private final ResourceKey<Level> sourceDimension;
     private final BlockPos sourcePosition;
@@ -29,11 +30,22 @@ public class PersistentMirrorRecord {
     public PersistentMirrorRecord(UUID id, UUID ownerId, UUID sourceSessionId, String name, MirrorKind kind, int dimensionIndex,
                                   ResourceKey<Level> sourceDimension, BlockPos sourcePosition,
                                   BlockPos entryPosition, boolean sourceInWater, long createdAt, boolean ready) {
+        this(id, ownerId, sourceSessionId, name, kind, dimensionIndex, sourceDimension, sourcePosition,
+                entryPosition, sourceInWater, createdAt, ready, MirrorTerrainMode.defaultFor(kind));
+    }
+
+    public PersistentMirrorRecord(UUID id, UUID ownerId, UUID sourceSessionId, String name, MirrorKind kind, int dimensionIndex,
+                                  ResourceKey<Level> sourceDimension, BlockPos sourcePosition,
+                                  BlockPos entryPosition, boolean sourceInWater, long createdAt, boolean ready,
+                                  MirrorTerrainMode terrainMode) {
         this.id = id;
         this.ownerId = ownerId;
         this.sourceSessionId = Objects.requireNonNull(sourceSessionId, "sourceSessionId");
         this.name = name;
         this.kind = kind;
+        this.terrainMode = terrainMode != null && terrainMode.supports(kind)
+                ? terrainMode
+                : MirrorTerrainMode.defaultFor(kind);
         this.dimensionIndex = dimensionIndex;
         this.sourceDimension = sourceDimension;
         this.sourcePosition = sourcePosition;
@@ -65,6 +77,10 @@ public class PersistentMirrorRecord {
 
     public MirrorKind kind() {
         return kind;
+    }
+
+    public MirrorTerrainMode terrainMode() {
+        return terrainMode;
     }
 
     public int dimensionIndex() {
@@ -110,6 +126,7 @@ public class PersistentMirrorRecord {
         tag.putUUID("source_session", sourceSessionId);
         tag.putString("name", name);
         tag.putString("kind", kind.id());
+        tag.putString("terrain_mode", terrainMode.name());
         tag.putInt("dimension_index", dimensionIndex);
         tag.putString("source_dimension", sourceDimension.location().toString());
         writePos(tag, "source_pos", sourcePosition);
@@ -126,6 +143,7 @@ public class PersistentMirrorRecord {
         UUID sourceSessionId = tag.getUUID("source_session");
         String name = tag.getString("name");
         MirrorKind kind = MirrorKind.byId(tag.getString("kind"));
+        MirrorTerrainMode terrainMode = MirrorTerrainMode.byId(tag.getString("terrain_mode"), kind);
         int dimensionIndex = tag.getInt("dimension_index");
         ResourceLocation sourceLocation = ResourceLocation.tryParse(tag.getString("source_dimension"));
         ResourceKey<Level> sourceDimension = sourceLocation != null
@@ -137,7 +155,7 @@ public class PersistentMirrorRecord {
         long createdAt = tag.getLong("created_at");
         boolean ready = tag.getBoolean("ready");
         return new PersistentMirrorRecord(id, owner, sourceSessionId, name, kind, dimensionIndex, sourceDimension,
-                sourcePos, entryPos, sourceInWater, createdAt, ready);
+                sourcePos, entryPos, sourceInWater, createdAt, ready, terrainMode);
     }
 
     private static void writePos(CompoundTag tag, String key, BlockPos pos) {

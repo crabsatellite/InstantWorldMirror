@@ -31,6 +31,7 @@ public record MirrorConfigMenuPacket(MirrorConfigState state) implements CustomP
         encodeKindSettings(buf, state.get(MirrorKind.DIMENSION));
         encodeKindSettings(buf, state.get(MirrorKind.HEAVEN));
         encodeKindSettings(buf, state.get(MirrorKind.FIRST_DREAM));
+        encodeKindSettings(buf, state.get(MirrorKind.STRANDED));
         buf.writeVarInt(state.mirrorCooldownSeconds());
     }
 
@@ -39,6 +40,7 @@ public record MirrorConfigMenuPacket(MirrorConfigState state) implements CustomP
                 decodeKindSettings(buf, MirrorKind.DIMENSION),
                 decodeKindSettings(buf, MirrorKind.HEAVEN),
                 decodeKindSettings(buf, MirrorKind.FIRST_DREAM),
+                decodeKindSettings(buf, MirrorKind.STRANDED),
                 MirrorConfigState.clampMirrorCooldownSeconds(buf.readVarInt())
         );
     }

@@ -33,12 +33,15 @@ public final class MirrorConfigMigration {
                     "enableHeavenMirror", "heavenMirrorAccess");
             changed |= migrateAccess(config,
                     "enableFirstDreamMirror", "firstDreamMirrorAccess");
+            changed |= ensureAccess(config, "strandedMirrorAccess", MirrorAccess.ALL);
             changed |= migrateBoolean(config,
                     "enableMobSpawning", "worldReflectionMirrorMobSpawning", false);
             changed |= migrateBoolean(config,
                     "enableMobSpawning", "heavenMirrorMobSpawning", false);
             changed |= migrateBoolean(config,
                     "enableMobSpawning", "firstDreamMirrorMobSpawning", true);
+            changed |= migrateBoolean(config,
+                    "enableMobSpawning", "strandedMirrorMobSpawning", false);
             changed |= removeLegacyKey(config, "enableMobSpawning");
             changed |= migrateBoolean(config,
                     "allowItemTransfer", "worldReflectionMirrorItemTransfer", false);
@@ -46,6 +49,8 @@ public final class MirrorConfigMigration {
                     "allowItemTransfer", "heavenMirrorItemTransfer", false);
             changed |= migrateBoolean(config,
                     "allowItemTransfer", "firstDreamMirrorItemTransfer", false);
+            changed |= migrateBoolean(config,
+                    "allowItemTransfer", "strandedMirrorItemTransfer", false);
             changed |= removeLegacyKey(config, "allowItemTransfer");
             changed |= migrateInt(config,
                     "copyChunkRadius", "worldReflectionMirrorCopyChunkRadius",
@@ -55,6 +60,9 @@ public final class MirrorConfigMigration {
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
             changed |= migrateInt(config,
                     "copyChunkRadius", "firstDreamMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
+            changed |= migrateInt(config,
+                    "copyChunkRadius", "strandedMirrorCopyChunkRadius",
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS);
             changed |= removeLegacyKey(config, "copyChunkRadius");
             changed |= migrateMirrorCooldown(config);
@@ -93,6 +101,14 @@ public final class MirrorConfigMigration {
             return false;
         }
         config.set(key, access.name());
+        return true;
+    }
+
+    private static boolean ensureAccess(CommentedFileConfig config, String key, MirrorAccess defaultValue) {
+        if (config.contains(key)) {
+            return normalizeExistingAccess(config, key);
+        }
+        config.set(key, defaultValue.name());
         return true;
     }
 

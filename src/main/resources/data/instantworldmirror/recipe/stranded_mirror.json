@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["GBG", "CEC", "GBG"],
+  "key": {
+    "G": {"item": "minecraft:glass"},
+    "B": {"item": "minecraft:black_concrete"},
+    "C": {"item": "minecraft:coal"},
+    "E": {"item": "minecraft:ender_pearl"}
+  },
+  "result": {
+    "id": "instantworldmirror:stranded_mirror",
+    "count": 1
+  }
+}

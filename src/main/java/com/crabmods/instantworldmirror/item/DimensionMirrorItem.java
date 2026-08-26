@@ -9,6 +9,7 @@ import com.crabmods.instantworldmirror.registry.ModEnchantments;
 import com.crabmods.instantworldmirror.world.MirrorSession;
 import com.crabmods.instantworldmirror.world.MirrorWorldManager;
 import com.crabmods.instantworldmirror.world.MirrorKind;
+import com.crabmods.instantworldmirror.world.MirrorTerrainMode;
 import com.crabmods.instantworldmirror.world.ModDimensions;
 import com.crabmods.instantworldmirror.world.PersistentMirrorManager;
 import net.minecraft.ChatFormatting;
@@ -355,6 +356,12 @@ public class DimensionMirrorItem extends Item {
                 && ModEnchantments.hasRenewal(level, stack);
     }
 
+    public static boolean hasSuperflat(Level level, ItemStack stack) {
+        return isMirrorStack(stack)
+                && getMirrorKind(stack) == MirrorKind.HEAVEN
+                && ModEnchantments.hasSuperflat(level, stack);
+    }
+
     static boolean shouldUseGeneratedContentRefresh(Level level, ItemStack stack) {
         return shouldUseGeneratedContentRefresh(level, stack, false);
     }
@@ -507,11 +514,12 @@ public class DimensionMirrorItem extends Item {
 
         boolean bypassRefreshCooldown = player.isCreative();
         boolean generatedContentRefresh = shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown);
+        MirrorTerrainMode terrainMode = MirrorTerrainMode.forMirror(kind, hasSuperflat(level, stack));
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
         Optional<MirrorSession> sessionOpt = MirrorWorldManager.createSession(
-                player, pos, kind, persistentAccess, generatedContentRefresh);
+                player, pos, kind, persistentAccess, generatedContentRefresh, terrainMode);
         if (sessionOpt.isEmpty()) {
             // Message already shown in createSession
             return InteractionResult.FAIL;
@@ -584,7 +592,11 @@ public class DimensionMirrorItem extends Item {
 
         // Spawn return portal using the unified factory method
         // pos is the clicked solid block, factory method handles pos.above() internally
-        MirrorPortalEntity.spawnReturnPortal(level, pos, player.getUUID(), false, null, kind);
+        MirrorPortalEntity portal = MirrorPortalEntity.spawnReturnPortal(
+                level, pos, player.getUUID(), false, null, kind);
+        if (portal == null) {
+            return InteractionResult.FAIL;
+        }
 
         player.displayClientMessage(
                 Component.translatable("message.instantworldmirror.return_portal_created"),
@@ -637,7 +649,8 @@ public class DimensionMirrorItem extends Item {
     public boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment) {
         return enchantment.is(Enchantments.EFFICIENCY)
                 || ModEnchantments.isPermanence(enchantment)
-                || (kind == MirrorKind.FIRST_DREAM && ModEnchantments.isRenewal(enchantment));
+                || (kind == MirrorKind.FIRST_DREAM && ModEnchantments.isRenewal(enchantment))
+                || (kind == MirrorKind.HEAVEN && ModEnchantments.isSuperflat(enchantment));
     }
 
     @Override

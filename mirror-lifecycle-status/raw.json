@@ -12,6 +12,12 @@
       "message": "all text found",
       "passed": true
     },
+    "client.stranded_ui_gate": {
+      "adapter": "file_contains_all",
+      "id": "client.stranded_ui_gate",
+      "message": "all text found",
+      "passed": true
+    },
     "command.menu_uses_held_mirror": {
       "adapter": "file_contains",
       "id": "command.menu_uses_held_mirror",
@@ -79,6 +85,12 @@
     "config.mirror_kind_toggles": {
       "adapter": "file_contains_all",
       "id": "config.mirror_kind_toggles",
+      "message": "all text found",
+      "passed": true
+    },
+    "config.stranded_settings": {
+      "adapter": "file_contains_all",
+      "id": "config.stranded_settings",
       "message": "all text found",
       "passed": true
     },
@@ -158,6 +170,12 @@
       "adapter": "file_contains_all",
       "id": "copy.pristine_task_flag",
       "message": "all text found",
+      "passed": true
+    },
+    "copy.superflat_generator": {
+      "adapter": "method_contains_all",
+      "id": "copy.superflat_generator",
+      "message": "method contains all text",
       "passed": true
     },
     "data.remove_unready_records": {
@@ -277,6 +295,39 @@
         }
       ],
       "id": "enchantment.renewal_hard_to_get_registration",
+      "message": "composite passed",
+      "passed": true
+    },
+    "enchantment.superflat_heaven_only": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "enchantment.superflat_heaven_only",
+      "message": "composite passed",
+      "passed": true
+    },
+    "enchantment.superflat_version_registration": {
+      "adapter": "any",
+      "children": [
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "skipped for 1.21.1",
+          "passed": true,
+          "skipped": true
+        }
+      ],
+      "id": "enchantment.superflat_version_registration",
       "message": "composite passed",
       "passed": true
     },
@@ -440,6 +491,12 @@
       "message": "found text",
       "passed": true
     },
+    "item.stranded_capture_ui": {
+      "adapter": "file_contains_all",
+      "id": "item.stranded_capture_ui",
+      "message": "all text found",
+      "passed": true
+    },
     "kind.first_dream_not_sandbox": {
       "adapter": "method_contains_in_order",
       "id": "kind.first_dream_not_sandbox",
@@ -455,6 +512,12 @@
     "kind.first_dream_pristine": {
       "adapter": "file_contains_all",
       "id": "kind.first_dream_pristine",
+      "message": "all text found",
+      "passed": true
+    },
+    "kind.stranded_present": {
+      "adapter": "file_contains_all",
+      "id": "kind.stranded_present",
       "message": "all text found",
       "passed": true
     },
@@ -726,6 +789,12 @@
       "message": "method contains ordered text",
       "passed": true
     },
+    "network.stranded_packets": {
+      "adapter": "file_contains_all",
+      "id": "network.stranded_packets",
+      "message": "all text found",
+      "passed": true
+    },
     "record.kind_saved_from_session": {
       "adapter": "file_contains",
       "id": "record.kind_saved_from_session",
@@ -741,6 +810,12 @@
     "record.source_session_persisted": {
       "adapter": "file_contains_all",
       "id": "record.source_session_persisted",
+      "message": "all text found",
+      "passed": true
+    },
+    "record.terrain_mode_persisted": {
+      "adapter": "file_contains_all",
+      "id": "record.terrain_mode_persisted",
       "message": "all text found",
       "passed": true
     },
@@ -792,10 +867,70 @@
       "message": "all text found",
       "passed": true
     },
+    "runtime.stranded_capture_flow": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_capture_flow",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.stranded_interaction_routes": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_interaction_routes",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.stranded_packet_roundtrip": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_packet_roundtrip",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.stranded_permissions_and_delete": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_permissions_and_delete",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.stranded_persistent_lifecycle": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_persistent_lifecycle",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.stranded_snapshot_round_trip": {
+      "adapter": "file_contains_all",
+      "id": "runtime.stranded_snapshot_round_trip",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.superflat_enchantment_scope": {
+      "adapter": "file_contains_all",
+      "id": "runtime.superflat_enchantment_scope",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.superflat_persistent_round_trip": {
+      "adapter": "file_contains_all",
+      "id": "runtime.superflat_persistent_round_trip",
+      "message": "all text found",
+      "passed": true
+    },
+    "runtime.superflat_terrain_layers": {
+      "adapter": "file_contains_all",
+      "id": "runtime.superflat_terrain_layers",
+      "message": "all text found",
+      "passed": true
+    },
     "sandbox.applies_permanence_to_hotbar_mirror": {
       "adapter": "file_contains",
       "id": "sandbox.applies_permanence_to_hotbar_mirror",
       "message": "found text",
+      "passed": true
+    },
+    "sandbox.applies_superflat_to_hotbar_mirror": {
+      "adapter": "file_contains_all",
+      "id": "sandbox.applies_superflat_to_hotbar_mirror",
+      "message": "all text found",
       "passed": true
     },
     "sandbox.prep_receives_persistent_access": {
@@ -822,6 +957,34 @@
       "message": "found text",
       "passed": true
     },
+    "session.superflat_terrain_mode": {
+      "adapter": "all",
+      "children": [
+        {
+          "message": "all text found",
+          "passed": true
+        },
+        {
+          "message": "all text found",
+          "passed": true
+        }
+      ],
+      "id": "session.superflat_terrain_mode",
+      "message": "composite passed",
+      "passed": true
+    },
+    "snapshot.global_cache": {
+      "adapter": "file_contains_all",
+      "id": "snapshot.global_cache",
+      "message": "all text found",
+      "passed": true
+    },
+    "snapshot.same_version_owner_gate": {
+      "adapter": "file_contains_all",
+      "id": "snapshot.same_version_owner_gate",
+      "message": "all text found",
+      "passed": true
+    },
     "startup.recover_unready_records": {
       "adapter": "file_contains",
       "id": "startup.recover_unready_records",
@@ -842,12 +1005,12 @@
     }
   },
   "completion": {
-    "checkCount": 114,
+    "checkCount": 136,
     "complete": true,
-    "coveredRouteCount": 14,
+    "coveredRouteCount": 16,
     "failedChecks": [],
-    "passedCheckCount": 114,
-    "routeCount": 14
+    "passedCheckCount": 136,
+    "routeCount": 16
   },
   "minecraftVersion": "1.21.1",
   "project": "InstantWorldMirror",
@@ -916,6 +1079,87 @@
       ],
       "status": "covered",
       "title": "Unenchanted Heaven Mirror stays temporary"
+    },
+    {
+      "id": "temporary.heaven_superflat",
+      "stages": [
+        {
+          "checks": [
+            "enchantment.superflat_heaven_only",
+            "enchantment.superflat_version_registration",
+            "runtime.superflat_enchantment_scope"
+          ],
+          "id": "enchantment",
+          "status": "covered",
+          "title": "Superflat is restricted to Heaven Mirror"
+        },
+        {
+          "checks": [
+            "session.superflat_terrain_mode",
+            "copy.superflat_generator",
+            "runtime.superflat_terrain_layers"
+          ],
+          "id": "terrain",
+          "status": "covered",
+          "title": "The session and copy queue preserve the superflat terrain mode"
+        },
+        {
+          "checks": [
+            "record.terrain_mode_persisted",
+            "sandbox.applies_superflat_to_hotbar_mirror",
+            "runtime.superflat_persistent_round_trip"
+          ],
+          "id": "persistence",
+          "status": "covered",
+          "title": "Persistent mirrors retain superflat origin metadata"
+        }
+      ],
+      "status": "covered",
+      "title": "Superflat enchanted Heaven Mirror creates a bounded Creative building platform"
+    },
+    {
+      "id": "temporary.stranded_mirror",
+      "stages": [
+        {
+          "checks": [
+            "kind.stranded_present",
+            "item.stranded_capture_ui",
+            "network.stranded_packets",
+            "client.stranded_ui_gate",
+            "runtime.stranded_interaction_routes",
+            "runtime.stranded_packet_roundtrip"
+          ],
+          "id": "interaction",
+          "status": "covered",
+          "title": "The dedicated item opens localized capture and selection screens"
+        },
+        {
+          "checks": [
+            "snapshot.global_cache",
+            "snapshot.same_version_owner_gate",
+            "runtime.stranded_snapshot_round_trip",
+            "runtime.stranded_capture_flow",
+            "runtime.stranded_permissions_and_delete"
+          ],
+          "id": "snapshot",
+          "status": "covered",
+          "title": "Global snapshots retain blocks, biomes, and block entity NBT"
+        },
+        {
+          "checks": [
+            "config.stranded_settings",
+            "manager.shared_item_transfer_snapshot",
+            "manager.shared_item_transfer_pipeline",
+            "runtime.shared_item_transfer_behavior",
+            "runtime.stranded_persistent_lifecycle"
+          ],
+          "id": "rules",
+          "status": "covered",
+          "title": "Stranded Mirror uses the shared per-mirror configuration and lifecycle rules"
+        }
+      ],
+      "status": "covered",
+      "title": "Stranded Mirror captures and reopens same-version world slices across saves"
     },
     {
       "id": "temporary.first_dream_mirror",

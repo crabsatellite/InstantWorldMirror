@@ -17,6 +17,22 @@ Unenchanted Heaven Mirror stays temporary
 - `kind`: covered - Mirror kind is still derived from the two mirror items
 - `sandbox`: covered - Sandbox inventory setup is parameterized by permanence
 
+## temporary.heaven_superflat - covered
+
+Superflat enchanted Heaven Mirror creates a bounded Creative building platform
+
+- `enchantment`: covered - Superflat is restricted to Heaven Mirror
+- `terrain`: covered - The session and copy queue preserve the superflat terrain mode
+- `persistence`: covered - Persistent mirrors retain superflat origin metadata
+
+## temporary.stranded_mirror - covered
+
+Stranded Mirror captures and reopens same-version world slices across saves
+
+- `interaction`: covered - The dedicated item opens localized capture and selection screens
+- `snapshot`: covered - Global snapshots retain blocks, biomes, and block entity NBT
+- `rules`: covered - Stranded Mirror uses the shared per-mirror configuration and lifecycle rules
+
 ## temporary.first_dream_mirror - covered
 
 Unenchanted First Dream Mirror regenerates pristine terrain and stays temporary

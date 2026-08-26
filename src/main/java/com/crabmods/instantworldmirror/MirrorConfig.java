@@ -106,6 +106,12 @@ public class MirrorConfig {
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .defineEnum("firstDreamMirrorAccess", MirrorAccess.ALL);
 
+    public static final ModConfigSpec.EnumValue<MirrorAccess> STRANDED_MIRROR_ACCESS = BUILDER
+            .comment("Who can use the Stranded Mirror (default: ALL)",
+                    "Allowed values: NONE, ADMIN, ALL.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineEnum("strandedMirrorAccess", MirrorAccess.ALL);
+
     public static final ModConfigSpec.BooleanValue WORLD_REFLECTION_MIRROR_MOB_SPAWNING = BUILDER
             .comment("Enable natural mob spawning for the World Reflection Mirror (default: false).",
                     "This does not duplicate entities that already exist in the source world.",
@@ -126,6 +132,11 @@ public class MirrorConfig {
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .define("firstDreamMirrorMobSpawning", true);
 
+    public static final ModConfigSpec.BooleanValue STRANDED_MIRROR_MOB_SPAWNING = BUILDER
+            .comment("Enable natural mob spawning for the Stranded Mirror (default: false).",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("strandedMirrorMobSpawning", false);
+
     public static final ModConfigSpec.BooleanValue WORLD_REFLECTION_MIRROR_ITEM_TRANSFER = BUILDER
             .comment("Allow items to leave the World Reflection Mirror by default (default: false).",
                     "Per-player overrides from /iwm itemtransfer still take priority.",
@@ -143,6 +154,12 @@ public class MirrorConfig {
                     "Per-player overrides from /iwm itemtransfer still take priority.",
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .define("firstDreamMirrorItemTransfer", false);
+
+    public static final ModConfigSpec.BooleanValue STRANDED_MIRROR_ITEM_TRANSFER = BUILDER
+            .comment("Allow items to leave the Stranded Mirror by default (default: false).",
+                    "Per-player overrides from /iwm itemtransfer still take priority.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .define("strandedMirrorItemTransfer", false);
 
     public static final ModConfigSpec.IntValue WORLD_REFLECTION_MIRROR_COPY_CHUNK_RADIUS = BUILDER
             .comment("Copy radius in chunks for the World Reflection Mirror (default: 10).",
@@ -167,6 +184,15 @@ public class MirrorConfig {
                     "Valid range: 1-32. Radius 10 copies 441 chunks.",
                     "Note: Changes saved from the in-game config screen require a server restart to take effect.")
             .defineInRange("firstDreamMirrorCopyChunkRadius",
+                    MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS,
+                    MirrorKindSettings.MIN_COPY_CHUNK_RADIUS,
+                    MirrorKindSettings.MAX_COPY_CHUNK_RADIUS);
+
+    public static final ModConfigSpec.IntValue STRANDED_MIRROR_COPY_CHUNK_RADIUS = BUILDER
+            .comment("Capture radius in chunks for the Stranded Mirror (default: 10).",
+                    "Valid range: 1-32. Radius 10 captures 441 chunks.",
+                    "Note: Changes saved from the in-game config screen require a server restart to take effect.")
+            .defineInRange("strandedMirrorCopyChunkRadius",
                     MirrorKindSettings.DEFAULT_COPY_CHUNK_RADIUS,
                     MirrorKindSettings.MIN_COPY_CHUNK_RADIUS,
                     MirrorKindSettings.MAX_COPY_CHUNK_RADIUS);
@@ -284,6 +310,12 @@ public class MirrorConfig {
                         FIRST_DREAM_MIRROR_ITEM_TRANSFER.get(),
                         FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS.get()
                 ),
+                new MirrorKindSettings(
+                        STRANDED_MIRROR_ACCESS.get(),
+                        STRANDED_MIRROR_MOB_SPAWNING.get(),
+                        STRANDED_MIRROR_ITEM_TRANSFER.get(),
+                        STRANDED_MIRROR_COPY_CHUNK_RADIUS.get()
+                ),
                 MIRROR_COOLDOWN.get()
         );
     }
@@ -296,6 +328,7 @@ public class MirrorConfig {
         saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
         saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
         saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+        saveMirrorKindSettings(MirrorKind.STRANDED, state.strandedMirror());
         MIRROR_COOLDOWN.set(state.mirrorCooldownSeconds());
         SPEC.save();
     }
@@ -319,6 +352,12 @@ public class MirrorConfig {
                 FIRST_DREAM_MIRROR_MOB_SPAWNING.set(settings.mobSpawning());
                 FIRST_DREAM_MIRROR_ITEM_TRANSFER.set(settings.itemTransfer());
                 FIRST_DREAM_MIRROR_COPY_CHUNK_RADIUS.set(settings.copyChunkRadius());
+            }
+            case STRANDED -> {
+                STRANDED_MIRROR_ACCESS.set(settings.access());
+                STRANDED_MIRROR_MOB_SPAWNING.set(settings.mobSpawning());
+                STRANDED_MIRROR_ITEM_TRANSFER.set(settings.itemTransfer());
+                STRANDED_MIRROR_COPY_CHUNK_RADIUS.set(settings.copyChunkRadius());
             }
         }
     }
@@ -359,6 +398,7 @@ public class MirrorConfig {
         saveMirrorKindSettings(MirrorKind.DIMENSION, state.worldReflectionMirror());
         saveMirrorKindSettings(MirrorKind.HEAVEN, state.heavenMirror());
         saveMirrorKindSettings(MirrorKind.FIRST_DREAM, state.firstDreamMirror());
+        saveMirrorKindSettings(MirrorKind.STRANDED, state.strandedMirror());
         MIRROR_COOLDOWN.set(state.mirrorCooldownSeconds());
     }
 

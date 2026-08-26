@@ -28,11 +28,14 @@ public class ModCreativeTabs {
                         output.accept(ModItems.DIMENSION_MIRROR.get());
                         output.accept(ModItems.HEAVEN_MIRROR.get());
                         output.accept(ModItems.FIRST_DREAM_MIRROR.get());
+                        output.accept(ModItems.STRANDED_MIRROR.get());
                         parameters.holders().lookup(Registries.ENCHANTMENT).ifPresent(enchantments -> {
                             output.accept(EnchantedBookItem.createForEnchantment(
                                     new EnchantmentInstance(enchantments.getOrThrow(ModEnchantments.PERMANENCE), 1)));
                             output.accept(EnchantedBookItem.createForEnchantment(
                                     new EnchantmentInstance(enchantments.getOrThrow(ModEnchantments.RENEWAL), 1)));
+                            output.accept(EnchantedBookItem.createForEnchantment(
+                                    new EnchantmentInstance(enchantments.getOrThrow(ModEnchantments.SUPERFLAT), 1)));
                         });
                     })
                     .build()

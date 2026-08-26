@@ -1,0 +1,76 @@
+package com.crabmods.instantworldmirror.network;
+
+import com.crabmods.instantworldmirror.InstantWorldMirror;
+import io.netty.buffer.Unpooled;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.List;
+import java.util.UUID;
+
+@GameTestHolder(InstantWorldMirror.MODID)
+@PrefixGameTestTemplate(false)
+public final class StrandedNetworkGameTests {
+    private static final String TEMPLATE = "mirror_lifecycle_empty";
+
+    private StrandedNetworkGameTests() {
+    }
+
+    @GameTest(template = TEMPLATE, batch = "stranded_packet_round_trip", timeoutTicks = 40)
+    public static void strandedMirrorPacketsPreserveEveryClientServerAction(GameTestHelper helper) {
+        BlockPos target = new BlockPos(12, 64, -9);
+        UUID snapshotId = UUID.randomUUID();
+
+        StrandedCapturePromptPacket prompt = roundTrip(
+                StrandedCapturePromptPacket.STREAM_CODEC, new StrandedCapturePromptPacket(target));
+        helper.assertTrue(prompt.targetPos().equals(target),
+                "Capture prompt packet must preserve the clicked block position");
+
+        CreateStrandedSnapshotPacket create = roundTrip(
+                CreateStrandedSnapshotPacket.STREAM_CODEC,
+                new CreateStrandedSnapshotPacket(target, "Packet house"));
+        helper.assertTrue(create.targetPos().equals(target) && "Packet house".equals(create.name()),
+                "Create packet must preserve the target and player-entered snapshot name");
+
+        OpenStrandedSnapshotPacket open = roundTrip(
+                OpenStrandedSnapshotPacket.STREAM_CODEC,
+                new OpenStrandedSnapshotPacket(target, snapshotId));
+        helper.assertTrue(open.targetPos().equals(target) && open.snapshotId().equals(snapshotId),
+                "Open packet must preserve the selected snapshot identity");
+
+        DeleteStrandedSnapshotPacket delete = roundTrip(
+                DeleteStrandedSnapshotPacket.STREAM_CODEC,
+                new DeleteStrandedSnapshotPacket(target, snapshotId));
+        helper.assertTrue(delete.targetPos().equals(target) && delete.snapshotId().equals(snapshotId),
+                "Delete packet must preserve the confirmed snapshot identity");
+
+        List<StrandedSnapshotMenuPacket.Entry> entries = List.of(
+                new StrandedSnapshotMenuPacket.Entry(snapshotId, "Available", 10, 123L, true),
+                new StrandedSnapshotMenuPacket.Entry(UUID.randomUUID(), "Old version", 2, 456L, false));
+        StrandedSnapshotMenuPacket menu = roundTrip(
+                StrandedSnapshotMenuPacket.STREAM_CODEC,
+                new StrandedSnapshotMenuPacket(target, entries));
+        helper.assertTrue(menu.targetPos().equals(target)
+                        && menu.entries().equals(entries)
+                        && menu.entries().get(0).available()
+                        && !menu.entries().get(1).available(),
+                "Snapshot menu packet must preserve pagination data and availability states");
+
+        helper.succeed();
+    }
+
+    private static <T> T roundTrip(StreamCodec<FriendlyByteBuf, T> codec, T packet) {
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            codec.encode(buffer, packet);
+            return codec.decode(buffer);
+        } finally {
+            buffer.release();
+        }
+    }
+}

@@ -164,8 +164,7 @@ public class MirrorPortalEntity extends Entity {
                 mirrorKind
         );
         
-        level.addFreshEntity(portal);
-        return portal;
+        return level.addFreshEntity(portal) ? portal : null;
     }
 
     /**

@@ -1,0 +1,21 @@
+{
+  "description": {
+    "translate": "enchantment.instantworldmirror.superflat"
+  },
+  "supported_items": "#instantworldmirror:heaven_superflat_enchantable",
+  "primary_items": "#instantworldmirror:heaven_superflat_enchantable",
+  "weight": 2,
+  "max_level": 1,
+  "min_cost": {
+    "base": 30,
+    "per_level_above_first": 0
+  },
+  "max_cost": {
+    "base": 60,
+    "per_level_above_first": 0
+  },
+  "anvil_cost": 8,
+  "slots": [
+    "mainhand"
+  ]
+}

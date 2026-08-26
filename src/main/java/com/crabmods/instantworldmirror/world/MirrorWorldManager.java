@@ -221,6 +221,21 @@ public class MirrorWorldManager {
 
     public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
                                                         boolean persistentAccess, boolean generatedContentRefresh) {
+        return createSession(player, sourcePos, kind, persistentAccess, generatedContentRefresh,
+                MirrorTerrainMode.defaultFor(kind));
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
+                                                        boolean persistentAccess, boolean generatedContentRefresh,
+                                                        MirrorTerrainMode terrainMode) {
+        return createSession(player, sourcePos, kind, persistentAccess, generatedContentRefresh, terrainMode,
+                null, -1, sourcePos.getY());
+    }
+
+    public static Optional<MirrorSession> createSession(ServerPlayer player, BlockPos sourcePos, MirrorKind kind,
+                                                        boolean persistentAccess, boolean generatedContentRefresh,
+                                                        MirrorTerrainMode terrainMode, UUID snapshotId,
+                                                        int snapshotChunkRadius, int snapshotCenterY) {
         // Check if purge mode is active
         if (purgeMode) {
             InstantWorldMirror.LOGGER.warn("Cannot create session - purge mode is active");
@@ -270,7 +285,11 @@ public class MirrorWorldManager {
                     sourceInWater,
                     kind,
                     persistentAccess,
-                    generatedContentRefresh
+                    generatedContentRefresh,
+                    terrainMode,
+                    snapshotId,
+                    snapshotChunkRadius,
+                    snapshotCenterY
             );
 
             // Allocate a dimension from the pool using actual session ID and source dimension
@@ -324,6 +343,19 @@ public class MirrorWorldManager {
                 }
             }
             return false;
+        } finally {
+            sessionLock.readLock().unlock();
+        }
+    }
+
+    public static boolean isSnapshotInUse(UUID snapshotId) {
+        if (snapshotId == null) {
+            return false;
+        }
+        sessionLock.readLock().lock();
+        try {
+            return activeSessions.values().stream()
+                    .anyMatch(session -> !session.isDestroyed() && snapshotId.equals(session.getSnapshotId()));
         } finally {
             sessionLock.readLock().unlock();
         }
@@ -641,7 +673,7 @@ public class MirrorWorldManager {
             playerOwnedSession.remove(player.getUUID());
             
             // Cache values needed outside lock
-            baseTargetPos = session.getSourcePosition().above();
+            baseTargetPos = session.getMirrorEntryPosition();
             allowWater = session.isSourceInWater();
         } finally {
             sessionLock.writeLock().unlock();
@@ -656,7 +688,7 @@ public class MirrorWorldManager {
 
         if (session.isSandboxMode()) {
             savePlayerSnapshot(player, true);
-            prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess());
+            prepareSandboxPlayer(player, session.getKind(), session.hasPersistentAccess(), session.getTerrainMode());
         } else {
             savePlayerInventory(player);
         }
@@ -1889,6 +1921,11 @@ public class MirrorWorldManager {
     }
 
     public static void preparePlayerForMirrorEntry(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
+        preparePlayerForMirrorEntry(player, kind, persistentAccess, MirrorTerrainMode.defaultFor(kind));
+    }
+
+    public static void preparePlayerForMirrorEntry(ServerPlayer player, MirrorKind kind, boolean persistentAccess,
+                                                   MirrorTerrainMode terrainMode) {
         playerOriginalPositions.put(player.getUUID(), player.blockPosition());
         playerOriginalDimensions.put(player.getUUID(), player.level().dimension());
         rememberPlayerMirrorKind(player, kind);
@@ -1896,7 +1933,7 @@ public class MirrorWorldManager {
 
         if (kind.isSandbox()) {
             savePlayerSnapshot(player, true);
-            prepareSandboxPlayer(player, kind, persistentAccess);
+            prepareSandboxPlayer(player, kind, persistentAccess, terrainMode);
         } else {
             savePlayerInventory(player);
         }
@@ -2309,7 +2346,8 @@ public class MirrorWorldManager {
         }
     }
 
-    private static void prepareSandboxPlayer(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
+    private static void prepareSandboxPlayer(ServerPlayer player, MirrorKind kind, boolean persistentAccess,
+                                             MirrorTerrainMode terrainMode) {
         player.getInventory().clearContent();
         player.getEnderChestInventory().clearContent();
         player.removeAllEffects();
@@ -2324,16 +2362,20 @@ public class MirrorWorldManager {
         player.experienceLevel = 0;
         player.totalExperience = 0;
         player.setGameMode(GameType.CREATIVE);
-        giveSandboxMirror(player, kind, persistentAccess);
+        giveSandboxMirror(player, kind, persistentAccess, terrainMode);
         player.inventoryMenu.broadcastChanges();
         player.containerMenu.broadcastChanges();
     }
 
-    private static void giveSandboxMirror(ServerPlayer player, MirrorKind kind, boolean persistentAccess) {
+    private static void giveSandboxMirror(ServerPlayer player, MirrorKind kind, boolean persistentAccess,
+                                          MirrorTerrainMode terrainMode) {
         player.getInventory().selected = 0;
         ItemStack mirror = new ItemStack(ModItems.mirrorItem(kind));
         if (persistentAccess) {
             ModEnchantments.applyPermanence(player.level(), mirror);
+        }
+        if (terrainMode == MirrorTerrainMode.SUPERFLAT) {
+            ModEnchantments.applySuperflat(player.level(), mirror);
         }
         player.getInventory().items.set(0, mirror);
     }

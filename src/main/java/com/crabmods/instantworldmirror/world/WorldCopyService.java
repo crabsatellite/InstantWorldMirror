@@ -208,7 +208,8 @@ public class WorldCopyService {
         public final int chunkRadius;
         public final ResourceKey<Level> sourceDimension;
         public final int targetDimensionIndex;
-        public final boolean pristineTerrain;
+        public final MirrorTerrainMode terrainMode;
+        public final UUID snapshotId;
         public final boolean generatedContentRefresh;
         public final boolean mobSpawningEnabled;
         
@@ -244,12 +245,30 @@ public class WorldCopyService {
         public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
                         ResourceKey<Level> sourceDimension, int targetDimensionIndex, boolean pristineTerrain,
                         boolean generatedContentRefresh, boolean mobSpawningEnabled) {
+            this(sessionId, centerPos, chunkRadius, sourceDimension, targetDimensionIndex,
+                    pristineTerrain ? MirrorTerrainMode.PRISTINE : MirrorTerrainMode.COPIED,
+                    generatedContentRefresh, mobSpawningEnabled);
+        }
+
+        public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
+                        ResourceKey<Level> sourceDimension, int targetDimensionIndex,
+                        MirrorTerrainMode terrainMode, boolean generatedContentRefresh,
+                        boolean mobSpawningEnabled) {
+            this(sessionId, centerPos, chunkRadius, sourceDimension, targetDimensionIndex,
+                    terrainMode, generatedContentRefresh, mobSpawningEnabled, null);
+        }
+
+        public CopyTask(UUID sessionId, BlockPos centerPos, int chunkRadius,
+                        ResourceKey<Level> sourceDimension, int targetDimensionIndex,
+                        MirrorTerrainMode terrainMode, boolean generatedContentRefresh,
+                        boolean mobSpawningEnabled, UUID snapshotId) {
             this.sessionId = sessionId;
             this.centerPos = centerPos;
             this.chunkRadius = chunkRadius;
             this.sourceDimension = sourceDimension;
             this.targetDimensionIndex = targetDimensionIndex;
-            this.pristineTerrain = pristineTerrain;
+            this.terrainMode = terrainMode != null ? terrainMode : MirrorTerrainMode.COPIED;
+            this.snapshotId = snapshotId;
             this.generatedContentRefresh = generatedContentRefresh;
             this.mobSpawningEnabled = mobSpawningEnabled;
             
@@ -277,7 +296,7 @@ public class WorldCopyService {
             int chunksToPreload = PRELOAD_AHEAD;
             
             while (chunksToPreload > 0) {
-                if (!pristineTerrain) {
+                if (terrainMode == MirrorTerrainMode.COPIED) {
                     // Request source chunk async load
                     ChunkPos sourcePos = new ChunkPos(preloadX, preloadZ);
                     sourceWorld.getChunkSource().addRegionTicket(MIRROR_PRELOAD_TICKET, sourcePos, 0, sourcePos);
@@ -345,7 +364,7 @@ public class WorldCopyService {
         public boolean isPreloadingStarted() { return preloadingStarted; }
 
         public boolean preparePristineRegion(ServerLevel sourceWorld, int maxChunks) {
-            if (!pristineTerrain || pristineRegionPrepared) {
+            if (terrainMode != MirrorTerrainMode.PRISTINE || pristineRegionPrepared) {
                 return true;
             }
 
@@ -1101,7 +1120,10 @@ public class WorldCopyService {
      * Returns the queue position (1 = processing now, 2+ = waiting in queue)
      */
     public static int queueWorldCopy(MirrorSession session, ServerLevel sourceWorld) {
-        int chunkRadius = MirrorConfig.copyChunkRadius(session.getKind());
+        int chunkRadius = session.getTerrainMode() == MirrorTerrainMode.SNAPSHOT
+                ? session.getSnapshotChunkRadius()
+                : MirrorConfig.copyChunkRadius(session.getKind());
+        BlockPos terrainCenter = session.getTerrainCenterPosition();
         boolean mobSpawningEnabled = MirrorConfig.isMobSpawningEnabled(session.getKind());
         int dimIndex = session.getDimensionIndex();
         
@@ -1121,13 +1143,14 @@ public class WorldCopyService {
         
         CopyTask task = new CopyTask(
                 session.getSessionId(),
-                session.getSourcePosition(),
+                terrainCenter,
                 chunkRadius,
                 sourceWorld.dimension(),
                 dimIndex,
-                session.usesPristineTerrain(),
+                session.getTerrainMode(),
                 session.hasGeneratedContentRefresh(),
-                mobSpawningEnabled
+                mobSpawningEnabled,
+                session.getSnapshotId()
         );
         
         copyTasks.put(dimIndex, task);
@@ -1140,9 +1163,9 @@ public class WorldCopyService {
         }
         
         // Store the copy center position for cleanup later (both in memory and persistent storage)
-        copyCenterPositions.put(dimIndex, session.getSourcePosition());
+        copyCenterPositions.put(dimIndex, terrainCenter);
         copyRadii.put(dimIndex, chunkRadius);
-        DimensionPool.saveCleanupData(dimIndex, session.getSourcePosition(), null, 0);
+        DimensionPool.saveCleanupData(dimIndex, terrainCenter, null, 0);
         
         // Calculate queue position
         int queuePosition = getCopyQueuePosition(dimIndex);
@@ -1166,7 +1189,7 @@ public class WorldCopyService {
                 chunkRadius,
                 sourceWorld.dimension(),
                 dimIndex,
-                false,
+                MirrorTerrainMode.COPIED,
                 false,
                 mobSpawningEnabled
         );
@@ -1404,11 +1427,16 @@ public class WorldCopyService {
 
     static int copyChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
                          int chunkX, int chunkZ, CopyTask task) {
-        if (task.pristineTerrain) {
-            return copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
-        }
+        return switch (task.terrainMode) {
+            case PRISTINE -> copyPristineTerrainChunk(sourceWorld, mirrorWorld, chunkX, chunkZ, task);
+            case SUPERFLAT -> copySuperflatTerrainChunk(mirrorWorld, chunkX, chunkZ, task);
+            case SNAPSHOT -> StrandedSnapshotManager.copySnapshotChunk(mirrorWorld, chunkX, chunkZ, task);
+            case COPIED -> copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+        };
+    }
 
-        return copyCurrentChunk(sourceWorld, mirrorWorld, chunkX, chunkZ);
+    static boolean isSnapshotCopyAllowed(BlockState state) {
+        return state.isAir() || (!isPortalBlock(state) && !isCopyUnsafeNativePhysicsBlock(state));
     }
 
     private static int copyCurrentChunk(ServerLevel sourceWorld, ServerLevel mirrorWorld,
@@ -1587,7 +1615,7 @@ public class WorldCopyService {
         try {
             LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
             ChunkAccess generatedChunk = task.generatePristineChunk(sourceWorld, chunkX, chunkZ);
-            clearChunkForPristineCopy(mirrorWorld, targetChunk);
+            clearChunkForGeneratedCopy(mirrorWorld, targetChunk);
 
             int sourceMinSectionY = generatedChunk.getMinSection();
             int targetMinSectionY = targetChunk.getMinSection();
@@ -1681,7 +1709,48 @@ public class WorldCopyService {
         return blocksCopied;
     }
 
-    private static void clearChunkForPristineCopy(ServerLevel mirrorWorld, LevelChunk chunk) {
+    private static int copySuperflatTerrainChunk(ServerLevel mirrorWorld, int chunkX, int chunkZ, CopyTask task) {
+        int blocksPlaced = 0;
+
+        try {
+            LevelChunk targetChunk = mirrorWorld.getChunk(chunkX, chunkZ);
+            clearChunkForGeneratedCopy(mirrorWorld, targetChunk);
+
+            int surfaceY = Math.max(mirrorWorld.getMinBuildHeight() + 3,
+                    Math.min(mirrorWorld.getMaxBuildHeight() - 1, task.centerPos.getY()));
+            BlockState[] layers = {
+                    Blocks.BEDROCK.defaultBlockState(),
+                    Blocks.DIRT.defaultBlockState(),
+                    Blocks.DIRT.defaultBlockState(),
+                    Blocks.GRASS_BLOCK.defaultBlockState()
+            };
+
+            for (int layer = 0; layer < layers.length; layer++) {
+                int y = surfaceY - 3 + layer;
+                int sectionIndex = (y >> 4) - targetChunk.getMinSection();
+                LevelChunkSection section = targetChunk.getSection(sectionIndex);
+                for (int localZ = 0; localZ < 16; localZ++) {
+                    for (int localX = 0; localX < 16; localX++) {
+                        section.setBlockState(localX, y & 15, localZ, layers[layer], false);
+                        blocksPlaced++;
+                    }
+                }
+            }
+
+            targetChunk.setUnsaved(true);
+            regenerateHeightmaps(targetChunk);
+            targetChunk.initializeLightSources();
+            relightChunk(mirrorWorld, targetChunk);
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            InstantWorldMirror.LOGGER.warn("Failed to generate superflat mirror chunk ({}, {}): {}",
+                    chunkX, chunkZ, errorMsg);
+        }
+
+        return blocksPlaced;
+    }
+
+    static void clearChunkForGeneratedCopy(ServerLevel mirrorWorld, LevelChunk chunk) {
         clearEntitiesInChunk(mirrorWorld, chunk.getPos().x, chunk.getPos().z);
         clearPendingBlockEntities(chunk);
 
@@ -2134,7 +2203,7 @@ public class WorldCopyService {
      * Regenerate heightmaps for a chunk after block copy.
      * This ensures proper light propagation and mob spawning locations.
      */
-    private static void regenerateHeightmaps(LevelChunk targetChunk) {
+    static void regenerateHeightmaps(LevelChunk targetChunk) {
         try {
             // Regenerate all heightmap types that Minecraft uses
             Heightmap.primeHeightmaps(targetChunk, 
@@ -2816,7 +2885,7 @@ public class WorldCopyService {
      * 
      * This handles both sky light (from the sun) and block light (from torches, etc.).
      */
-    private static void relightChunk(ServerLevel world, LevelChunk chunk) {
+    static void relightChunk(ServerLevel world, LevelChunk chunk) {
         try {
             var lightEngine = world.getChunkSource().getLightEngine();
             ChunkPos chunkPos = chunk.getPos();

@@ -38,7 +38,7 @@
     {
       "id": "portal_flow",
       "readmeTexts": [
-        "Right-click a solid block with any mirror to create an entry portal.",
+        "Right-click a solid block with World Reflection, Heaven, or First Dream Mirror to create an entry portal.",
         "Inside a World Reflection Mirror or First Dream Mirror world, right-click a solid block to create a return portal.",
         "If that portal is far from the entrance, it returns you to the matching position in the original world.",
         "Hold right-click in the air inside a mirror world to return to that mirror world's entrance point without leaving the mirror world.",
@@ -235,8 +235,8 @@
         "Creative mode ignores both the normal mirror cooldown and the Renewal cooldown.",
         "The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item.",
         "The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.",
-        "The World Mirrors creative tab includes all three mirrors plus Permanence and Renewal enchanted books.",
-        "In Survival, Permanence can appear through normal enchanting and villager trades; Renewal appears only as rare loot."
+        "The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books.",
+        "In Survival, Permanence and Superflat can appear through normal enchanting and villager trades; Renewal appears only as rare loot."
       ],
       "code": [
         {
@@ -422,9 +422,105 @@
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
           "texts": [
-            "pristineTerrain",
+            "MirrorTerrainMode.PRISTINE",
             "PristineTerrainGenerator.openRegion",
-            "task.pristineTerrain"
+            "case PRISTINE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heaven_superflat_terrain",
+      "readmeTexts": [
+        "Superflat only works on Heaven Mirror and replaces copied terrain with a clean Creative building platform at the entry height.",
+        "The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books."
+      ],
+      "code": [
+        {
+          "label": "heaven-only enchantment gate",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/DimensionMirrorItem.java",
+          "texts": [
+            "kind == MirrorKind.HEAVEN",
+            "ModEnchantments.isSuperflat",
+            "MirrorTerrainMode.forMirror"
+          ]
+        },
+        {
+          "label": "heaven-only enchantment registration",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/registry/ModEnchantments.java",
+          "texts": [
+            "SUPERFLAT",
+            "canApplySuperflatTo",
+            "HeavenMirrorItem"
+          ]
+        },
+        {
+          "label": "superflat terrain generator",
+          "adapter": "method_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+          "method": "copySuperflatTerrainChunk",
+          "texts": [
+            "Blocks.BEDROCK",
+            "Blocks.DIRT",
+            "Blocks.GRASS_BLOCK",
+            "clearChunkForGeneratedCopy",
+            "regenerateHeightmaps"
+          ]
+        },
+        {
+          "label": "superflat runtime tests",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+          "texts": [
+            "superflatEnchantedHeavenMirrorCreatesSuperflatSession",
+            "Superflat must not be valid for the default mirror",
+            "Superflat must not be valid for the first dream mirror"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stranded_mirror_snapshot",
+      "readmeTexts": [
+        "captures a named world slice into a global local cache",
+        "Right-click a solid block with Stranded Mirror, enter a name",
+        "Use it in the air without Shift to choose a cached slice and open it at the current location.",
+        "Shift-right-click remains the shared Permanence menu interaction.",
+        "instantworldmirror-cache/stranded_snapshots"
+      ],
+      "code": [
+        {
+          "label": "stranded item interaction",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/item/StrandedMirrorItem.java",
+          "texts": [
+            "StrandedCapturePromptPacket",
+            "StrandedSnapshotMenuPacket",
+            "resolveUseMode",
+            "PERSISTENT_MENU"
+          ]
+        },
+        {
+          "label": "global snapshot cache and copy",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/StrandedSnapshotManager.java",
+          "texts": [
+            "stranded_snapshots",
+            "processCaptureTasks",
+            "copySnapshotChunk",
+            "minecraft_version",
+            "requestDelete"
+          ]
+        },
+        {
+          "label": "stranded runtime tests",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainGameTests.java",
+          "texts": [
+            "strandedSnapshotRestoresBlocksAndBlockEntityNbtAtAnotherLocation",
+            "Stranded snapshot must preserve chest inventory NBT"
           ]
         }
       ]
@@ -432,9 +528,9 @@
     {
       "id": "item_transfer_rule",
       "readmeTexts": [
-        "Items follow one shared transfer rule for all three mirrors.",
+        "Items follow one shared transfer rule for all four mirrors.",
         "With item transfer off, the mod restores saved vanilla inventory, ender chest, and persisted Forge/NeoForge player extension data",
-        "With item transfer on, all three mirrors allow items to leave, including Heaven Mirror's Creative-mode items."
+        "With item transfer on, all four mirrors allow items to leave, including Heaven Mirror's Creative-mode items."
       ],
       "code": [
         {
@@ -499,7 +595,7 @@
         "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative.",
         "When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.",
         "Heaven Mirror also gives you a matching mirror inside the sandbox.",
-        "If your original mirror had Permanence, the sandbox copy keeps it"
+        "If your original mirror had Permanence or Superflat, the sandbox copy keeps those enchantments."
       ],
       "code": [
         {
@@ -554,7 +650,7 @@
         "They use a separate pool with eight server-wide slots.",
         "To save a persistent mirror, the temporary session must have been created with a mirror that has Permanence.",
         "To enter that saved mirror later, hold a mirror of the same type with Permanence.",
-        "The saved mirror remembers its mirror type, and entering it later requires a mirror of that same type with Permanence.",
+        "The saved mirror remembers its mirror type and terrain mode, and entering it later requires a mirror of that same type with Permanence.",
         "Interrupted persistent saves are repaired on server startup or with `/iwm repair`",
         "`/iwm purge` force-cleans temporary mirror worlds without deleting loaded dimension folders at runtime, never deletes persistent mirror records, and prevents new mirror worlds until the required restart."
       ],

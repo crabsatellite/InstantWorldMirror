@@ -6,6 +6,7 @@ public record MirrorConfigState(
         MirrorKindSettings worldReflectionMirror,
         MirrorKindSettings heavenMirror,
         MirrorKindSettings firstDreamMirror,
+        MirrorKindSettings strandedMirror,
         int mirrorCooldownSeconds
 ) {
     public static final int MIN_MIRROR_COOLDOWN_SECONDS = 30;
@@ -17,6 +18,7 @@ public record MirrorConfigState(
                 MirrorKindSettings.defaults(MirrorKind.DIMENSION),
                 MirrorKindSettings.defaults(MirrorKind.HEAVEN),
                 MirrorKindSettings.defaults(MirrorKind.FIRST_DREAM),
+                MirrorKindSettings.defaults(MirrorKind.STRANDED),
                 DEFAULT_MIRROR_COOLDOWN_SECONDS
         );
     }
@@ -27,6 +29,7 @@ public record MirrorConfigState(
                 defaults.worldReflectionMirror.withAccess(access),
                 defaults.heavenMirror.withAccess(access),
                 defaults.firstDreamMirror.withAccess(access),
+                defaults.strandedMirror.withAccess(access),
                 defaults.mirrorCooldownSeconds
         );
     }
@@ -36,14 +39,16 @@ public record MirrorConfigState(
             case DIMENSION -> worldReflectionMirror;
             case HEAVEN -> heavenMirror;
             case FIRST_DREAM -> firstDreamMirror;
+            case STRANDED -> strandedMirror;
         };
     }
 
     public MirrorConfigState withSettings(MirrorKind kind, MirrorKindSettings settings) {
         return switch (kind) {
-            case DIMENSION -> new MirrorConfigState(settings, heavenMirror, firstDreamMirror, mirrorCooldownSeconds);
-            case HEAVEN -> new MirrorConfigState(worldReflectionMirror, settings, firstDreamMirror, mirrorCooldownSeconds);
-            case FIRST_DREAM -> new MirrorConfigState(worldReflectionMirror, heavenMirror, settings, mirrorCooldownSeconds);
+            case DIMENSION -> new MirrorConfigState(settings, heavenMirror, firstDreamMirror, strandedMirror, mirrorCooldownSeconds);
+            case HEAVEN -> new MirrorConfigState(worldReflectionMirror, settings, firstDreamMirror, strandedMirror, mirrorCooldownSeconds);
+            case FIRST_DREAM -> new MirrorConfigState(worldReflectionMirror, heavenMirror, settings, strandedMirror, mirrorCooldownSeconds);
+            case STRANDED -> new MirrorConfigState(worldReflectionMirror, heavenMirror, firstDreamMirror, settings, mirrorCooldownSeconds);
         };
     }
 
@@ -52,6 +57,7 @@ public record MirrorConfigState(
                 worldReflectionMirror,
                 heavenMirror,
                 firstDreamMirror,
+                strandedMirror,
                 clampMirrorCooldownSeconds(value)
         );
     }
