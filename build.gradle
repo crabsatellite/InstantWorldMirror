@@ -326,6 +326,7 @@ def mirrorJarRequiredEntries = [
         'com/crabmods/instantworldmirror/world/BackupNameAllocator.class',
         'com/crabmods/instantworldmirror/network/BackupStrandedSnapshotPacket.class',
         'com/crabmods/instantworldmirror/network/BackupPersistentMirrorPacket.class',
+        'com/crabmods/instantworldmirror/network/OpenStrandedSnapshotResultPacket.class',
         'com/crabmods/instantworldmirror/network/DeleteStrandedSnapshotPacket.class',
         'com/crabmods/instantworldmirror/network/OpenStrandedSnapshotMenuPacket.class',
         'com/crabmods/instantworldmirror/network/OpenPersistentMirrorLibraryPacket.class',

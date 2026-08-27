@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.UUID;
 
 public class StrandedSnapshotScreen extends Screen {
     private static final int PAGE_SIZE = 6;
@@ -27,6 +28,8 @@ public class StrandedSnapshotScreen extends Screen {
     private int page;
     @Nullable
     private java.util.UUID pendingDeleteId;
+    @Nullable
+    private UUID pendingOpenId;
 
     private StrandedSnapshotScreen(BlockPos targetPos, List<StrandedSnapshotMenuPacket.Entry> entries,
                                    @Nullable Screen parent) {
@@ -50,11 +53,12 @@ public class StrandedSnapshotScreen extends Screen {
         int width = Math.min(360, this.width - 32);
         int left = (this.width - width) / 2;
         int top = Math.max(42, this.height / 2 - 88);
-        addRenderableWidget(Button.builder(
+        Button persistentButton = addRenderableWidget(Button.builder(
                         Component.translatable("message.instantworldmirror.library.persistent"),
                         button -> ModNetworking.sendToServer(new OpenPersistentMirrorLibraryPacket()))
                 .bounds(left, top, width, 20)
                 .build());
+        persistentButton.active = pendingOpenId == null;
         top += 24;
         int start = page * PAGE_SIZE;
         int end = Math.min(entries.size(), start + PAGE_SIZE);
@@ -65,17 +69,20 @@ public class StrandedSnapshotScreen extends Screen {
             if (!entry.available()) {
                 label = label.copy().append(Component.translatable(
                         "message.instantworldmirror.stranded.open.unavailable"));
+            } else if (entry.id().equals(pendingOpenId)) {
+                label = label.copy().append(Component.translatable(
+                        "message.instantworldmirror.stranded.open.opening"));
             }
             Button openButton = addRenderableWidget(Button.builder(label, button -> open(entry))
                     .bounds(left, top + (index - start) * 24, width - 58, 20)
                     .build());
-            openButton.active = entry.available();
+            openButton.active = entry.available() && pendingOpenId == null;
             Button backupButton = addRenderableWidget(Button.builder(
                             Component.translatable("message.instantworldmirror.stranded.backup"),
                             button -> backup(entry))
                     .bounds(left + width - 52, top + (index - start) * 24, 24, 20)
                     .build());
-            backupButton.active = entry.backupAvailable();
+            backupButton.active = entry.backupAvailable() && pendingOpenId == null;
             backupButton.setTooltip(Tooltip.create(Component.translatable(
                     "message.instantworldmirror.stranded.backup.tooltip")));
             boolean confirmingDelete = entry.id().equals(pendingDeleteId);
@@ -86,6 +93,7 @@ public class StrandedSnapshotScreen extends Screen {
                             button -> delete(entry))
                     .bounds(left + width - 24, top + (index - start) * 24, 24, 20)
                     .build());
+            deleteButton.active = pendingOpenId == null;
             deleteButton.setTooltip(Tooltip.create(Component.translatable(confirmingDelete
                     ? "message.instantworldmirror.stranded.delete.confirm.tooltip"
                     : "message.instantworldmirror.stranded.delete.tooltip")));
@@ -97,18 +105,19 @@ public class StrandedSnapshotScreen extends Screen {
                         button -> changePage(-1))
                 .bounds(left, navY, 86, 20)
                 .build());
-        previous.active = page > 0;
+        previous.active = page > 0 && pendingOpenId == null;
         Button next = addRenderableWidget(Button.builder(
                         Component.translatable("message.instantworldmirror.stranded.next"),
                         button -> changePage(1))
                 .bounds(left + width - 86, navY, 86, 20)
                 .build());
-        next.active = end < entries.size();
-        addRenderableWidget(Button.builder(
+        next.active = end < entries.size() && pendingOpenId == null;
+        Button cancel = addRenderableWidget(Button.builder(
                         Component.translatable("message.instantworldmirror.stranded.cancel"),
                         button -> onClose())
                 .bounds(left + width / 2 - 43, navY, 86, 20)
                 .build());
+        cancel.active = pendingOpenId == null;
     }
 
     private void changePage(int delta) {
@@ -117,8 +126,29 @@ public class StrandedSnapshotScreen extends Screen {
     }
 
     private void open(StrandedSnapshotMenuPacket.Entry entry) {
-        ModNetworking.sendToServer(new OpenStrandedSnapshotPacket(targetPos, entry.id()));
-        Minecraft.getInstance().setScreen(parent);
+        if (pendingOpenId != null) {
+            return;
+        }
+        pendingDeleteId = null;
+        pendingOpenId = entry.id();
+        rebuildWidgets();
+        if (Minecraft.getInstance().getConnection() != null) {
+            ModNetworking.sendToServer(new OpenStrandedSnapshotPacket(targetPos, entry.id()));
+        }
+    }
+
+    public static void handleOpenResult(UUID snapshotId, boolean opened) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!(minecraft.screen instanceof StrandedSnapshotScreen screen)
+                || !snapshotId.equals(screen.pendingOpenId)) {
+            return;
+        }
+        if (opened) {
+            minecraft.setScreen(null);
+        } else {
+            screen.pendingOpenId = null;
+            screen.rebuildWidgets();
+        }
     }
 
     private void delete(StrandedSnapshotMenuPacket.Entry entry) {
@@ -150,6 +180,14 @@ public class StrandedSnapshotScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (pendingOpenId != null) {
+            return;
+        }
         Minecraft.getInstance().setScreen(parent);
+    }
+
+    @Override
+    public boolean shouldCloseOnEsc() {
+        return pendingOpenId == null;
     }
 }

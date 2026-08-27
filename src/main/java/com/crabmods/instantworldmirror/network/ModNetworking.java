@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 public class ModNetworking {
     
-    public static final String PROTOCOL_VERSION = "4";
+    public static final String PROTOCOL_VERSION = "5";
     
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(InstantWorldMirror.MODID, "main"),
@@ -101,6 +101,15 @@ public class ModNetworking {
                 StrandedSnapshotMenuPacket::encode,
                 StrandedSnapshotMenuPacket::decode,
                 StrandedSnapshotMenuPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                OpenStrandedSnapshotResultPacket.class,
+                OpenStrandedSnapshotResultPacket::encode,
+                OpenStrandedSnapshotResultPacket::decode,
+                OpenStrandedSnapshotResultPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
         

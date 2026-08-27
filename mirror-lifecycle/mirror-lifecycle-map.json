@@ -106,6 +106,7 @@
             "item.stranded_capture_ui",
             "network.stranded_packets",
             "client.stranded_ui_gate",
+            "client.stranded_open_result_flow",
             "runtime.stranded_item_registration",
             "runtime.stranded_interaction_routes",
             "runtime.stranded_packet_roundtrip"
@@ -2277,6 +2278,7 @@
         "StrandedSnapshotMenuPacket",
         "CreateStrandedSnapshotPacket",
         "OpenStrandedSnapshotPacket",
+        "OpenStrandedSnapshotResultPacket",
         "DeleteStrandedSnapshotPacket",
         "OpenStrandedSnapshotMenuPacket",
         "OpenPersistentMirrorLibraryPacket"
@@ -2292,6 +2294,17 @@
         "StrandedSnapshotScreen.open",
         "strandedUiChecks",
         "message.instantworldmirror.stranded.delete.confirm"
+      ]
+    },
+    {
+      "id": "client.stranded_open_result_flow",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/client/MirrorConfigUiGate.java",
+      "texts": [
+        "Selecting a world slice must wait for the server and lock conflicting controls",
+        "A rejected world-slice open must preserve and restore the selection screen",
+        "A successful world-slice open must close the complete long-term menu stack",
+        "StrandedSnapshotScreen.handleOpenResult"
       ]
     },
     {
@@ -2406,7 +2419,9 @@
         "strandedMirrorPacketsPreserveEveryClientServerAction",
         "CreateStrandedSnapshotPacket",
         "OpenStrandedSnapshotPacket",
+        "OpenStrandedSnapshotResultPacket",
         "DeleteStrandedSnapshotPacket",
+        "server outcome",
         "availability states"
       ]
     },

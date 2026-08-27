@@ -87,6 +87,7 @@
         "item.stranded_capture_ui",
         "network.stranded_packets",
         "client.stranded_ui_gate",
+        "client.stranded_open_result_flow",
         "runtime.stranded_item_registration",
         "runtime.stranded_interaction_routes",
         "runtime.stranded_packet_roundtrip"

@@ -1,5 +1,6 @@
 package com.crabmods.instantworldmirror.network;
 
+import com.crabmods.instantworldmirror.InstantWorldMirror;
 import com.crabmods.instantworldmirror.world.StrandedSnapshotManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -25,7 +26,17 @@ public record OpenStrandedSnapshotPacket(BlockPos targetPos, UUID snapshotId) {
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
             if (player != null) {
-                StrandedSnapshotManager.requestOpen(player, packet.targetPos, packet.snapshotId);
+                boolean opened;
+                try {
+                    opened = StrandedSnapshotManager.requestOpen(
+                            player, packet.targetPos, packet.snapshotId);
+                } catch (RuntimeException exception) {
+                    InstantWorldMirror.LOGGER.error(
+                            "Failed to open Stranded Mirror snapshot {}", packet.snapshotId, exception);
+                    opened = false;
+                }
+                ModNetworking.sendToPlayer(
+                        new OpenStrandedSnapshotResultPacket(packet.snapshotId, opened), player);
             }
         });
         context.setPacketHandled(true);
