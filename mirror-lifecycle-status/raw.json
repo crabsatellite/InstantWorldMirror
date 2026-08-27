@@ -1140,7 +1140,7 @@
           ],
           "id": "terrain",
           "status": "covered",
-          "title": "Temporary Heaven remains copied while the persistent world uses generated superflat terrain"
+          "title": "The four enchantment combinations select copied temporary, temporary Superflat, or persistent Superflat behavior"
         },
         {
           "checks": [
@@ -1155,7 +1155,7 @@
         }
       ],
       "status": "covered",
-      "title": "Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds"
+      "title": "Superflat controls temporary Heaven alone and adds one persistent platform with Permanence"
     },
     {
       "id": "temporary.stranded_mirror",

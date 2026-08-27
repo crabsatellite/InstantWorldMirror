@@ -63,7 +63,7 @@
     },
     {
       "id": "persistent.heaven_superflat",
-      "title": "Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds",
+      "title": "Superflat controls temporary Heaven alone and adds one persistent platform with Permanence",
       "stages": [
         {
           "id": "enchantment",
@@ -76,7 +76,7 @@
         },
         {
           "id": "terrain",
-          "title": "Temporary Heaven remains copied while the persistent world uses generated superflat terrain",
+          "title": "The four enchantment combinations select copied temporary, temporary Superflat, or persistent Superflat behavior",
           "checks": [
             "runtime.superflat_temporary_behavior",
             "copy.superflat_generator",
@@ -1122,8 +1122,11 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
       "texts": [
-        "superflatEnchantmentPreservesTemporaryHeavenWorld",
-        "Superflat without Permanence must not replace the normal temporary Heaven world",
+        "defaultAndPermanenceOnlyHeavenMirrorsKeepCopiedTerrain",
+        "No enchantment and Permanence-only must both retain copied temporary Heaven terrain",
+        "superflatOnlyCreatesTemporarySuperflatWorld",
+        "Superflat without Permanence must create a temporary Superflat Heaven world",
+        "Superflat without Permanence must generate the complete temporary Superflat platform",
         "Superflat without Permanence must not create a persistent world",
         "Permanence plus Superflat must not replace normal temporary Heaven terrain"
       ]

@@ -432,7 +432,7 @@
     {
       "id": "heaven_superflat_terrain",
       "readmeTexts": [
-        "Superflat only works on Heaven Mirror. By itself it does not change temporary worlds; together with Permanence and persistent-creation permission, it adds a clean Creative building platform to the persistent mirror list.",
+        "Superflat only works on Heaven Mirror. By itself it creates a temporary Superflat world; together with Permanence and persistent-creation permission, it keeps normal temporary behavior and adds a clean Creative building platform to the persistent mirror list.",
         "The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books."
       ],
       "code": [
@@ -443,7 +443,8 @@
           "texts": [
             "kind == MirrorKind.HEAVEN",
             "ModEnchantments.isSuperflat",
-            "persistentAccess && hasSuperflat",
+            "MirrorTerrainMode.forMirror(kind, superflat && !persistentAccess)",
+            "persistentAccess && superflat",
             "PersistentMirrorManager.ensureSuperflatPersistentMirror"
           ]
         },
@@ -485,7 +486,8 @@
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
           "texts": [
-            "superflatEnchantmentPreservesTemporaryHeavenWorld",
+            "defaultAndPermanenceOnlyHeavenMirrorsKeepCopiedTerrain",
+            "superflatOnlyCreatesTemporarySuperflatWorld",
             "superflatPermanenceAddsPersistentWorldAndKeepsNormalUse",
             "Superflat must not be valid for the default mirror",
             "Superflat must not be valid for the first dream mirror"
@@ -608,7 +610,7 @@
         "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative.",
         "When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.",
         "Heaven Mirror also gives you a matching mirror inside the sandbox.",
-        "Temporary Heaven sessions always keep the normal copied terrain."
+        "Superflat alone creates a temporary four-layer grass, dirt, and bedrock platform."
       ],
       "code": [
         {

@@ -98,7 +98,7 @@ public final class MirrorLifecycleGameTests {
     }
 
     @GameTest(template = TEMPLATE, batch = "superflat_heaven_temporary", timeoutTicks = 240)
-    public static void superflatEnchantmentPreservesTemporaryHeavenWorld(GameTestHelper helper) {
+    public static void superflatOnlyCreatesTemporarySuperflatWorld(GameTestHelper helper) {
         ServerPlayer player = makeConnectedServerPlayer(helper);
         ServerLevel sourceLevel = helper.getLevel();
         BlockPos sourcePos = helper.absolutePos(new BlockPos(1, 2, 1));
@@ -129,8 +129,8 @@ public final class MirrorLifecycleGameTests {
             MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID()).orElseThrow();
             helper.assertTrue(session.getKind() == MirrorKind.HEAVEN,
                     "Superflat enchantment must keep Heaven Mirror sandbox behavior");
-            helper.assertTrue(session.getTerrainMode() == MirrorTerrainMode.COPIED,
-                    "Superflat without Permanence must not replace the normal temporary Heaven world");
+            helper.assertTrue(session.getTerrainMode() == MirrorTerrainMode.SUPERFLAT,
+                    "Superflat without Permanence must create a temporary Superflat Heaven world");
             helper.assertFalse(session.hasPersistentAccess(),
                     "Superflat alone must not grant access to persistent mirror creation");
 
@@ -141,9 +141,13 @@ public final class MirrorLifecycleGameTests {
                 WorldCopyService.processCopyQueues(sourceLevel.getServer());
             }
             helper.assertTrue(session.isCopyComplete(),
-                    "The normal temporary Heaven copy must complete through the entry portal");
-            helper.assertTrue(temporaryLevel.getBlockState(sourcePos).is(Blocks.DIAMOND_BLOCK),
-                    "The temporary Heaven world must still copy the source terrain instead of generating superflat");
+                    "The temporary Superflat Heaven generation must complete through the entry portal");
+            helper.assertTrue(temporaryLevel.getBlockState(sourcePos).is(Blocks.GRASS_BLOCK)
+                            && temporaryLevel.getBlockState(sourcePos.below()).is(Blocks.DIRT)
+                            && temporaryLevel.getBlockState(sourcePos.below(2)).is(Blocks.DIRT)
+                            && temporaryLevel.getBlockState(sourcePos.below(3)).is(Blocks.BEDROCK)
+                            && temporaryLevel.getBlockState(sourcePos.above()).isAir(),
+                    "Superflat without Permanence must generate the complete temporary Superflat platform");
             helper.assertFalse(PersistentMirrorData.get(player.getServer()).records().stream()
                             .anyMatch(record -> record.ownerId().equals(player.getUUID())
                                     && record.terrainMode() == MirrorTerrainMode.SUPERFLAT),
@@ -152,6 +156,31 @@ public final class MirrorLifecycleGameTests {
             sourceLevel.getEntitiesOfClass(MirrorPortalEntity.class,
                             new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
                     .forEach(Entity::discard);
+            DimensionMirrorItem.clearCooldown(player.getUUID());
+            MirrorWorldManager.clearAllSessions(player.getServer());
+            WorldCopyService.clearAllTasks();
+            clearDimensionPoolTestState(player);
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig);
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "heaven_enchantment_matrix", timeoutTicks = 120)
+    public static void defaultAndPermanenceOnlyHeavenMirrorsKeepCopiedTerrain(GameTestHelper helper) {
+        ServerPlayer player = makeConnectedServerPlayer(helper);
+        MirrorConfigState previousActiveConfig = MirrorConfig.activeMirrorConfigState();
+
+        try {
+            MirrorConfig.setActiveMirrorConfigStateForTesting(previousActiveConfig
+                    .withAccess(MirrorKind.HEAVEN, MirrorAccess.ALL)
+                    .withCopyChunkRadius(MirrorKind.HEAVEN, 1));
+            player.setGameMode(GameType.CREATIVE);
+            assertHeavenCopiedItemUse(helper, player,
+                    helper.absolutePos(new BlockPos(1, 2, 1)), false);
+            assertHeavenCopiedItemUse(helper, player,
+                    helper.absolutePos(new BlockPos(3, 2, 1)), true);
+        } finally {
             DimensionMirrorItem.clearCooldown(player.getUUID());
             MirrorWorldManager.clearAllSessions(player.getServer());
             WorldCopyService.clearAllTasks();
@@ -2399,6 +2428,44 @@ public final class MirrorLifecycleGameTests {
                 .filter(portal -> !portal.isReturnPortal())
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Mirror use did not spawn an entry portal"));
+    }
+
+    private static void assertHeavenCopiedItemUse(GameTestHelper helper, ServerPlayer player,
+                                                   BlockPos sourcePos, boolean permanence) {
+        ServerLevel sourceLevel = helper.getLevel();
+        clearDimensionPoolTestState(player);
+        sourceLevel.setBlock(sourcePos, Blocks.STONE.defaultBlockState(), 3);
+        sourceLevel.removeBlock(sourcePos.above(), false);
+        sourceLevel.removeBlock(sourcePos.above(2), false);
+        player.teleportTo(sourceLevel, sourcePos.getX() + 0.5, sourcePos.getY() + 1.0,
+                sourcePos.getZ() + 2.5, 180.0F, 0.0F);
+
+        ItemStack mirrorStack = new ItemStack(ModItems.HEAVEN_MIRROR.get());
+        if (permanence) {
+            ModEnchantments.applyPermanence(sourceLevel, mirrorStack);
+        }
+        player.setItemInHand(InteractionHand.MAIN_HAND, mirrorStack);
+        DimensionMirrorItem.clearCooldown(player.getUUID());
+
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(sourcePos), Direction.UP, sourcePos, false);
+        helper.assertTrue(mirrorStack.useOn(new UseOnContext(
+                        player, InteractionHand.MAIN_HAND, hit)).consumesAction(),
+                "A Heaven Mirror without Superflat must create an entry portal");
+        MirrorSession session = MirrorWorldManager.getPlayerOwnedSession(player.getUUID()).orElseThrow();
+        helper.assertTrue(session.getTerrainMode() == MirrorTerrainMode.COPIED
+                        && session.hasPersistentAccess() == permanence,
+                "No enchantment and Permanence-only must both retain copied temporary Heaven terrain");
+        helper.assertFalse(PersistentMirrorData.get(player.getServer()).records().stream()
+                        .anyMatch(record -> record.ownerId().equals(player.getUUID())
+                                && record.terrainMode() == MirrorTerrainMode.SUPERFLAT),
+                "A Heaven Mirror without Superflat must not create a persistent Superflat world");
+
+        sourceLevel.getEntitiesOfClass(MirrorPortalEntity.class,
+                        new net.minecraft.world.phys.AABB(sourcePos.above()).inflate(4.0))
+                .forEach(Entity::discard);
+        MirrorWorldManager.clearAllSessions(player.getServer());
+        WorldCopyService.clearAllTasks();
+        clearDimensionPoolTestState(player);
     }
 
     private static ServerLevel ensureGameTestMirrorLevel(GameTestHelper helper, int dimensionIndex) {
