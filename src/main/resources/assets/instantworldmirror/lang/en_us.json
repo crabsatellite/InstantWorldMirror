@@ -137,6 +137,7 @@
   "message.instantworldmirror.persistent.dimension_not_loaded": "Persistent mirror dimension is not loaded.",
   "message.instantworldmirror.persistent.save_queued": "Persistent mirror save queued: %s (#%s)",
   "message.instantworldmirror.persistent.saved": "Persistent mirror saved: %s",
+  "message.instantworldmirror.persistent.create_failed": "Could not create the persistent mirror world. Your normal mirror portal is still available.",
   "message.instantworldmirror.persistent.not_found": "Persistent mirror not found.",
   "message.instantworldmirror.persistent.copying": "This persistent mirror is still copying.",
   "message.instantworldmirror.persistent.cannot_enter": "You cannot enter this persistent mirror.",

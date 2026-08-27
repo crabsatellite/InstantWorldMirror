@@ -420,7 +420,7 @@
     {
       "id": "heaven_superflat_terrain",
       "readmeTexts": [
-        "Superflat only works on Heaven Mirror and replaces copied terrain with a clean Creative building platform at the entry height.",
+        "Superflat only works on Heaven Mirror. By itself it does not change temporary worlds; together with Permanence and persistent-creation permission, it adds a clean Creative building platform to the persistent mirror list.",
         "The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books."
       ],
       "code": [
@@ -431,7 +431,18 @@
           "texts": [
             "kind == MirrorKind.HEAVEN",
             "ModEnchantments.isSuperflat",
-            "MirrorTerrainMode.forMirror"
+            "persistentAccess && hasSuperflat",
+            "PersistentMirrorManager.ensureSuperflatPersistentMirror"
+          ]
+        },
+        {
+          "label": "automatic persistent superflat record",
+          "adapter": "file_contains_all",
+          "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+          "texts": [
+            "ensureSuperflatPersistentMirror",
+            "record.terrainMode() == MirrorTerrainMode.SUPERFLAT",
+            "WorldCopyService.queuePersistentWorldCopy"
           ]
         },
         {
@@ -462,7 +473,8 @@
           "adapter": "file_contains_all",
           "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
           "texts": [
-            "superflatEnchantedHeavenMirrorCreatesSuperflatSession",
+            "superflatEnchantmentPreservesTemporaryHeavenWorld",
+            "superflatPermanenceAddsPersistentWorldAndKeepsNormalUse",
             "Superflat must not be valid for the default mirror",
             "Superflat must not be valid for the first dream mirror"
           ]
@@ -584,7 +596,7 @@
         "When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative.",
         "When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.",
         "Heaven Mirror also gives you a matching mirror inside the sandbox.",
-        "If your original mirror had Permanence or Superflat, the sandbox copy keeps those enchantments."
+        "Temporary Heaven sessions always keep the normal copied terrain."
       ],
       "code": [
         {

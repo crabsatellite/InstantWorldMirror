@@ -134,7 +134,7 @@ public class PersistentMirrorManager {
     }
 
     public static void openMirrorMenu(ServerPlayer player, MirrorKind heldKind) {
-        openMirrorMenu(player, heldKind, false);
+        openMirrorMenu(player, heldKind, false, false);
     }
 
     public static void openStrandedLongTermMenu(ServerPlayer player) {
@@ -150,10 +150,14 @@ public class PersistentMirrorManager {
             return;
         }
 
-        openMirrorMenu(player, DimensionMirrorItem.getMirrorKind(heldStack), true);
+        MirrorKind heldKind = DimensionMirrorItem.getMirrorKind(heldStack);
+        boolean createSuperflatPersistentMirror = heldKind == MirrorKind.HEAVEN
+                && DimensionMirrorItem.hasSuperflat(player.level(), heldStack);
+        openMirrorMenu(player, heldKind, true, createSuperflatPersistentMirror);
     }
 
-    private static void openMirrorMenu(ServerPlayer player, MirrorKind heldKind, boolean heldHasPermanence) {
+    private static void openMirrorMenu(ServerPlayer player, MirrorKind heldKind, boolean heldHasPermanence,
+                                       boolean createSuperflatPersistentMirror) {
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;
@@ -171,7 +175,86 @@ public class PersistentMirrorManager {
             return;
         }
 
+        if (createSuperflatPersistentMirror) {
+            ensureSuperflatPersistentMirror(player, player.blockPosition().below());
+        }
+
         sendPersistentListMenu(player, heldKind, PersistentMirrorData.get(server).records());
+    }
+
+    public static Optional<PersistentMirrorRecord> ensureSuperflatPersistentMirror(ServerPlayer player,
+                                                                                    BlockPos sourcePosition) {
+        MinecraftServer server = player.getServer();
+        if (server == null || !MirrorConfig.canAccessMirrorKind(player, MirrorKind.HEAVEN)) {
+            return Optional.empty();
+        }
+
+        PersistentMirrorData data = PersistentMirrorData.get(server);
+        Optional<PersistentMirrorRecord> existing = data.records().stream()
+                .filter(record -> record.ownerId().equals(player.getUUID()))
+                .filter(record -> record.kind() == MirrorKind.HEAVEN)
+                .filter(record -> record.terrainMode() == MirrorTerrainMode.SUPERFLAT)
+                .findFirst();
+        if (existing.isPresent()) {
+            return existing;
+        }
+
+        if (!canCreatePersistentMirror(player)) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.persistent.no_save_permission"), false);
+            return Optional.empty();
+        }
+
+        int dimensionIndex = data.allocateDimensionIndex();
+        if (dimensionIndex < 0) {
+            player.displayClientMessage(Component.translatable("message.instantworldmirror.persistent.no_slots"), false);
+            return Optional.empty();
+        }
+
+        ServerLevel sourceLevel = (ServerLevel) player.level();
+        ServerLevel targetLevel = server.getLevel(ModDimensions.getPersistentMirrorWorld(dimensionIndex));
+        if (targetLevel == null) {
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.persistent.dimension_not_loaded"), false);
+            return Optional.empty();
+        }
+
+        UUID recordId = UUID.randomUUID();
+        String name = "Superflat " + (data.records().size() + 1);
+        PersistentMirrorRecord record = new PersistentMirrorRecord(
+                recordId,
+                player.getUUID(),
+                null,
+                name,
+                MirrorKind.HEAVEN,
+                dimensionIndex,
+                sourceLevel.dimension(),
+                sourcePosition,
+                sourcePosition.above(),
+                false,
+                System.currentTimeMillis(),
+                false,
+                MirrorTerrainMode.SUPERFLAT
+        );
+
+        int queuePosition;
+        try {
+            data.addRecord(record);
+            pendingCopyCreators.put(recordId, player.getUUID());
+            queuePosition = WorldCopyService.queuePersistentWorldCopy(record, sourceLevel, targetLevel);
+        } catch (RuntimeException exception) {
+            data.removeRecord(recordId);
+            pendingCopyCreators.remove(recordId);
+            InstantWorldMirror.LOGGER.error("Failed to create automatic Superflat persistent mirror for {}",
+                    player.getName().getString(), exception);
+            player.displayClientMessage(
+                    Component.translatable("message.instantworldmirror.persistent.create_failed"), false);
+            return Optional.empty();
+        }
+
+        player.sendSystemMessage(Component.translatable(
+                "message.instantworldmirror.persistent.save_queued", name, queuePosition).withStyle(ChatFormatting.GREEN));
+        return Optional.of(record);
     }
 
     private static void sendTemporaryMirrorMenu(ServerPlayer player, MirrorSession session, MirrorKind heldKind,

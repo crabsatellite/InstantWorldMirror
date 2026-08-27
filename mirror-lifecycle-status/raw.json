@@ -184,6 +184,12 @@
       "message": "method contains all text",
       "passed": true
     },
+    "copy.superflat_persistent_initialization": {
+      "adapter": "method_contains_all",
+      "id": "copy.superflat_persistent_initialization",
+      "message": "method contains all text",
+      "passed": true
+    },
     "data.remove_unready_records": {
       "adapter": "method_contains_in_order",
       "id": "data.remove_unready_records",
@@ -801,6 +807,12 @@
       "message": "all text found",
       "passed": true
     },
+    "persistent.auto_superflat_record": {
+      "adapter": "method_contains_all",
+      "id": "persistent.auto_superflat_record",
+      "message": "method contains all text",
+      "passed": true
+    },
     "portal.snapshot_load_message": {
       "adapter": "file_contains_all",
       "id": "portal.snapshot_load_message",
@@ -951,6 +963,12 @@
       "message": "all text found",
       "passed": true
     },
+    "runtime.superflat_temporary_behavior": {
+      "adapter": "file_contains_all",
+      "id": "runtime.superflat_temporary_behavior",
+      "message": "all text found",
+      "passed": true
+    },
     "runtime.superflat_terrain_layers": {
       "adapter": "file_contains_all",
       "id": "runtime.superflat_terrain_layers",
@@ -993,22 +1011,6 @@
       "message": "found text",
       "passed": true
     },
-    "session.superflat_terrain_mode": {
-      "adapter": "all",
-      "children": [
-        {
-          "message": "all text found",
-          "passed": true
-        },
-        {
-          "message": "all text found",
-          "passed": true
-        }
-      ],
-      "id": "session.superflat_terrain_mode",
-      "message": "composite passed",
-      "passed": true
-    },
     "snapshot.global_cache": {
       "adapter": "file_contains_all",
       "id": "snapshot.global_cache",
@@ -1041,11 +1043,11 @@
     }
   },
   "completion": {
-    "checkCount": 142,
+    "checkCount": 144,
     "complete": true,
     "coveredRouteCount": 16,
     "failedChecks": [],
-    "passedCheckCount": 142,
+    "passedCheckCount": 144,
     "routeCount": 16
   },
   "minecraftVersion": "1.20.1",
@@ -1117,7 +1119,7 @@
       "title": "Unenchanted Heaven Mirror stays temporary"
     },
     {
-      "id": "temporary.heaven_superflat",
+      "id": "persistent.heaven_superflat",
       "stages": [
         {
           "checks": [
@@ -1131,27 +1133,29 @@
         },
         {
           "checks": [
-            "session.superflat_terrain_mode",
+            "runtime.superflat_temporary_behavior",
             "copy.superflat_generator",
+            "copy.superflat_persistent_initialization",
             "runtime.superflat_terrain_layers"
           ],
           "id": "terrain",
           "status": "covered",
-          "title": "The session and copy queue preserve the superflat terrain mode"
+          "title": "Temporary Heaven remains copied while the persistent world uses generated superflat terrain"
         },
         {
           "checks": [
+            "persistent.auto_superflat_record",
             "record.terrain_mode_persisted",
             "sandbox.applies_superflat_to_hotbar_mirror",
             "runtime.superflat_persistent_round_trip"
           ],
           "id": "persistence",
           "status": "covered",
-          "title": "Persistent mirrors retain superflat origin metadata"
+          "title": "The persistent list creates one authorized Superflat record and retains its terrain metadata"
         }
       ],
       "status": "covered",
-      "title": "Superflat enchanted Heaven Mirror creates a bounded Creative building platform"
+      "title": "Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds"
     },
     {
       "id": "temporary.stranded_mirror",

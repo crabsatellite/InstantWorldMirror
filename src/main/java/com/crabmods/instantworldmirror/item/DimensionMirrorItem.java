@@ -511,7 +511,8 @@ public class DimensionMirrorItem extends Item {
 
         boolean bypassRefreshCooldown = player.isCreative();
         boolean generatedContentRefresh = shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown);
-        MirrorTerrainMode terrainMode = MirrorTerrainMode.forMirror(kind, hasSuperflat(level, stack));
+        MirrorTerrainMode terrainMode = MirrorTerrainMode.defaultFor(kind);
+        boolean createSuperflatPersistentMirror = persistentAccess && hasSuperflat(level, stack);
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)
@@ -543,6 +544,10 @@ public class DimensionMirrorItem extends Item {
         );
 
         level.addFreshEntity(portal);
+
+        if (createSuperflatPersistentMirror) {
+            PersistentMirrorManager.ensureSuperflatPersistentMirror(player, pos);
+        }
 
         player.displayClientMessage(
                 Component.translatable("message.instantworldmirror.portal_created"),

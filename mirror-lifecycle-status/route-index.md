@@ -17,13 +17,13 @@ Unenchanted Heaven Mirror stays temporary
 - `kind`: covered - Mirror kind is still derived from the two mirror items
 - `sandbox`: covered - Sandbox inventory setup is parameterized by permanence
 
-## temporary.heaven_superflat - covered
+## persistent.heaven_superflat - covered
 
-Superflat enchanted Heaven Mirror creates a bounded Creative building platform
+Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds
 
 - `enchantment`: covered - Superflat is restricted to Heaven Mirror
-- `terrain`: covered - The session and copy queue preserve the superflat terrain mode
-- `persistence`: covered - Persistent mirrors retain superflat origin metadata
+- `terrain`: covered - Temporary Heaven remains copied while the persistent world uses generated superflat terrain
+- `persistence`: covered - The persistent list creates one authorized Superflat record and retains its terrain metadata
 
 ## temporary.stranded_mirror - covered
 
