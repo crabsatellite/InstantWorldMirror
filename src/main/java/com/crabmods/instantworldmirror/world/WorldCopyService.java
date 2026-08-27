@@ -1235,13 +1235,16 @@ public class WorldCopyService {
 
         syncGameRules(sourceWorld, targetWorld);
 
+        MirrorTerrainMode initializationMode = record.terrainMode() == MirrorTerrainMode.SUPERFLAT
+                ? MirrorTerrainMode.SUPERFLAT
+                : MirrorTerrainMode.COPIED;
         CopyTask task = new CopyTask(
                 record.id(),
                 record.sourcePosition(),
                 chunkRadius,
                 sourceWorld.dimension(),
                 dimIndex,
-                MirrorTerrainMode.COPIED,
+                initializationMode,
                 false,
                 mobSpawningEnabled
         );

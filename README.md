@@ -51,7 +51,7 @@ Items follow one shared transfer rule for all four mirrors. With item transfer o
 
 When you enter with Heaven Mirror, the mod saves your inventory and player state, clears the sandbox inventory, and switches you to Creative. When you leave, your game mode and player state are restored, and items follow the same transfer rule as the other mirrors.
 
-Heaven Mirror also gives you a matching mirror inside the sandbox. If your original mirror had Permanence or Superflat, the sandbox copy keeps those enchantments. A Superflat Heaven Mirror generates a bounded four-layer grass, dirt, and bedrock building platform instead of copying source terrain.
+Heaven Mirror also gives you a matching mirror inside the sandbox. Temporary Heaven sessions always keep the normal copied terrain. A Heaven Mirror with both Permanence and Superflat automatically adds one persistent four-layer grass, dirt, and bedrock building platform for its owner without creating duplicates.
 
 ## Enchantments and Cooldowns
 
@@ -60,7 +60,7 @@ Heaven Mirror also gives you a matching mirror inside the sandbox. If your origi
 - With Permanence, a mirror can save a completed temporary mirror as a persistent mirror if the player is an operator or has been granted permission.
 - To save a persistent mirror, the temporary session must have been created with a mirror that has Permanence. To enter that saved mirror later, hold a mirror of the same type with Permanence.
 - Renewal only works on First Dream Mirror. If First Dream natural mob spawning is off in config or through `/iwm mob off`, a Renewal First Dream Mirror can refresh generated mobs after its cooldown.
-- Superflat only works on Heaven Mirror and replaces copied terrain with a clean Creative building platform at the entry height.
+- Superflat only works on Heaven Mirror. By itself it does not change temporary worlds; together with Permanence and persistent-creation permission, it adds a clean Creative building platform to the persistent mirror list.
 - The normal mirror cooldown belongs to the player. The Renewal cooldown belongs to the First Dream Mirror item. The item bar and tooltip show Renewal cooldown, and `showCooldownHud` can show the normal mirror cooldown.
 - The World Mirrors creative tab includes all four mirrors plus Permanence, Renewal, and Superflat enchanted books.
 - In Survival, Permanence and Superflat can appear through normal enchanting and villager trades; Renewal appears only as rare loot.

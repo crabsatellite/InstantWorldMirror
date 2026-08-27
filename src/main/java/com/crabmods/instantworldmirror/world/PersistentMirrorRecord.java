@@ -6,7 +6,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -40,7 +39,7 @@ public class PersistentMirrorRecord {
                                   MirrorTerrainMode terrainMode) {
         this.id = id;
         this.ownerId = ownerId;
-        this.sourceSessionId = Objects.requireNonNull(sourceSessionId, "sourceSessionId");
+        this.sourceSessionId = sourceSessionId;
         this.name = name;
         this.kind = kind;
         this.terrainMode = terrainMode != null && terrainMode.supports(kind)
@@ -123,7 +122,9 @@ public class PersistentMirrorRecord {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("id", id);
         tag.putUUID("owner", ownerId);
-        tag.putUUID("source_session", sourceSessionId);
+        if (sourceSessionId != null) {
+            tag.putUUID("source_session", sourceSessionId);
+        }
         tag.putString("name", name);
         tag.putString("kind", kind.id());
         tag.putString("terrain_mode", terrainMode.name());
@@ -140,7 +141,7 @@ public class PersistentMirrorRecord {
     public static PersistentMirrorRecord load(CompoundTag tag) {
         UUID id = tag.getUUID("id");
         UUID owner = tag.getUUID("owner");
-        UUID sourceSessionId = tag.getUUID("source_session");
+        UUID sourceSessionId = tag.contains("source_session") ? tag.getUUID("source_session") : null;
         String name = tag.getString("name");
         MirrorKind kind = MirrorKind.byId(tag.getString("kind"));
         MirrorTerrainMode terrainMode = MirrorTerrainMode.byId(tag.getString("terrain_mode"), kind);

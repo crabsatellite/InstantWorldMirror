@@ -62,8 +62,8 @@
       ]
     },
     {
-      "id": "temporary.heaven_superflat",
-      "title": "Superflat enchanted Heaven Mirror creates a bounded Creative building platform",
+      "id": "persistent.heaven_superflat",
+      "title": "Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds",
       "stages": [
         {
           "id": "enchantment",
@@ -76,17 +76,19 @@
         },
         {
           "id": "terrain",
-          "title": "The session and copy queue preserve the superflat terrain mode",
+          "title": "Temporary Heaven remains copied while the persistent world uses generated superflat terrain",
           "checks": [
-            "session.superflat_terrain_mode",
+            "runtime.superflat_temporary_behavior",
             "copy.superflat_generator",
+            "copy.superflat_persistent_initialization",
             "runtime.superflat_terrain_layers"
           ]
         },
         {
           "id": "persistence",
-          "title": "Persistent mirrors retain superflat origin metadata",
+          "title": "The persistent list creates one authorized Superflat record and retains its terrain metadata",
           "checks": [
+            "persistent.auto_superflat_record",
             "record.terrain_mode_persisted",
             "sandbox.applies_superflat_to_hotbar_mirror",
             "runtime.superflat_persistent_round_trip"
@@ -979,9 +981,9 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorRecord.java",
       "texts": [
         "private final UUID sourceSessionId",
-        "Objects.requireNonNull(sourceSessionId, \"sourceSessionId\")",
+        "if (sourceSessionId != null)",
         "tag.putUUID(\"source_session\", sourceSessionId)",
-        "UUID sourceSessionId = tag.getUUID(\"source_session\")"
+        "tag.contains(\"source_session\") ? tag.getUUID(\"source_session\") : null"
       ]
     },
     {
@@ -1116,28 +1118,27 @@
       ]
     },
     {
-      "id": "session.superflat_terrain_mode",
-      "adapter": "all",
-      "checks": [
-        {
-          "adapter": "file_contains_all",
-          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorTerrainMode.java",
-          "texts": [
-            "COPIED",
-            "PRISTINE",
-            "SUPERFLAT",
-            "kind == MirrorKind.HEAVEN"
-          ]
-        },
-        {
-          "adapter": "file_contains_all",
-          "file": "src/main/java/com/crabmods/instantworldmirror/world/MirrorSession.java",
-          "texts": [
-            "private final MirrorTerrainMode terrainMode",
-            "public MirrorTerrainMode getTerrainMode()",
-            "usesSuperflatTerrain()"
-          ]
-        }
+      "id": "runtime.superflat_temporary_behavior",
+      "adapter": "file_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
+      "texts": [
+        "superflatEnchantmentPreservesTemporaryHeavenWorld",
+        "Superflat without Permanence must not replace the normal temporary Heaven world",
+        "Superflat without Permanence must not create a persistent world",
+        "Permanence plus Superflat must not replace normal temporary Heaven terrain"
+      ]
+    },
+    {
+      "id": "persistent.auto_superflat_record",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorManager.java",
+      "method": "ensureSuperflatPersistentMirror",
+      "texts": [
+        "record.ownerId().equals(player.getUUID())",
+        "record.terrainMode() == MirrorTerrainMode.SUPERFLAT",
+        "canCreatePersistentMirror(player)",
+        "data.allocateDimensionIndex()",
+        "WorldCopyService.queuePersistentWorldCopy(record, sourceLevel, targetLevel)"
       ]
     },
     {
@@ -1152,6 +1153,17 @@
         "Blocks.GRASS_BLOCK",
         "regenerateHeightmaps(targetChunk)",
         "relightChunk(mirrorWorld, targetChunk)"
+      ]
+    },
+    {
+      "id": "copy.superflat_persistent_initialization",
+      "adapter": "method_contains_all",
+      "file": "src/main/java/com/crabmods/instantworldmirror/world/WorldCopyService.java",
+      "method": "queuePersistentWorldCopy",
+      "texts": [
+        "record.terrainMode() == MirrorTerrainMode.SUPERFLAT",
+        "MirrorTerrainMode.SUPERFLAT",
+        "initializationMode"
       ]
     },
     {
@@ -1170,6 +1182,8 @@
       "file": "src/main/java/com/crabmods/instantworldmirror/world/PersistentMirrorRecord.java",
       "texts": [
         "private final MirrorTerrainMode terrainMode",
+        "if (sourceSessionId != null)",
+        "tag.contains(\"source_session\")",
         "tag.putString(\"terrain_mode\"",
         "MirrorTerrainMode.byId",
         "public MirrorTerrainMode terrainMode()"
@@ -1189,6 +1203,12 @@
       "adapter": "file_contains_all",
       "file": "src/main/java/com/crabmods/instantworldmirror/item/MirrorLifecycleGameTests.java",
       "texts": [
+        "superflatPermanenceAddsPersistentWorldAndKeepsNormalUse",
+        "Permanence plus Superflat must add exactly one Heaven world to the persistent list",
+        "The persistent world must contain the complete vanilla-style Superflat layers",
+        "The same use must still produce the normal copied Heaven world",
+        "Generated persistent worlds must not serialize a fake temporary source session",
+        "Generated persistent worlds must reload without a temporary source session",
         "Persistent records must write the terrain mode",
         "Persistent records must reload the superflat terrain mode",
         "Older persistent heaven mirrors must default to copied terrain",

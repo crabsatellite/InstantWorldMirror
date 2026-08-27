@@ -135,6 +135,7 @@
   "message.instantworldmirror.persistent.dimension_not_loaded": "永久镜像维度尚未加载。",
   "message.instantworldmirror.persistent.save_queued": "永久镜像已加入保存队列：%s（#%s）",
   "message.instantworldmirror.persistent.saved": "永久镜像已保存：%s",
+  "message.instantworldmirror.persistent.create_failed": "无法创建永久镜像世界，但普通镜子入口仍可正常使用。",
   "message.instantworldmirror.persistent.not_found": "找不到该永久镜像。",
   "message.instantworldmirror.persistent.copying": "这个永久镜像仍在复制。",
   "message.instantworldmirror.persistent.cannot_enter": "你不能进入这个永久镜像。",

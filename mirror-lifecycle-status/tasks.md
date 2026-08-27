@@ -29,6 +29,7 @@
 - [x] `copy.pristine_scratch_world_skips_poi_updates` - all text found
 - [x] `copy.pristine_task_flag` - all text found
 - [x] `copy.superflat_generator` - method contains all text
+- [x] `copy.superflat_persistent_initialization` - method contains all text
 - [x] `data.remove_unready_records` - method contains ordered text
 - [x] `data.selector_lookup` - method contains all text
 - [x] `data.source_session_lookup` - method contains all text
@@ -104,6 +105,7 @@
 - [x] `manager.shared_item_transfer_snapshot` - all text found
 - [x] `manager.teleport_session_order` - method contains ordered text
 - [x] `network.stranded_packets` - all text found
+- [x] `persistent.auto_superflat_record` - method contains all text
 - [x] `portal.snapshot_load_message` - all text found
 - [x] `record.kind_saved_from_session` - found text
 - [x] `record.selector_present` - method contains all text
@@ -129,6 +131,7 @@
 - [x] `runtime.stranded_snapshot_round_trip` - all text found
 - [x] `runtime.superflat_enchantment_scope` - all text found
 - [x] `runtime.superflat_persistent_round_trip` - all text found
+- [x] `runtime.superflat_temporary_behavior` - all text found
 - [x] `runtime.superflat_terrain_layers` - all text found
 - [x] `sandbox.applies_permanence_to_hotbar_mirror` - found text
 - [x] `sandbox.applies_superflat_to_hotbar_mirror` - all text found
@@ -136,7 +139,6 @@
 - [x] `session.generated_content_refresh_field` - all text found
 - [x] `session.kind_field` - all text found
 - [x] `session.persistent_access_field` - found text
-- [x] `session.superflat_terrain_mode` - composite passed
 - [x] `snapshot.global_cache` - all text found
 - [x] `snapshot.same_version_owner_gate` - all text found
 - [x] `startup.recover_unready_records` - found text

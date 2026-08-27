@@ -57,27 +57,29 @@
         "enchantment.superflat_version_registration",
         "runtime.superflat_enchantment_scope"
       ],
-      "route": "temporary.heaven_superflat",
+      "route": "persistent.heaven_superflat",
       "stage": "enchantment",
       "status": "covered"
     },
     {
       "checks": [
-        "session.superflat_terrain_mode",
+        "runtime.superflat_temporary_behavior",
         "copy.superflat_generator",
+        "copy.superflat_persistent_initialization",
         "runtime.superflat_terrain_layers"
       ],
-      "route": "temporary.heaven_superflat",
+      "route": "persistent.heaven_superflat",
       "stage": "terrain",
       "status": "covered"
     },
     {
       "checks": [
+        "persistent.auto_superflat_record",
         "record.terrain_mode_persisted",
         "sandbox.applies_superflat_to_hotbar_mirror",
         "runtime.superflat_persistent_round_trip"
       ],
-      "route": "temporary.heaven_superflat",
+      "route": "persistent.heaven_superflat",
       "stage": "persistence",
       "status": "covered"
     },
