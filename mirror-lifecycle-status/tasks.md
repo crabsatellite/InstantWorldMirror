@@ -2,6 +2,7 @@
 
 - [x] `build.verify_mirror_jar_contents` - all text found
 - [x] `client.persistent_popup_controls` - all text found
+- [x] `client.stranded_open_result_flow` - all text found
 - [x] `client.stranded_ui_gate` - all text found
 - [x] `command.menu_uses_held_mirror` - found text
 - [x] `command.mob_updates_persistent_worlds` - method contains all text

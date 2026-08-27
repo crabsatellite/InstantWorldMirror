@@ -163,6 +163,7 @@
   "message.instantworldmirror.stranded.open.entry": "%s - radius %s chunks",
   "message.instantworldmirror.stranded.open.empty": "No compatible snapshots are available.",
   "message.instantworldmirror.stranded.open.unavailable": " (unavailable)",
+  "message.instantworldmirror.stranded.open.opening": " (opening...)",
   "message.instantworldmirror.stranded.delete": "×",
   "message.instantworldmirror.stranded.delete.confirm": "!",
   "message.instantworldmirror.stranded.delete.tooltip": "Delete this snapshot",

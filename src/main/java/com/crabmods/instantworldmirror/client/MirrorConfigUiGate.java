@@ -70,6 +70,7 @@ public final class MirrorConfigUiGate {
             Map.entry("message.instantworldmirror.stranded.capture.save", "Capture"),
             Map.entry("message.instantworldmirror.stranded.open.title", "Open world slice"),
             Map.entry("message.instantworldmirror.stranded.open.unavailable", " (unavailable)"),
+            Map.entry("message.instantworldmirror.stranded.open.opening", " (opening...)"),
             Map.entry("message.instantworldmirror.stranded.upgrade_failed",
                     "This world slice could not be upgraded safely. It may use missing or incompatible mod content."),
             Map.entry("message.instantworldmirror.stranded.delete.tooltip", "Delete this snapshot"),
@@ -306,6 +307,42 @@ public final class MirrorConfigUiGate {
         Button backupButton = findButton(minecraft.screen, "message.instantworldmirror.stranded.backup");
         assertTrue(backupButton.active && backupButton.getTooltip() != null,
                 "Available world slices must expose the localized backup control");
+        Button firstOpenButton = minecraft.screen.children().stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> button.getMessage().getString().contains("Snapshot 0"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Stranded Mirror menu did not render its first open control"));
+        firstOpenButton.onPress();
+        assertTrue(minecraft.screen instanceof StrandedSnapshotScreen
+                        && !findButton(minecraft.screen,
+                        "message.instantworldmirror.stranded.backup").active
+                        && minecraft.screen.children().stream()
+                        .filter(Button.class::isInstance)
+                        .map(Button.class::cast)
+                        .anyMatch(button -> button.getMessage().getString().contains(localized(
+                                "message.instantworldmirror.stranded.open.opening",
+                                minecraft.options.languageCode))),
+                "Selecting a world slice must wait for the server and lock conflicting controls");
+        StrandedSnapshotScreen.handleOpenResult(entries.get(0).id(), false);
+        assertTrue(minecraft.screen instanceof StrandedSnapshotScreen
+                        && findButton(minecraft.screen,
+                        "message.instantworldmirror.stranded.backup").active,
+                "A rejected world-slice open must preserve and restore the selection screen");
+        minecraft.screen.children().stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> button.getMessage().getString().contains("Snapshot 0"))
+                .findFirst()
+                .orElseThrow()
+                .onPress();
+        StrandedSnapshotScreen.handleOpenResult(entries.get(0).id(), true);
+        assertTrue(!(minecraft.screen instanceof StrandedSnapshotScreen)
+                        && minecraft.screen != parent,
+                "A successful world-slice open must close the complete long-term menu stack");
+        minecraft.setScreen(parent);
+        StrandedSnapshotScreen.open(BlockPos.ZERO, entries);
         Button deleteButton = findButton(minecraft.screen, "message.instantworldmirror.stranded.delete");
         assertTrue(deleteButton.getTooltip() != null,
                 "Stranded Mirror delete control must explain its action on hover");
@@ -329,7 +366,7 @@ public final class MirrorConfigUiGate {
                 "Persistent", "slot_1", true, true)));
         findButton(minecraft.screen, "message.instantworldmirror.persistent.button.backup");
         minecraft.setScreen(parent);
-        return 19;
+        return 22;
     }
 
     private static MirrorConfigState strictGateBaseState() {

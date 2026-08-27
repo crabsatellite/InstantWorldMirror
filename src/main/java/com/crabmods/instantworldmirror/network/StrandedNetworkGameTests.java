@@ -43,6 +43,12 @@ public final class StrandedNetworkGameTests {
         helper.assertTrue(open.targetPos().equals(target) && open.snapshotId().equals(snapshotId),
                 "Open packet must preserve the selected snapshot identity");
 
+        OpenStrandedSnapshotResultPacket openResult = roundTrip(
+                OpenStrandedSnapshotResultPacket.STREAM_CODEC,
+                new OpenStrandedSnapshotResultPacket(snapshotId, true));
+        helper.assertTrue(openResult.snapshotId().equals(snapshotId) && openResult.opened(),
+                "Open result packet must acknowledge the selected snapshot and server outcome");
+
         DeleteStrandedSnapshotPacket delete = roundTrip(
                 DeleteStrandedSnapshotPacket.STREAM_CODEC,
                 new DeleteStrandedSnapshotPacket(target, snapshotId));

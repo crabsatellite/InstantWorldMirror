@@ -9,6 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.UUID;
 
@@ -30,9 +31,18 @@ public record OpenStrandedSnapshotPacket(BlockPos targetPos, UUID snapshotId) im
     public static void handle(OpenStrandedSnapshotPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
-                StrandedSnapshotManager.requestOpen(player, packet.targetPos, packet.snapshotId);
+                boolean opened;
+                try {
+                    opened = StrandedSnapshotManager.requestOpen(
+                            player, packet.targetPos, packet.snapshotId);
+                } catch (RuntimeException exception) {
+                    InstantWorldMirror.LOGGER.error(
+                            "Failed to open Stranded Mirror snapshot {}", packet.snapshotId, exception);
+                    opened = false;
+                }
+                PacketDistributor.sendToPlayer(
+                        player, new OpenStrandedSnapshotResultPacket(packet.snapshotId, opened));
             }
         });
     }
 }
-
