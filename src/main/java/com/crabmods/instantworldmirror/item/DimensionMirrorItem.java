@@ -511,8 +511,9 @@ public class DimensionMirrorItem extends Item {
 
         boolean bypassRefreshCooldown = player.isCreative();
         boolean generatedContentRefresh = shouldUseGeneratedContentRefresh(level, stack, bypassRefreshCooldown);
-        MirrorTerrainMode terrainMode = MirrorTerrainMode.defaultFor(kind);
-        boolean createSuperflatPersistentMirror = persistentAccess && hasSuperflat(level, stack);
+        boolean superflat = hasSuperflat(level, stack);
+        MirrorTerrainMode terrainMode = MirrorTerrainMode.forMirror(kind, superflat && !persistentAccess);
+        boolean createSuperflatPersistentMirror = persistentAccess && superflat;
 
         // Create a new session for this player
         // Note: createSession already displays specific error messages (already_has_session, no_dimensions_available)

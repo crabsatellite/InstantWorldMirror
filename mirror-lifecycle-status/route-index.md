@@ -19,10 +19,10 @@ Unenchanted Heaven Mirror stays temporary
 
 ## persistent.heaven_superflat - covered
 
-Permanence plus Superflat adds one persistent Heaven platform without replacing normal Heaven worlds
+Superflat controls temporary Heaven alone and adds one persistent platform with Permanence
 
 - `enchantment`: covered - Superflat is restricted to Heaven Mirror
-- `terrain`: covered - Temporary Heaven remains copied while the persistent world uses generated superflat terrain
+- `terrain`: covered - The four enchantment combinations select copied temporary, temporary Superflat, or persistent Superflat behavior
 - `persistence`: covered - The persistent list creates one authorized Superflat record and retains its terrain metadata
 
 ## temporary.stranded_mirror - covered
