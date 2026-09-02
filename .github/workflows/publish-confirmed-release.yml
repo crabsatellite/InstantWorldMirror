@@ -1,0 +1,279 @@
+name: Publish confirmed MOD release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Exact existing GitHub Release tag, for example v1.5.0-beta"
+        required: true
+        type: string
+      release_channel:
+        description: "Store release channel"
+        required: true
+        type: choice
+        options:
+          - alpha
+          - beta
+          - release
+      sha256_1211:
+        description: "Confirmed SHA-256 for the Minecraft 1.21.1 JAR"
+        required: true
+        type: string
+      sha256_1201:
+        description: "Confirmed SHA-256 for the Minecraft 1.20.1 JAR"
+        required: true
+        type: string
+      confirmation:
+        description: "Type publish:<tag>:<channel> exactly"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-confirmed-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Verify confirmed candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify exact manual confirmation
+        shell: bash
+        env:
+          TAG: ${{ inputs.release_tag }}
+          CHANNEL: ${{ inputs.release_channel }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          SHA_1211: ${{ inputs.sha256_1211 }}
+          SHA_1201: ${{ inputs.sha256_1201 }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9][A-Za-z0-9.-]*)?$ ]] || {
+            echo "::error::Invalid release tag: $TAG"
+            exit 1
+          }
+          expected="publish:${TAG}:${CHANNEL}"
+          [[ "$CONFIRMATION" == "$expected" ]] || {
+            echo "::error::Confirmation must equal '$expected'."
+            exit 1
+          }
+          [[ "$SHA_1211" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+            echo "::error::Minecraft 1.21.1 SHA-256 is invalid."
+            exit 1
+          }
+          [[ "$SHA_1201" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+            echo "::error::Minecraft 1.20.1 SHA-256 is invalid."
+            exit 1
+          }
+
+      - name: Check out the exact release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Verify generated README content
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B scripts/generate_readme.py --check
+          python -B scripts/check_readme_code_map.py
+
+      - name: Verify GitHub Release and exact assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          CHANNEL: ${{ inputs.release_channel }}
+          SHA_1211: ${{ inputs.sha256_1211 }}
+          SHA_1201: ${{ inputs.sha256_1201 }}
+        run: |
+          set -euo pipefail
+          release_json="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft,isPrerelease,assets)"
+          [[ "$(jq -r '.tagName' <<<"$release_json")" == "$TAG" ]]
+          [[ "$(jq -r '.isDraft' <<<"$release_json")" == "false" ]] || {
+            echo "::error::GitHub Release '$TAG' is still a draft."
+            exit 1
+          }
+          prerelease="$(jq -r '.isPrerelease' <<<"$release_json")"
+          if [[ "$CHANNEL" == "release" ]]; then
+            [[ "$prerelease" == "false" ]] || {
+              echo "::error::Stable publication requires a non-prerelease GitHub Release."
+              exit 1
+            }
+          else
+            [[ "$prerelease" == "true" ]] || {
+              echo "::error::Alpha/beta publication requires a GitHub prerelease."
+              exit 1
+            }
+          fi
+
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.jar' --dir dist
+          mapfile -t jars < <(find dist -maxdepth 1 -type f -name '*.jar' -printf '%f\n' | sort)
+          [[ "${#jars[@]}" -eq 2 ]] || {
+            echo "::error::Expected exactly two JAR assets, found ${#jars[@]}."
+            printf '%s\n' "${jars[@]}"
+            exit 1
+          }
+          mapfile -t jar_1211 < <(printf '%s\n' "${jars[@]}" | grep '^instantworldmirror-1\.21\.1-.*\.jar$' || true)
+          mapfile -t jar_1201 < <(printf '%s\n' "${jars[@]}" | grep '^instantworldmirror-1\.20\.1-.*\.jar$' || true)
+          [[ "${#jar_1211[@]}" -eq 1 && "${#jar_1201[@]}" -eq 1 ]] || {
+            echo "::error::Release must contain one 1.21.1 JAR and one 1.20.1 JAR."
+            exit 1
+          }
+          version_1211="${jar_1211[0]#instantworldmirror-1.21.1-}"
+          version_1201="${jar_1201[0]#instantworldmirror-1.20.1-}"
+          [[ "$version_1211" == "$version_1201" ]] || {
+            echo "::error::The two JAR filenames do not carry the same version."
+            exit 1
+          }
+          actual_1211="$(sha256sum "dist/${jar_1211[0]}" | awk '{print $1}')"
+          actual_1201="$(sha256sum "dist/${jar_1201[0]}" | awk '{print $1}')"
+          [[ "${actual_1211,,}" == "${SHA_1211,,}" ]] || {
+            echo "::error::Minecraft 1.21.1 SHA-256 mismatch."
+            exit 1
+          }
+          [[ "${actual_1201,,}" == "${SHA_1201,,}" ]] || {
+            echo "::error::Minecraft 1.20.1 SHA-256 mismatch."
+            exit 1
+          }
+          {
+            echo "## Confirmed publication candidate"
+            echo
+            echo "- Tag: \`$TAG\`"
+            echo "- Channel: \`$CHANNEL\`"
+            echo "- 1.21.1: \`${jar_1211[0]}\` / \`$actual_1211\`"
+            echo "- 1.20.1: \`${jar_1201[0]}\` / \`$actual_1201\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish ${{ matrix.minecraft }} / ${{ matrix.loader }}
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - minecraft: "1.21.1"
+            loader: neoforge
+            java: "21"
+            expected_sha: ${{ inputs.sha256_1211 }}
+          - minecraft: "1.20.1"
+            loader: forge
+            java: "17"
+            expected_sha: ${{ inputs.sha256_1201 }}
+    steps:
+      - name: Require both platform secrets
+        shell: bash
+        env:
+          MODRINTH_TOKEN: ${{ secrets.PUBLISH_MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.PUBLISH_CURSEFORGE_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$MODRINTH_TOKEN" ]] || {
+            echo "::error::Missing PUBLISH_MODRINTH_TOKEN."
+            exit 1
+          }
+          [[ -n "$CURSEFORGE_TOKEN" ]] || {
+            echo "::error::Missing PUBLISH_CURSEFORGE_TOKEN."
+            exit 1
+          }
+
+      - name: Download and re-verify the confirmed JAR
+        id: asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          CHANNEL: ${{ inputs.release_channel }}
+          MC: ${{ matrix.minecraft }}
+          LOADER: ${{ matrix.loader }}
+          EXPECTED_SHA: ${{ matrix.expected_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          pattern="instantworldmirror-${MC}-*.jar"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$pattern" --dir dist
+          mapfile -t matches < <(find dist -maxdepth 1 -type f -name "$pattern" -printf '%p\n')
+          [[ "${#matches[@]}" -eq 1 ]] || {
+            echo "::error::Expected one asset for $MC, found ${#matches[@]}."
+            exit 1
+          }
+          file="${matches[0]}"
+          actual="$(sha256sum "$file" | awk '{print $1}')"
+          [[ "${actual,,}" == "${EXPECTED_SHA,,}" ]] || {
+            echo "::error::SHA-256 changed after the gate job."
+            exit 1
+          }
+          version="${TAG#v}+${MC}-${LOADER}"
+          name="Instant World Mirror ${TAG#v} - ${MC} ${LOADER}"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json body --jq '.body' > release-notes.md
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing Modrinth version
+        shell: bash
+        env:
+          VERSION: ${{ steps.asset.outputs.version }}
+        run: |
+          set -euo pipefail
+          if curl --fail --silent --show-error \
+              'https://api.modrinth.com/v2/project/2haXu0ro/version' \
+              | jq -e --arg version "$VERSION" \
+                'any(.[]; .version_number == $version)' >/dev/null; then
+            echo "::error::Modrinth version '$VERSION' already exists; inspect both stores before retrying."
+            exit 1
+          fi
+
+      - name: Publish the confirmed bytes to Modrinth and CurseForge
+        id: publish
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
+        with:
+          files: ${{ steps.asset.outputs.file }}
+          name: ${{ steps.asset.outputs.name }}
+          version: ${{ steps.asset.outputs.version }}
+          version-type: ${{ inputs.release_channel }}
+          changelog-file: release-notes.md
+          loaders: ${{ matrix.loader }}
+          environment: "client | server"
+          game-versions: ${{ matrix.minecraft }}
+          game-version-filter: none
+          java: ${{ matrix.java }}
+          retry-attempts: 1
+          retry-delay: 0
+          fail-mode: fail
+          modrinth-id: 2haXu0ro
+          modrinth-token: ${{ secrets.PUBLISH_MODRINTH_TOKEN }}
+          curseforge-id: 1449670
+          curseforge-token: ${{ secrets.PUBLISH_CURSEFORGE_TOKEN }}
+
+      - name: Record platform receipts
+        shell: bash
+        env:
+          MC: ${{ matrix.minecraft }}
+          FILE: ${{ steps.asset.outputs.file }}
+          VERSION: ${{ steps.asset.outputs.version }}
+          MODRINTH_URL: ${{ steps.publish.outputs.modrinth-url }}
+          CURSEFORGE_URL: ${{ steps.publish.outputs.curseforge-url }}
+        run: |
+          {
+            echo "## Published $MC"
+            echo
+            echo "- Version: \`$VERSION\`"
+            echo "- File: \`$FILE\`"
+            echo "- Modrinth: $MODRINTH_URL"
+            echo "- CurseForge: $CURSEFORGE_URL"
+            echo
+            echo "CurseForge may still be under moderation; upload success is not public availability."
+          } >> "$GITHUB_STEP_SUMMARY"
