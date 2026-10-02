@@ -1,5 +1,21 @@
 # InstantWorldMirror - 即时世界镜像
 
+<!-- PROMO-VIDEO:START -->
+
+**大胆探索，让原世界保持安全。映界之镜用于安全探路，天堂之镜用于创造模式试建，初梦之镜重现种子地形，搁浅之镜把世界切片重新打开到同版本的另一个存档。**
+
+`Forge 1.20.1` · `NeoForge 1.21.1`
+
+[![观看宣传片](https://i.ytimg.com/vi/AMWi2Ea9uMI/maxresdefault.jpg)](https://www.youtube.com/watch?v=AMWi2Ea9uMI)
+
+▶ [观看宣传片](https://www.youtube.com/watch?v=AMWi2Ea9uMI) · 1:26 · 1080p · 英文字幕、音乐与音效
+
+[CurseForge](https://www.curseforge.com/minecraft/mc-mods/instantworldmirror) · [Modrinth](https://modrinth.com/mod/instant-world-mirror) · [GitHub](https://github.com/crabsatellite/InstantWorldMirror)
+
+搁浅之镜跨存档使用要求相同 Minecraft 版本；物品带出遵循世界／服务器配置。
+
+<!-- PROMO-VIDEO:END -->
+
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)](https://minecraft.net/)
 [![NeoForge](https://img.shields.io/badge/NeoForge-21.1+-orange.svg)](https://neoforged.net/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../../LICENSE)
