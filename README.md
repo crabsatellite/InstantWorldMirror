@@ -1,5 +1,21 @@
 # InstantWorldMirror - Instant World Mirror
 
+<!-- PROMO-VIDEO:START -->
+
+**Explore boldly while your world stays safe. Scout a temporary copy, test builds in Creative, revisit untouched seed terrain or reopen a captured world slice from another save.**
+
+`Forge 1.20.1` · `NeoForge 1.21.1`
+
+[![Watch the trailer](https://i.ytimg.com/vi/AMWi2Ea9uMI/maxresdefault.jpg)](https://www.youtube.com/watch?v=AMWi2Ea9uMI)
+
+▶ [Watch the trailer](https://www.youtube.com/watch?v=AMWi2Ea9uMI) · 1:26 · 1080p · English captions, music and effects
+
+[CurseForge](https://www.curseforge.com/minecraft/mc-mods/instantworldmirror) · [Modrinth](https://modrinth.com/mod/instant-world-mirror) · [GitHub](https://github.com/crabsatellite/InstantWorldMirror)
+
+Stranded snapshots reopen across saves on the same Minecraft version. Item retention follows world/server rules.
+
+<!-- PROMO-VIDEO:END -->
+
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)](https://minecraft.net/)
 [![Forge](https://img.shields.io/badge/Forge-47.3+-orange.svg)](https://files.minecraftforge.net/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
